@@ -34,7 +34,7 @@ if "%~1" EQU "" goto AfterCommandCall
 :AfterCommandCall
 
 echo.
-echo Variavles containing locations of the IGLibScripts directory
+echo Variables containing locations of the IGLibScripts directory
 echo and some relevant scripts:
 echo.
 echo   IGLibScripts: %IGLibScripts%
