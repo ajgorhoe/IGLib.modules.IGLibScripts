@@ -49,6 +49,8 @@ echo RepositoryAddress: "%RepositoryAddress%"
 echo RepositoryAddressSecondary: "%RepositoryAddressSecondary%"
 echo RepositoryAddressLocal: "%RepositoryAddressLocal%"
 echo.
+echo ModuleGitSubdir: "%ModuleGitSubdir%"
+echo.
 
 :finalize
 ver > nul

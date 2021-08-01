@@ -40,6 +40,10 @@ echo.
 echo   IGLibScripts: %IGLibScripts%
 echo   UpdateRepo: %UpdateRepo%
 echo   SetVar: %SetVar%
+echo   PrintRepoSettings: %PrintRepoSettings%
+echo.
+echo   SetScriptReferences: %SetScriptReferences%
+echo   PrintScriptReferences: %PrintScriptReferences%
 echo.
 
 :finalize

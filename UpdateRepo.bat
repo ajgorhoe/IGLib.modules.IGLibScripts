@@ -73,22 +73,6 @@ ver > nul
 set ScriptDirUpdateRepo=%~dp0
 set InitialDirUpdateRepo=%CD%
 
-:: Skip the settings section:
-:: Uncomment goto later! 
-:: When testing is completed, this whole block will be removed.
-goto afterSettings
-:: Parameters for the update:
-set ModuleDirRelative=..\..\modules\IGLibCore
-set CheckoutBranch=master
-set RepositoryAddress=https://github.com/ajgorhoe/IGLib.modules.IGLibCore.git
-set RepositoryAddressSecondary=https://ajgorhoe@bitbucket.org/ajgorhoe/iglib.modules.iglibcore.git
-set RepositoryAddressLocal=d:/backup_sync/bk_code/git/ig/misc/iglib_modules/IGLibCore/
-set Remote=origin
-set RemoteSecondary=originBitBucket
-set RemoteLocal=local
-set ModuleDir=%~dp0%ModuleDirRelative%
-:afterSettings
-
 if "%~1" EQU "" goto AfterCommandCall
 	:: If any command-line arguments were specified then assemble a 
 	:: command-line from these arguments and execute it:
@@ -114,8 +98,8 @@ call  %~dp0\PrintRepoSettings.bat
 :: Basic checks if something is forgotten
 if not defined Remote (set Remote=origin)
 if "%Remote%" EQU "" (set Remote=origin)
-if not defined RemoteSecondary (set RemoteSecondary=originsecondary)
-if "%RemoteSecondary%" EQU "" (set RemoteSecondary=originsecondary)
+if not defined RemoteSecondary (set RemoteSecondary=originSecondary)
+if "%RemoteSecondary%" EQU "" (set RemoteSecondary=originSecondary)
 if not defined RemoteLocal (set RemoteLocal=local)
 if "%RemoteLocal%" EQU "" (set RemoteLocal=local)
 
