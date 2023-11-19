@@ -52,7 +52,14 @@ function GetProcesses($NameContains=$null)
 
 
 <#
-
+.Synopsis
+Gets a list of computer's storage drives.
+.Description
+See .Synopsis.
+.Parameter Verbose
+If $true then all information on computer drives is included in the list. If $false
+then only the basic information is included.
+#>
 function GetDrives($Verbose = $False)
 {
 	if ($Verbose)
@@ -79,7 +86,6 @@ function GetDrives($Verbose = $False)
 	return $ret;
 }
 
-#>
 
 
 <#
@@ -95,7 +101,8 @@ function GetDevices($Verbose = $False)
 {
 	if ($Verbose)
 	{
-		$ret = Get-PnpDevice -PresentOnly | Where-Object { $_.InstanceId -match '^USB' } | Format-List
+		$ret = Get-PnpDevice -PresentOnly | Where-Object { 
+			$_.InstanceId -match '^USB' } 
 	} else
 	{
 		$ret = Get-PnpDevice -PresentOnly | Where-Object { $_.InstanceId -match '^USB' }
