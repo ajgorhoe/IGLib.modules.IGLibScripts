@@ -63,7 +63,7 @@ function GetProc($NameContains=$null, $First = $null,
 		# Write-Host "  SortCpu:       $SortCpu"
 	# }
 	$ret = Get-Process
-	if ($NameContains -ne $null)
+	if ($null -ne $NameContains)
 	{
 		$ret = $ret | Where-Object { $_.ProcessName `
 			-match "$NameContains" }
@@ -75,17 +75,17 @@ function GetProc($NameContains=$null, $First = $null,
 	if ($SortCpu)
 	{
 		$ret = $ret | Sort-Object CPU -Descending
-		if ($First -eq $null)
+		if ($null -eq $First)
 		{
 			$First = 20
 			# Write-Host "  First (because: SortCpu):         $First"
 		}			
 	}
-	if ($Last -ne $null -and $Last -gt 0)
+	if ($null -ne $Last -and $Last -gt 0)
 	{
 		$ret = $ret | Select-Object -Last $Last
 	}
-	if ($First -ne $null -and $First -gt 0)
+	if ($null -ne $First -and $First -gt 0)
 	{
 		$ret = $ret | Select-Object -First $First
 	}
@@ -149,17 +149,88 @@ function GetDrives([switch] $All, [switch] $TableFormat)
 .Synopsis
 Gets a list of computer's devices.
 .Description
-See .Synopsis.
+This function returns computer's devices. Various filtering and sorting options
+can be applied, whih includes requiring the name or class to include a certain
+string, or returning only devices that are probably USB devices.
+See also .Synopsis.
+.Parameter NameContains
+If not $null: Only devices that contain $NameContains in their Name parameters
+are returned.
+.Parameter ClassContains
+If not $null: Only devices that contain $ClassContains in their Name parameters
+are returned.
+.Parameter First
+If specified then only the first $First entries are returned.
+.Parameter Last
+If specified then only the first $Last entries are returned. If parameter First is
+also specidied then this parameter has precee\edence over it.
+.Parameter SortName
+Switch. Returned devices are sorted by the Name property.
+.Parameter SortClass
+Switch. Returned devices are sorted by the Class property. If both this switch 
+and the SortName are specified then outer sort is by class and inner is by name.
 .Parameter All
-If $true then information on all deviced is returned, even those whose Status 
-property is not OK.
+Switch. If on then also devices that are not plugged in are listed (those
+whose Status property is not "OK").
+.Parameter TableFormat 
+If ths switch is specified ($true) then returned records are formatted as a table.
+.Parameter OnlyUsbDevices
+Switch. If on then only devices that are probably USB devices are listed.
 #>
-function GetDevices([switch] $All)
+function GetDevices($NameContains = $null, $ClassContains = $null, 
+	$First = $null, $Last = $null, 
+	[switch] $SortName, [switch] $SortClass, 
+	[switch] $All, [switch] $TableFormat,
+	[switch] $OnlyUsbDevices)
 {
 	$ret = Get-PnpDevice
+	if ($OnlyUsbDevices)
+	{
+		# Return is limited to USB debices
+		$ret = $ret | Where-Object { 
+			$_.InstanceId -match 'USB' -or
+			$_.Class -match 'USB'
+		}
+	}
 	if (-not $All)
 	{
 		$ret = $ret | Where-Object { $_.Status -eq "OK" }
+	}
+	if ($null -ne $NameContains)
+	{
+		$ret = $ret | Where-Object { $_.Name `
+			-match "$NameContains" }
+	}
+	if ($null -ne $ClassContains)
+	{
+		$ret = $ret | Where-Object { $_.Class `
+			-match "$ClassContains" }
+	}
+	if ($SortName)
+	{
+		if ($SortClass)
+		{
+			$ret = $ret | Sort-Object Class, Name
+		} else 
+		{
+			$ret = $ret | Sort-Object Name
+		}
+	} elseif ($SortClass)
+	{
+		$ret = $ret | Sort-Object Name
+	}
+
+	if ($null -ne $Last -and $Last -gt 0)
+	{
+		$ret = $ret | Select-Object -Last $Last
+	}
+	if ($null -ne $First -and $First -gt 0)
+	{
+		$ret = $ret | Select-Object -First $First
+	}
+	if ($TableFormat)
+	{
+		$ret = $ret | Format-Table
 	}
 	return $ret;
 }
@@ -168,24 +239,47 @@ function GetDevices([switch] $All)
 
 <#
 .Synopsis
-Gets a list of connected USB devices.
+Gets a list of USB devices on the current computer.
 .Description
-See .Synopsis.
-.Parameter Verbose
-If $true then complete information on devices is included in the list. If $false
-then only the basic information is included.
+The same as GetDevices(), except that only the devices that are most likely 
+USB devices are returned (this method calls the GetDevices() to do the job).
+This method has the same parameters as GetDevices, except the $OnlyUsbDevices, 
+which is not a parameter because this switch is always on.
+See also .Synopsis.
+.Remarks
+For meanning of parameters, see GetDevices().
 #>
-function GetUsbDevices([switch]$Verbose)
+
+function GetUsbDevices($NameContains = $null, $ClassContains = $null, 
+	$First = $null, $Last = $null, 
+	[switch] $SortName, [switch] $SortClass, 
+	[switch] $All, [switch] $TableFormat )
 {
-	if ($Verbose)
-	{
-		$ret = Get-PnpDevice -PresentOnly | Where-Object { $_.InstanceId -match '^USB' } | Format-List
-	} else
-	{
-		$ret = Get-PnpDevice -PresentOnly | Where-Object { $_.InstanceId -match '^USB' }
-	}
-	return $ret;
+	# if ($true)
+	# {
+	# 	Write-Host "Function GetUsbDevices called:"
+	# 	Write-Host "  NameContains:  $NameContains"
+	# 	Write-Host "  ClassContains: $ClassContains"
+	# 	Write-Host "  TableFormat:   $TableFormat"
+	# 	Write-Host "  First:         $First"
+	# 	Write-Host "  Last:          $Last"
+	# 	Write-Host "  SortName:      $SortName"
+	# 	Write-Host "  SortClass:     $SortClass"
+	# 	Write-Host "  All:           $All"
+	# 	Write-Host "  TableFormat:   $TableFormat"
+	# }
+	$ret = $null
+	$ret = GetDevices `
+			-NameContains: $NameContains -ClassContains: $ClassContains `
+			-First: $First -Last: $Last `
+			-SortName: $SortName  -SortClass: $SortClass `
+			-All: $All `
+			-TableFormat: $TableFormat `
+			-OnlyUsbDevices: $true 
+			
+	return $ret
 }
+
 
 
 <#
@@ -392,11 +486,15 @@ Displays information on available Wi-Fi networks in a grid view.
 .Description
 See .Synopsis.
 #>
-function WifiDisplayAwailableGridView() 
+function WifiDisplayAwailableGridView1111()
 {
+	$ret = $null
+	
 	$ret = $(GetAvailableWifiNetworks)
-	$ret | Out-GridView -Title 'Available Wi-Fi networks'
+	ToDo: use th line below to define th return value!
+	return $ret | Out-GridView -Title 'Available Wi-Fi networks'
 }
+
 
 
 
