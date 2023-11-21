@@ -287,26 +287,30 @@ function GetUsbDevices($NameContains = $null, $ClassContains = $null,
 Gets a list of connected USB controllers.
 .Description
 See .Synopsis.
-.Parameter Verbose
+.Parameter All
 If $true then all information on controllers is included in the list. If $false
 then only the basic information is provided.
+.Parameter TableFormat 
+If ths switch is specified ($true) then returned records are formatted as a table.
 #>
-function GetUsbControllers($Verbose = $False)
+function GetUsbControllers([switch] $All, [switch] $TableFormat)
 {
-	if ($Verbose)
+	$ret = Get-WmiObject -Query "SELECT * FROM Win32_USBController"
+	if (-not $All)
 	{
-		$ret = Get-WmiObject -Query "SELECT * FROM Win32_USBController"
-	} else
-	{
-		$ret = Get-WmiObject -Query "SELECT * FROM Win32_USBController" |
+		$ret = $ret | Where-Object { $_.Status -eq "OK" }
+		$ret = $ret |
 			Select-Object `
 			Name, Description, `
 			Manufacturer, `
-			Status `
-			| Format-List
-			#Caption, `
+			Status, `
+			Caption, `
+			PNPDeviceID `
 			#Manufacturer `
-			#PNPDeviceID, `
+	}
+	if ($TableFormat)
+	{
+		$ret = $ret | Format-Table
 	}
 	return $ret;
 }
@@ -475,7 +479,7 @@ function GetAvailableWifiNetworks()
 		}
 	}
 	$cmdRes=$null
-	$entries 
+	return $entries 
 	# | Out-String
 }
 
@@ -486,12 +490,12 @@ Displays information on available Wi-Fi networks in a grid view.
 .Description
 See .Synopsis.
 #>
-function WifiDisplayAwailableGridView1111()
+function WifiDisplayAwailableGridView()
 {
 	$ret = $null
 	
 	$ret = $(GetAvailableWifiNetworks)
-	ToDo: use th line below to define th return value!
+	# ToDo: use th line below to define th return value!
 	return $ret | Out-GridView -Title 'Available Wi-Fi networks'
 }
 
