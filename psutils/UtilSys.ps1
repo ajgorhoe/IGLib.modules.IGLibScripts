@@ -75,6 +75,54 @@ function GetCpuUsage()
 #>
 
 
+function GetProcCpuWin($num = 20)
+{
+	Get-Counter '\Process(*)\ID Process','\Process(*)\% Processor Time' -ErrorAction SilentlyContinue |
+    ForEach-Object {
+    $_.CounterSamples |
+      Where-Object InstanceName -NotMatch '^(?:idle|_total|system)$' |
+      Group-Object {Split-Path $_.Path} |
+      ForEach-Object {
+        [pscustomobject]@{
+          ProcessName = $_.Group[0].InstanceName
+          ProcessId = $_.Group |? Path -like '*\ID Process' |% RawValue
+          CPUCooked = $_.Group |? Path -like '*\% Processor Time' |% CookedValue
+        }
+      } |Sort-Object CPUCooked -Descending |
+         Select-Object -First $num -Property *,@{Name='CPUPercentage';Expression={'{0:P}' -f ($_.CPUCooked / 100 / $env:NUMBER_OF_PROCESSORS)}} -ExcludeProperty CPUCooked
+  }
+}
+
+
+
+function GetProcessCPUUsage()
+{
+
+# Get all processes
+$allProcesses = Get-Process
+# Create a dictionary to store process objects with process ID as the key
+$processDictionary = @{}
+# Populate the dictionary
+foreach ($process in $allProcesses) {
+    $processDictionary[$process.Id] = $process
+}
+# Sleep for one second to measure CPU time over an interval
+Start-Sleep -Seconds 1
+
+# Get processes and calculate CPU usage percentage
+$processes = Get-Process | sort CPU -Descending | select -First 10 | ForEach-Object {
+    # $_ | Add-Member -MemberType NoteProperty -Name 'CPUPercentage' -Value (($_.CPU - $processDictionary[$_.Id].CPU) * 100) -PassThru
+	
+	$_ | Add-Member -MemberType NoteProperty -Name 'CPUPercentage' -Value (($_.CPU /2) * 100) -PassThru
+}
+$Processes | sort CPUPercentage -Descending | Select Name, Cpu, CPUPercentage
+#  | select -First 10
+
+}
+
+
+
+
 
 <#
 .Synopsis
