@@ -98,6 +98,7 @@ function GetProcCpuWin($num = 20)
 function GetProcessCPUUsage()
 {
 
+
 # Get all processes
 $allProcesses = Get-Process
 # Create a dictionary to store process objects with process ID as the key
@@ -110,13 +111,29 @@ foreach ($process in $allProcesses) {
 Start-Sleep -Seconds 1
 
 # Get processes and calculate CPU usage percentage
-$processes = Get-Process | sort CPU -Descending | select -First 10 | ForEach-Object {
+$Processes = Get-Process | sort CPU -Descending | select -First 10 | ForEach-Object {
+	Write-Output "Name: $_.Name"
+	Write-Output "Id: $_.Id"
+	Write-Output "Current CPU: $_.CPU"
     # $_ | Add-Member -MemberType NoteProperty -Name 'CPUPercentage' -Value (($_.CPU - $processDictionary[$_.Id].CPU) * 100) -PassThru
 	
 	$_ | Add-Member -MemberType NoteProperty -Name 'CPUPercentage' -Value (($_.CPU /2) * 100) -PassThru
 }
-$Processes | sort CPUPercentage -Descending | Select Name, Cpu, CPUPercentage
+$Processes | sort CPUPercentage -Descending | Select-Object Name, Cpu, CPUPercentage
 #  | select -First 10
+
+
+$sampleProc = $allProcesses[0]
+Write-Host "Sample process: "
+Write-Host "Name:"   $sampleProc.Name
+Write-Host "Id: "    $sampleProc.Id
+Write-Host "CPU:  "  $sampleProc.CPU
+$dictProc = $processDictionary[$sampleProc.Id]
+Write-Host "Corresponding process from dictionary: "
+Write-Host "Name:"   $dictProc.Name
+Write-Host "Id: "    $dictProc.Id
+Write-Host "CPU:  "  $dictProc.CPU
+
 
 }
 
