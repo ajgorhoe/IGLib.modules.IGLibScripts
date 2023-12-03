@@ -148,7 +148,7 @@ Output is sorted by the CPU usage.
 .Description
 See .Synopsis.
 .Notes
-This function only works on Windows operating systems. For other systems, use GetProcCpuUsage.
+This function only works on Windows operating systems. For other systems, use GetProcCpuWin or GetProcCpu.
 .Parameter num
 Number of processes for which the information is returned, default is 20.
 #>
@@ -183,7 +183,7 @@ This function should be cross-platform. This is not yet tested.
 ##.Parameter num
 ##Number of processes for which the information is returned, default is 20.
 #>
-function GetProcCpuUsage()
+function GetProcCpuIncomplete()
 {
 
 
