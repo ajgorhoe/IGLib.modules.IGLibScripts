@@ -21,6 +21,61 @@
             ######################
 
 
+
+function IsLinux()
+{
+	if ($IsLinux) {
+		return $true;
+	} else {
+		return $false;
+	}
+}
+
+function IsWindows()
+{
+	if ($env:OS -like 'Windows*') {
+		return $true;
+	} else {
+		return $fale;
+	}
+}
+
+
+function GetTotalMemory()
+{
+	$memoryInfo = Get-CimInstance -ClassName CIM_OperatingSystem
+	return $memoryInfo.TotalVisibleMemorySize
+}
+
+
+function GetFreeMemory()
+{
+	$memoryInfo = Get-CimInstance -ClassName CIM_OperatingSystem
+	return $memoryInfo.FreePhysicalMemory
+}
+
+function GetCpuUsage()
+{
+	return (Get-CimInstance -ClassName CIM_Processor).LoadPercentage;
+}
+
+
+
+
+
+            #############################
+            #                           #
+            #    Process Information    #
+            #                           #
+            #############################
+
+
+<#
+
+#>
+
+
+
 <#
 .Synopsis
 Gets a list of running processes.
@@ -46,8 +101,13 @@ ProcessName property.
 If ths switch is specified ($true) then returned records are formatted as a table.
 .Remarks
 This dunction returns a list of processes.
+.Remarks
+Platform information on 
 .Example
-GetProc ""
+GetProc "explore"
+  - returns all processes that have "explore" in their name.
+GetProc -SortCpu -First 20
+  - returns the first 20 processes sorted by the CPU property in descending order.
 #>
 function GetProc($NameContains=$null, $First = $null,
 	$Last = $null, [switch] $SortCpu, [switch] $SortProcessName, 
