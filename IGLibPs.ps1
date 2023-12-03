@@ -5,9 +5,9 @@
 
 
 # Execute definitions from PowerShell files in the repository root:
-. "$(Join-Path "$PSScriptRoot" "../ImportAll.ps1")"
+. "$(Join-Path "$PSScriptRoot" "ImportAll.ps1")"
 
 
 # Execute definitions from PowerShell files in the current directory:
-. "$(Join-Path "$PSScriptRoot" "UtilSys.ps1")"
+. "$(Join-Path "$PSScriptRoot" "psutils/ImportAllUtils.ps1")"
 
