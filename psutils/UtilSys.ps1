@@ -124,6 +124,7 @@ $Processes | sort CPUPercentage -Descending | Select-Object Name, Cpu, CPUPercen
 
 
 $sampleProc = $allProcesses[0]
+Write-Host ""
 Write-Host "Sample process: "
 Write-Host "Name:"   $sampleProc.Name
 Write-Host "Id: "    $sampleProc.Id
@@ -133,6 +134,10 @@ Write-Host "Corresponding process from dictionary: "
 Write-Host "Name:"   $dictProc.Name
 Write-Host "Id: "    $dictProc.Id
 Write-Host "CPU:  "  $dictProc.CPU
+Write-Host ""
+Write-Host ""
+Write-Host "Processes: "
+Write-Host "$($Processes | Format-Table  | select -First 10 )"
 
 
 }
