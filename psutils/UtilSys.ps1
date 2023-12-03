@@ -139,6 +139,28 @@ Function GetCpuUsage()
             #                           #
             #############################
 
+<#
+Information on Get-Process output:
+    Handles:
+        The number of kernel objects that the process has open. This includes file handles, registry keys, synchronization objects, etc.
+    NPM(K):
+        Non-paged memory in kilobytes. Non-paged memory is the portion of a process's memory that cannot be moved from physical RAM to disk. It includes data structures and code that must be accessible quickly and cannot be paged out.
+        Units: Kilobytes.
+    PM(K):
+        Paged memory in kilobytes. Paged memory is the portion of a process's memory that can be moved from physical RAM to disk when it's not actively in use.
+        Units: Kilobytes.
+    WS(K):
+        Working Set in kilobytes. The working set represents the portion of a process's memory that is currently in physical RAM and is actively being used.
+        Units: Kilobytes.
+    VM(M):
+        Virtual memory size in megabytes. This represents the total amount of virtual memory that the process is using, including both physical RAM and disk space.
+        Units: Megabytes.
+    CPU(s):
+        Total processor time used by the process. It includes the time the process has spent running on both user and kernel modes.
+        Units: Seconds.
+#>
+
+
 
 <#
 .Synopsis
