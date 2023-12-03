@@ -22,7 +22,14 @@
 
 
 
-function IsLinux()
+
+<#
+.Synopsis
+Returns $true if the current script is executing on a Linux machine, false otherwise.
+.Description
+See .Synopsis.
+#>
+function IsOsLinux()
 {
 	if ($IsLinux) {
 		return $true;
@@ -31,7 +38,14 @@ function IsLinux()
 	}
 }
 
-function IsWindows()
+
+<#
+.Synopsis
+Returns $true if the current script is executing on a Windows machine, false otherwise.
+.Description
+See .Synopsis.
+#>
+function IsOsWindows()
 {
 	if ($env:OS -like 'Windows*') {
 		return $true;
@@ -40,7 +54,30 @@ function IsWindows()
 	}
 }
 
+<#
+.Synopsis
+Returns $true if the current script is executing on a Mac OS machine, false otherwise.
+.Description
+See .Synopsis.
+#>
+function IsOsMacOS()
+{
+	if ($IsMacOS) {
+		return $true;
+	} else {
+		return $false;
+	}
+}
 
+
+<#
+.Synopsis
+Returns total available (installed) memory on the current system, in bytes.
+.Description
+See .Synopsis.
+.Notes
+This function should be platform independent. This is not verified.
+#>
 function GetTotalMemory()
 {
 	$memoryInfo = Get-CimInstance -ClassName CIM_OperatingSystem
@@ -48,17 +85,50 @@ function GetTotalMemory()
 }
 
 
+<#
+.Synopsis
+Returns the amount of free memory on the current system, in bytes.
+.Description
+See .Synopsis.
+.Notes
+This function should be platform independent. This is not verified.
+#>
 function GetFreeMemory()
 {
 	$memoryInfo = Get-CimInstance -ClassName CIM_OperatingSystem
 	return $memoryInfo.FreePhysicalMemory
 }
 
-function GetCpuUsage()
+
+<#
+.Synopsis
+Returns the current CPU usage, in percent.
+.Description
+See .Synopsis.
+.Notes
+This function should be platform independent. This is not verified.
+#>
+function GetCpuUsagePercent()
 {
 	return (Get-CimInstance -ClassName CIM_Processor).LoadPercentage;
 }
 
+
+<#
+.Synopsis
+Returns the current CPU usage, as fraction of the maximum available CPU capacity.
+.Description
+See .Synopsis.
+.Notes
+This function should be platform independent. This is not verified.
+#>
+function GetCpuUsageFraction()
+{
+	return $($(GetCpuUsagePercent)/100.0);
+}
+
+Function GetCpuUsage()
+{ return GetCpuUsageFraction }
 
 
 
@@ -71,10 +141,17 @@ function GetCpuUsage()
 
 
 <#
-
+.Synopsis
+Returns Information on the current processes' CPU usage on Windows systems, in percentage 
+of the available CPU.
+Output is sorted by the CPU usage.
+.Description
+See .Synopsis.
+.Notes
+This function only works on Windows operating systems. For other systems, use GetProcCpuUsage.
+.Parameter num
+Number of processes for which the information is returned, default is 20.
 #>
-
-
 function GetProcCpuWin($num = 20)
 {
 	Get-Counter '\Process(*)\ID Process','\Process(*)\% Processor Time' -ErrorAction SilentlyContinue |
@@ -88,14 +165,25 @@ function GetProcCpuWin($num = 20)
           ProcessId = $_.Group |? Path -like '*\ID Process' |% RawValue
           CPUCooked = $_.Group |? Path -like '*\% Processor Time' |% CookedValue
         }
-      } |Sort-Object CPUCooked -Descending |
+      } | Sort-Object CPUCooked -Descending |
          Select-Object -First $num -Property *,@{Name='CPUPercentage';Expression={'{0:P}' -f ($_.CPUCooked / 100 / $env:NUMBER_OF_PROCESSORS)}} -ExcludeProperty CPUCooked
   }
 }
 
 
 
-function GetProcessCPUUsage()
+<#
+.Synopsis
+Returns Information on the current processes' CPU usage, in percentage of the available CPU.
+##Output is sorted by the CPU usage.
+.Description
+See .Synopsis.
+.Notes
+This function should be cross-platform. This is not yet tested.
+##.Parameter num
+##Number of processes for which the information is returned, default is 20.
+#>
+function GetProcCpuUsage()
 {
 
 
@@ -112,32 +200,31 @@ Start-Sleep -Seconds 1
 
 # Get processes and calculate CPU usage percentage
 $Processes = Get-Process | sort CPU -Descending | select -First 10 | ForEach-Object {
-	Write-Output "Name: $_.Name"
-	Write-Output "Id: $_.Id"
-	Write-Output "Current CPU: $_.CPU"
+	Write-Host "Name: $($_.Name)"
+	Write-Host "Id: $($_.Id)"
+	Write-Host "Current CPU: $($_.CPU)"
     # $_ | Add-Member -MemberType NoteProperty -Name 'CPUPercentage' -Value (($_.CPU - $processDictionary[$_.Id].CPU) * 100) -PassThru
-	
 	$_ | Add-Member -MemberType NoteProperty -Name 'CPUPercentage' -Value (($_.CPU /2) * 100) -PassThru
 }
-$Processes | sort CPUPercentage -Descending | Select-Object Name, Cpu, CPUPercentage
+# $Processes | sort CPUPercentage -Descending | Select-Object Name, Cpu, CPUPercentage
 #  | select -First 10
-
+Write-Host "$($Processes | Format-Table  | select -First 10 )"
 
 $sampleProc = $allProcesses[0]
 Write-Host ""
 Write-Host "Sample process: "
-Write-Host "Name:"   $sampleProc.Name
-Write-Host "Id: "    $sampleProc.Id
-Write-Host "CPU:  "  $sampleProc.CPU
+Write-Host "Name:   $($sampleProc.Name) "
+Write-Host "Id:     $($sampleProc.Id) "
+Write-Host "CPU:    $($sampleProc.CPU) "
 $dictProc = $processDictionary[$sampleProc.Id]
 Write-Host "Corresponding process from dictionary: "
-Write-Host "Name:"   $dictProc.Name
-Write-Host "Id: "    $dictProc.Id
-Write-Host "CPU:  "  $dictProc.CPU
+Write-Host "Name:   $($dictProc.Name) "
+Write-Host "Id:     $($dictProc.Id) "
+Write-Host "CPU:    $($dictProc.CPU) "
 Write-Host ""
 Write-Host ""
 Write-Host "Processes: "
-Write-Host "$($Processes | Format-Table  | select -First 10 )"
+
 
 
 }
@@ -152,7 +239,7 @@ Gets a list of running processes.
 .Description
 See .Synopsis.
 .Notes
-See .Synopsis.
+This function returns a list of processes.
 .Parameter NameContains
 If specified (not $null) then only those processes are listed that contain 
 the $NameContains in their process name. This parameter can also be specified as
@@ -169,10 +256,6 @@ If ths switch is specified ($true) then returned records are sorted by the
 ProcessName property.
 .Parameter TableFormat 
 If ths switch is specified ($true) then returned records are formatted as a table.
-.Remarks
-This dunction returns a list of processes.
-.Remarks
-Platform information on 
 .Example
 GetProc "explore"
   - returns all processes that have "explore" in their name.
