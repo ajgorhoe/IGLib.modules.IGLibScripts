@@ -19,7 +19,7 @@ Directory.SetCurrentDirectory(scriptDir);
 // Directory.GetCurrentDirectory().Replace(@"\", @"/");
 Args.Add("arg1"); Args.Add("arg2"); Args.Add("arg3"); Args.Add("arg 4"); Args.Add("="); Args.Add("+"); Args.Add("$$[]"); Args.Add(""); Args.Add("$${}"); Args.Add(""); Args.Add("$$()");
 var cd = Directory.GetCurrentDirectory();
-// afterwards:
+// -------------  afterwards:
 #load "main.csx"
 #load "tests/testscript.csx"
 -------------
