@@ -96,7 +96,7 @@ public static bool LoadServiceAssemblies(string projectName, bool forceRelease =
 /// <summary>Loads assemblies for a set of services (<paramref name="projectNames"/>) by using
 /// <see cref="LoadServiceAssemblies(string, bool)"/>, with Debug versions prioritized.</summary>
 /// <seealso cref="LoadServiceAssemblies(string, bool)"/>
-public static string LoadProjectAssemblies(params string[] projectNames)
+public static void LoadProjectAssemblies(params string[] projectNames)
 {
     foreach(string projectName in projectNames)
     {
@@ -107,7 +107,7 @@ public static string LoadProjectAssemblies(params string[] projectNames)
 /// <summary>Loads release assemblies for a set of services (<paramref name="projectNames"/>) by using
 /// <see cref="LoadServiceAssemblies(string, bool)"/> (only Release versions are considered).</summary>
 /// <seealso cref="LoadServiceAssemblies(string, bool)"/>
-public static string LoadProjectReleaseAssemblies(params string[] projectNames)
+public static void LoadProjectReleaseAssemblies(params string[] projectNames)
 {
     foreach(string projectName in projectNames)
     {
