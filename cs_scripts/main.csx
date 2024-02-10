@@ -34,5 +34,5 @@ string loadedScript_main = GetScriptPath();
 string lastLoadedScript = loadedScript_main;
 
 
-Console.WriteLine("Autogenerate main (scaffolding with dotnet script init)");
+Console.WriteLine("From mmain.csx: Autogenerate main (scaffolding with dotnet script init)");
 

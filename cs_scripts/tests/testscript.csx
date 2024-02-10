@@ -18,7 +18,8 @@ var scriptDir = @"c:\users1\igor\bat\bootstrappingscripts\IGLibScripts\cs_script
 Directory.SetCurrentDirectory(scriptDir);
 Directory.GetCurrentDirectory()
 Args.Add("arg1"); Args.Add("arg2"); Args.Add("arg3"); Args.Add("arg 4"); Args.Add("="); Args.Add("+"); Args.Add("$$[]"); Args.Add(""); Args.Add("$${}"); Args.Add(""); Args.Add("$$()");
-#load "testscript1.csx"
+// ------------- After the above code - in a separate interactive REPL block:
+#load "testscript.csx"
 Directory.GetCurrentDirectory()
 -------------
 */
@@ -26,7 +27,7 @@ Directory.GetCurrentDirectory()
 
 
 
-
+using System;
 
 Console.WriteLine($"Type of the 'Args' variable containing command-line arguments: ${Args.GetType().Name}\n");
 Console.WriteLine($"Calling the script for printing command-line arguments...");
@@ -57,5 +58,37 @@ public void PrintCommandlineArguments(IList<string> cmdArgs = null)
 }
 
 
+/*
+//The code below does not work, namespaces cannot be defined in C# scripts.
+//When trying to execute the code, I get the following error message:
+//error CS7021: Cannot declare namespace in script code
+
+
+using System;
+
+namespace MyNamespace
+{
+    public class MyClass
+    {
+        public void MyMethod()
+        {
+            Console.WriteLine("Hello from MyMethod!");
+        }
+    }
+
+    public int myVariable = 42;
+
+    public void PrintVariable()
+    {
+        Console.WriteLine($"The value of myVariable is: {myVariable}");
+    }
+}
+
+// Access the class and variable from the defined namespace
+MyNamespace.MyClass myObject = new MyNamespace.MyClass();
+myObject.MyMethod();
+
+MyNamespace.PrintVariable();
+*/
 
 
