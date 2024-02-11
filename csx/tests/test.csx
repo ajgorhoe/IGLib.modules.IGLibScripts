@@ -7,7 +7,7 @@ To run this script from command-line:
 -------------
 set scriptDir=c:\users1\igor\bat\bootstrappingscripts\IGLibScripts\cs_scripts\tests\
 cd "%scriptDir%"
-dotnet script testscript.csx -- arg1 arg2 arg3 "arg 4" = + $$[] $${} $$()
+dotnet script tes.csx -- arg1 arg2 arg3 "arg 4" = + $$[] $${} $$()
 // ...
 #exit   //exit the interractive mode
 // or, alternatively, omit the -i option in dotnet script
@@ -19,7 +19,7 @@ Directory.SetCurrentDirectory(scriptDir);
 Directory.GetCurrentDirectory()
 Args.Add("arg1"); Args.Add("arg2"); Args.Add("arg3"); Args.Add("arg 4"); Args.Add("="); Args.Add("+"); Args.Add("$$[]"); Args.Add(""); Args.Add("$${}"); Args.Add(""); Args.Add("$$()");
 // ------------- After the above code - in a separate interactive REPL block:
-#load "testscript.csx"
+#load "test.csx"
 Directory.GetCurrentDirectory()
 -------------
 */
