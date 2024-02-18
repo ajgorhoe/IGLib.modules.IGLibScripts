@@ -1,6 +1,9 @@
 #!/usr/bin/env pwsh
 
 # Powershell info and helper utilities
+
+# NOTE: This script is still in development and should not be used in production code.
+
 # https://github.com/ajgorhoe/IGLib.modules.IGLibScriptsPS.git
 
 # Remark: make sure you have set the execution policy correctly, e.g. (as admin.):
@@ -64,12 +67,22 @@ function PrintArray($ArrayVar = $null)
 	Write-Host "$str"
 }
 
+
 function DictionaryToString($DictVar = $null)
 {
 	if ("$DictVar" -eq "") { return "$null"; }
+	$sb = New-Object -TypeName "System.Text.StringBuilder";
 	foreach ($key in $dictionary.Keys) { 
-		Write-Host "Key: $key    Value: $($dictionary[$key])" 
-	} 
+		Write-Host "  Key: $key    Value: $($dictionary[$key])" 
+	}
+	return $($sb.ToString());
+}
+
+function PrintDictionary($DictVar = $null)
+{
+	$str = DictionaryToString $DictVar
+	Write-Host "$str"
+
 }
 
 
