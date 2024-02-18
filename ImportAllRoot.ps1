@@ -15,9 +15,10 @@ $ExecutedScriptPath_ImportAll = $MyInvocation.MyCommand.Path
 
 # Execute basic utility scripts:
 . $(Join-Path "$PSScriptRoot" "PowerShellInfo.ps1")
+. $(Join-Path "$PSScriptRoot" "Common.ps1")
 . $(Join-Path "$PSScriptRoot" "PSInfo.ps1")
 . $(Join-Path "$PSScriptRoot" "File.ps1")
-. (Join-Path "$PSScriptRoot" "GitHelpers.ps1")
+. $(Join-Path "$PSScriptRoot" "GitHelpers.ps1")
 
 # Execute specialized scripts in psutils: 
 . $(Join-Path "$PSScriptRoot" "psutils/UtilsWeb.ps1")
