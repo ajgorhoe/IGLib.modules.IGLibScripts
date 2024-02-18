@@ -11,11 +11,14 @@ CheckScriptExecuted $ExecutedScriptPath_ImportAll $MyInvocation.MyCommand.Path;
 # Store scritp path in a variable in order to enable later verifications:
 $ExecutedScriptPath_ImportAll = $MyInvocation.MyCommand.Path
 
+# Execute all utility scripts:
+
 # Execute basic utility scripts:
-. "$(Join-Path "$PSScriptRoot" "PowerShellInfo.ps1")"
-. "$(Join-Path "$PSScriptRoot" "File.ps1")"
-. "$(Join-Path "$PSScriptRoot" "GitHelpers.ps1")"
+. $(Join-Path "$PSScriptRoot" "PowerShellInfo.ps1")
+. $(Join-Path "$PSScriptRoot" "PSInfo.ps1")
+. $(Join-Path "$PSScriptRoot" "File.ps1")
+. (Join-Path "$PSScriptRoot" "GitHelpers.ps1")
 
 # Execute specialized scripts in psutils: 
-. "$(Join-Path "$PSScriptRoot" "psutils/UtilsWeb.ps1.ps1")"
+. $(Join-Path "$PSScriptRoot" "psutils/UtilsWeb.ps1")
 

@@ -20,6 +20,8 @@ using System.Runtime.CompilerServices;
 
 #endregion References
 
+
+
 #region ScriptingSupport
 
 
@@ -28,14 +30,30 @@ public static DateTime GetCurrentTime() => DateTime.Now;
 /// <summary>Gets the current time.</summary>
 public static DateTime time => GetCurrentTime();
 
+public static string NormalizePath(string path)
+{
+    if (string.IsNullOrEmpty(path))
+    { path = ".";  }
+    return Path.GetFullPath(path)?.Replace(@"\", @"/");
+}
+
+/// <summary>Returns the file path of the currently executing script.</summary>
+/// <param name="path">Dummy parameter, not used.</param>
+public static string GetScriptPathNotNormalized([CallerFilePath] string path = null)
+    => path;
+
 /// <summary>Returns the file path of the currently executing script.</summary>
 /// <param name="path">Dummy parameter, not used.</param>
 public static string GetScriptPath([CallerFilePath] string path = null)
-    => path;
+    => NormalizePath(path);
+
+public static string scriptpath => GetScriptPath();
+
 /// <summary>Returns the file name of the currently executing script.</summary>
 /// <param name="path">Dummy parameter, not used.</param>
 public static string GetScriptFileName([CallerFilePath] string path = null)
     => Path.GetFileName(path);
+
 /// <summary>Returns the containing directory path of the currently executing script.</summary>
 /// <param name="path">Dummy parameter, not used.</param>
 public static string GetScriptDirectory([CallerFilePath] string path = null)
