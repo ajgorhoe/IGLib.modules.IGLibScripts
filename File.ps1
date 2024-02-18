@@ -32,7 +32,10 @@ Set-Alias Files GetFilesRecursively
 Set-Alias FilesRun RunOnFilesRecursively
 Set-Alias OnFiles RunOnFilesRecursively
 
-function GetScriptDirectory() { $PSScriptRoot }
+function GetScriptDirectoryIGLib() { $PSScriptRoot }
+
+function GetScriptDirectory()
+{ $MyInvocation.MyCommand.Path }
 
 function GetCurrentDirectory() { return $(Get-Location).Path }
 

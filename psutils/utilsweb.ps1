@@ -1,4 +1,12 @@
 
+#!/usr/bin/env pwsh
+
+# Tis PowerShell script adds some web-related utilities to PowerShell.
+
+# Part of the Investigative Generic Library (IGLib).
+# https://github.com/ajgorhoe/IGLib.modules.IGLibScripts.git
+
+
 
 
             #########################
