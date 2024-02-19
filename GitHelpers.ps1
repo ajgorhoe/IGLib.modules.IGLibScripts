@@ -74,6 +74,36 @@ function GetGitBranch($DirectoryPath = ".")
 	return $ret
 }
 
+
+function SetGitBranch($BranchCommitOrTag, $DirectoryPath = ".")
+{
+	if ("$BranchCommitOrTag" -eq "") {
+		Write-Host "`nSetGitBranch(): Branch, commit or tag not specified.`n"
+		return
+	}
+	if ("$DirectoryPath" -eq "") { $DirectoryPath = "." }
+	if (-not (IsGitWorkingDirectory "$DirectoryPath"))
+	{
+		Write-Host "`nGetGitBranch(): not a Git working directory.`n"
+		return $null
+	}
+	$InitialDir = $(Get-Location).Path
+	$ret = $null
+	try {
+		if ("$DirectoryPath" -ne "") { Set-Location "$DirectoryPath" }  # { cd ... }
+		# $(git rev-parse --abbrev-ref HEAD)
+		$(git checkout "$BranchCommitOrTag")
+	}
+	catch {
+		Write-Host "ERROR in GetGitBranch(): $($_.Exception.Message)`n"
+	}
+	finally {
+		Set-Location "$InitialDir"  # cd ...
+	}
+	return $ret
+}
+
+
 function GetGitCommit($DirectoryPath = ".", $ShortLength)
 {
 	if ("$DirectoryPath" -eq "") { $DirectoryPath = "." }
