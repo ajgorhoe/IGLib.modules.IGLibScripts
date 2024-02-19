@@ -16,6 +16,7 @@ Set-Alias GitBranch GetGitBranch
 Set-Alias GitCommit GetGitCommit
 Set-Alias ShortGitCommit GetShortGitCommit
 Set-Alias GitShortCommit GetShortGitCommit
+Set-Alias SetBranch SetGitBranch 
 
 
 function IsGitRoot($DirectoryPath = ".")
@@ -75,35 +76,6 @@ function GetGitBranch($DirectoryPath = ".")
 }
 
 
-function SetGitBranch($BranchCommitOrTag, $DirectoryPath = ".")
-{
-	if ("$BranchCommitOrTag" -eq "") {
-		Write-Host "`nSetGitBranch(): Branch, commit or tag not specified.`n"
-		return
-	}
-	if ("$DirectoryPath" -eq "") { $DirectoryPath = "." }
-	if (-not (IsGitWorkingDirectory "$DirectoryPath"))
-	{
-		Write-Host "`nGetGitBranch(): not a Git working directory.`n"
-		return $null
-	}
-	$InitialDir = $(Get-Location).Path
-	$ret = $null
-	try {
-		if ("$DirectoryPath" -ne "") { Set-Location "$DirectoryPath" }  # { cd ... }
-		# $(git rev-parse --abbrev-ref HEAD)
-		$(git checkout "$BranchCommitOrTag")
-	}
-	catch {
-		Write-Host "ERROR in GetGitBranch(): $($_.Exception.Message)`n"
-	}
-	finally {
-		Set-Location "$InitialDir"  # cd ...
-	}
-	return $ret
-}
-
-
 function GetGitCommit($DirectoryPath = ".", $ShortLength)
 {
 	if ("$DirectoryPath" -eq "") { $DirectoryPath = "." }
@@ -134,6 +106,34 @@ function GetGitCommit($DirectoryPath = ".", $ShortLength)
 function GetShortGitCommit($DirectoryPath = ".")
 {
 return GetGitCommit $DirectoryPath 4;
+}
+
+function SetGitBranch($BranchCommitOrTag, $DirectoryPath = ".")
+{
+	if ("$BranchCommitOrTag" -eq "") {
+		Write-Host "`nSetGitBranch(): Branch, commit or tag not specified.`n"
+		return
+	}
+	if ("$DirectoryPath" -eq "") { $DirectoryPath = "." }
+	if (-not (IsGitWorkingDirectory "$DirectoryPath"))
+	{
+		Write-Host "`nGetGitBranch(): not a Git working directory.`n"
+		return $null
+	}
+	$InitialDir = $(Get-Location).Path
+	$ret = $null
+	try {
+		if ("$DirectoryPath" -ne "") { Set-Location "$DirectoryPath" }  # { cd ... }
+		# $(git rev-parse --abbrev-ref HEAD)
+		$(git checkout "$BranchCommitOrTag")
+	}
+	catch {
+		Write-Host "ERROR in GetGitBranch(): $($_.Exception.Message)`n"
+	}
+	finally {
+		Set-Location "$InitialDir"  # cd ...
+	}
+	return $ret
 }
 
 
