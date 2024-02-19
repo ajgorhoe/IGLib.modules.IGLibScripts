@@ -24,7 +24,7 @@ function GetAbsolutePath($Path = $null)
 }
 
 # Containg directory of the IGLibScripts and other IGLib repos:
-$RootDirIGLib = $(GetAbsolutePath $(Join-Path "$PSScriptRoot" "../"))
+$RootDirIGLib = $(GetAbsolutePath $(Join-Path "$PSScriptRoot" "./"))
 # Clone directory of IGLibScripts:
 $DirIGLibScripts = $(GetAbsolutePath $(Join-Path "$RootDirIGLib" "IGLibScripts"))
 # Checked-out branch of IGLibScripts repo (null or "" for default):
