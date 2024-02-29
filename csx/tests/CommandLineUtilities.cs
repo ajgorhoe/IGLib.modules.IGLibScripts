@@ -1,3 +1,8 @@
+// This file is from Roslyn, the C# compiler infrastructure:
+// https://github.com/dotnet/roslyn/blob/d765b8b7cfed3123882cb1a806f8696541889eba/src/Compilers/Core/Portable/InternalUtilities/CommandLineUtilities.cs#L11
+// See also: https://stackoverflow.com/questions/298830/split-string-containing-command-line-parameters-into-string-in-c-sharp#comment36915891_298861
+// Remark: this file has ben updated such that it is a valid C# script.
+
 // Licensed to the .NET Foundation under one or more agreements.
 // The .NET Foundation licenses this file to you under the MIT license.
 // See the LICENSE file in the project root for more information.
@@ -6,8 +11,8 @@ using System;
 using System.Collections.Generic;
 using System.Text;
 
-namespace Roslyn.Utilities
-{
+// namespace Roslyn.Utilities
+// {
     internal static class CommandLineUtilities
     {
         /// <summary>
@@ -155,4 +160,4 @@ namespace Roslyn.Utilities
             }
         }
     }
-}
+// }
