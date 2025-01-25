@@ -19,8 +19,7 @@
 	</PropertyGroup>
 
 	<ItemGroup>
-		<None Remove="**\*" />
-		<!-- Removes all files from being included in the build -->
+		<None Remove="..\..\**\*" />  <!-- Removes all files from being included in the build -->
 	</ItemGroup>
 
 	<ItemGroup>
