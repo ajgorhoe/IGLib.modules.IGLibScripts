@@ -1,0 +1,62 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+	<!--
+	This project is used to view the contents of a directory in .NET IDEs such 
+	as Visual Studio.
+	It is put to a separate direectory because the containing directory of
+	this project file is not displayed.
+	Tags included in the following PropertyGroup and two ItemGroups are 
+	used to prevent building the project and to include all files from the
+	repository root directory as content.
+	-->
+	
+	<PropertyGroup>
+		<TargetFramework>netstandard2.0</TargetFramework>
+		<ImplicitUsings>disable</ImplicitUsings>
+		<GenerateAssemblyInfo>false</GenerateAssemblyInfo>
+		<OutputType>None</OutputType>  <!-- Prevents creating bin/obj directories -->
+		<BuildProjectReferences>false</BuildProjectReferences>   <!-- Prevents building the project -->
+	</PropertyGroup>
+
+	<ItemGroup>
+		<None Remove="**\*" />
+		<!-- Removes all files from being included in the build -->
+	</ItemGroup>
+
+	<ItemGroup>
+		<Content Include="..\..\**\*" />   <!-- "..\**\*" -->
+		<!-- Includes all files from the parent directory recursively as content -->
+		<None Update="..\..\**\*">   <!-- "..\**\*" -->
+			<CopyToOutputDirectory>Never</CopyToOutputDirectory>
+		</None>
+	</ItemGroup>
+	
+	<!-- Some items and properties that indicate the origin and other stuff -->
+	<PropertyGroup>
+		<IsPackable>false</IsPackable>
+		<RootNamespace>IG.Scripts</RootNamespace>
+
+		<FileVersion>2.0.0</FileVersion>
+		<Authors>Igor Grešovnik et al.</Authors>
+		<Company>IGLib</Company>
+		<Product>IGLib</Product>
+		<NeutralLanguage>en-us</NeutralLanguage>
+		<RepositoryUrl>https://github.com/ajgorhoe/IGLib.modules.IGLibScripts.git</RepositoryUrl>
+		<RepositoryType>git</RepositoryType>
+		<Description>Library of helper scripts for software developers (especially working oon IGLib).</Description>
+		<Copyright>Copyright © Igor Grešovnik (2008 - present).</Copyright>
+		<PackageLicenseUrl>https://github.com/ajgorhoe/IGLib.modules.IGLibScripts/blob/main/LICENSE.md</PackageLicenseUrl>
+		<PackageProjectUrl>https://github.com/ajgorhoe/IGLib.modules.IGLibScripts/</PackageProjectUrl>
+		<PackageIconUrl>https://ajgorhoe.github.io/icons/IGLibIcon_64x64.png</PackageIconUrl>
+		<PackageTags>C# scripting dynamic compilation</PackageTags>
+		<PackageReleaseNotes>Initial Release</PackageReleaseNotes>
+
+
+		<!--
+		<AssemblyName>IG.=LibScripts</AssemblyName>
+		-->
+		
+	</PropertyGroup>
+	
+
+</Project>
