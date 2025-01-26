@@ -51,12 +51,10 @@
 		<PackageTags>C# scripting dynamic compilation</PackageTags>
 		<PackageReleaseNotes>Initial Release</PackageReleaseNotes>
 
-
 		<!--
 		<AssemblyName>IG.=LibScripts</AssemblyName>
 		-->
 		
 	</PropertyGroup>
-	
 
 </Project>

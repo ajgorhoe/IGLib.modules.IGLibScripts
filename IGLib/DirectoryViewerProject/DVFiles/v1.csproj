@@ -13,8 +13,8 @@
   </ItemGroup>
 
   <ItemGroup>
-    <Content Include="..\**\*" /> <!-- Includes all files from the parent directory recursively as content -->
-    <None Update="..\**\*">
+    <Content Include="..\..\**\*" />
+    <None Update="..\..\**\*">
       <CopyToOutputDirectory>Never</CopyToOutputDirectory>
     </None>
   </ItemGroup>

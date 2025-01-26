@@ -9,12 +9,12 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <None Remove="..\**\*" /> <!-- Removes all files from being included in the build -->
+    <None Remove="..\..\**\*" /> <!-- Removes all files from being included in the build -->
   </ItemGroup>
 
   <ItemGroup>
-    <Content Include="..\**\*" /> <!-- Includes all files from the parent directory recursively as content -->
-    <None Update="..\**\*">
+    <Content Include="..\..\**\*" /> <!-- Includes all files from the parent directory recursively as content -->
+    <None Update="..\..\**\*">
       <CopyToOutputDirectory>Never</CopyToOutputDirectory>
     </None>
   </ItemGroup>

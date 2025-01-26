@@ -15,8 +15,8 @@
 
   <ItemGroup>
     <!-- Include all files and directories from the parent directory recursively -->
-    <Content Include="../**/*" />
-    <None Update="../**/*">
+    <Content Include="../../**/*" />
+    <None Update="../../**/*">
       <CopyToOutputDirectory>Never</CopyToOutputDirectory>
     </None>
   </ItemGroup>
