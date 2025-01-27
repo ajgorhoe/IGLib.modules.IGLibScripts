@@ -15,3 +15,49 @@ The purpose is to (recursively) **show contents of an arbitrary directory in an 
 
 Below is a list of configuration options that can be set in a C# project file to fit the purpose.
 
+We want to include all files in the target  directory while excluding them from the build process.
+
+The listing below shows how a complete project file can be structured.
+
+* `<None Remove="..\**\*" />`: This line removes all files from being included in the build process.
+* `<Content Include="..\**\*" />`: This line includes all files from the parent directory and its subdirectories recursively as content.
+* `<None Update="..\**\*">`: This line updates the included files to ensure they are not copied to the output directory.
+
+~~~xml
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>netstandard2.0</TargetFramework>
+    <ImplicitUsings>disable</ImplicitUsings>
+    <GenerateAssemblyInfo>false</GenerateAssemblyInfo>
+    <OutputType>None</OutputType>
+    <!-- Prevents creating bin/obj directories -->
+    <BuildProjectReferences>false</BuildProjectReferences>
+    <!-- Prevents building the project -->
+  </PropertyGroup>
+  <ItemGroup>
+    <!-- Exclude all files and directories within the project directory -->
+    <None Remove="../**/*" />
+  </ItemGroup>
+  <ItemGroup>
+    <!-- Exclude recursively all files from the project directory: -->
+    <Content Remove="**/*" />
+    <!-- Include all files and directories from the parent directory recursively -->
+    <Content Include="../../**/*" />
+    <None Update="../../**/*">
+    <CopyToOutputDirectory>Never</CopyToOutputDirectory>
+    </None>
+  </ItemGroup>
+</Project>
+~~~
+
+**Prevent the project from participating in the build process**:
+
+* To ensure that Visual Studio does not attempt to build this project, one can unload and then edit the solution file (`.sln` file) directly.
+* Locate the project entry in the `.sln` file and add the following line under `GlobalSection(ProjectConfigurationPlatforms)` for each build configuration and platform:
+
+  ~~~plaintext
+  {<ProjectGuid>}.Debug|Any CPU.Build.0 = 
+  {<ProjectGuid>}.Release|Any CPU.Build.0 = 
+  ~~~
+
+* This ensures that the project is not built as part of the solution build process.
