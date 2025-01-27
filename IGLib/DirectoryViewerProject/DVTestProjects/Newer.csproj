@@ -1,0 +1,28 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+	<PropertyGroup>
+		<TargetFramework>netstandard2.0</TargetFramework>
+		<ImplicitUsings>disable</ImplicitUsings>
+		<GenerateAssemblyInfo>false</GenerateAssemblyInfo>
+		<OutputType>None</OutputType>
+		<!-- Prevents creating bin/obj directories -->
+		<BuildProjectReferences>false</BuildProjectReferences>
+		<!-- Prevents building the project -->
+	</PropertyGroup>
+
+	<ItemGroup>
+		<!-- Exclude all files and directories within the project directory -->
+		<None Remove="../**/*" />
+	</ItemGroup>
+
+	<ItemGroup>
+		<!-- Exclude recursively all files from the project directory: -->
+		<Content Remove="**/*" />
+		<!-- Include all files and directories from the parent directory recursively -->
+		<Content Include="../../**/*" />
+		<None Update="../../**/*">
+			<CopyToOutputDirectory>Never</CopyToOutputDirectory>
+		</None>
+	</ItemGroup>
+
+</Project>
