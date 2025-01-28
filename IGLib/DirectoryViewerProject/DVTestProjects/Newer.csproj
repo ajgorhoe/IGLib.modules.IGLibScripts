@@ -12,7 +12,7 @@
 
 	<ItemGroup>
 		<!-- Exclude all files and directories within the project directory -->
-		<None Remove="../**/*" />
+		<None Remove="../../**/*" />
 	</ItemGroup>
 
 	<ItemGroup>
