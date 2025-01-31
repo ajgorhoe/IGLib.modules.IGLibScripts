@@ -8,27 +8,48 @@
 	Tags included in the following PropertyGroup and two ItemGroups are 
 	used to prevent building the project and to include all files from the
 	repository root directory as content.
+	netstandard2.0
+	
 	-->
 	
 	<PropertyGroup>
-		<TargetFramework>netstandard2.0</TargetFramework>
+		<!--
+		Target Frameworks: net8.0; netstandard2.0; net48
+		Putput Types: Library, None, Exe
+		-->
+		<TargetFrameworks>net8.0</TargetFrameworks>
+		<OutputType>Library</OutputType>
 		<ImplicitUsings>disable</ImplicitUsings>
 		<GenerateAssemblyInfo>false</GenerateAssemblyInfo>
-		<OutputType>None</OutputType>  <!-- Prevents creating bin/obj directories -->
+		 <!-- <OutputType>None</OutputType> Prevents creating bin/obj directories -->
 		<BuildProjectReferences>false</BuildProjectReferences>   <!-- Prevents building the project -->
 	</PropertyGroup>
 
 	<ItemGroup>
-		<!-- Removes all files from being included in the build -->
+		<!-- Removes all files from being included in the build 
+		-->
 		<None Remove="..\..\**\*" />
 	</ItemGroup>
 
 	<ItemGroup>
 		<!-- Includes all files from the root directory recursively as content: -->
-		<Content Include="..\..\**\*" />
-		<None Update="..\..\**\*">
+		<Content Include="../../**\*" />
+		<None Update="../../**/*">
 			<CopyToOutputDirectory>Never</CopyToOutputDirectory>
 		</None>
+		<!-- Exclude contents of the project directory, such that they are not shown in the Solution Explorer:  -->
+		<Content Remove="./**/*" />
+		<Content Remove="./.vs/**" />
+		<!--
+		<Content Include="../../IGLib/DirectoryViewerProject/DVFiles/**/*" />
+		DVTestProjects
+		DVFiles
+		<Content Remove=".vs/**/*" />
+		<Content Remove=".*/**" />
+		<Content Remove="bin\**" />
+		<Content Remove="obj\**" />
+		<Content Remove="IG.Scripts.DirectoryViewer.csproj" />
+		-->
 	</ItemGroup>
 	
 	<!-- Some items and properties that indicate the origin and other stuff -->

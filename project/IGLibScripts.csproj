@@ -4,8 +4,8 @@
     <!--
     <TargetFrameworks>net5.0;net48;netstandard2.0</TargetFrameworks>
     -->
-    <TargetFrameworks>net5.0</TargetFrameworks>
-    <OutputType>library</OutputType>
+    <TargetFrameworks>net8.0</TargetFrameworks>
+    <OutputType>Library</OutputType>
     <IsPackable>false</IsPackable>
   </PropertyGroup>
   
@@ -43,7 +43,7 @@
     <Content Include="..\**" />
     <Content Remove="bin\**" />
     <Content Remove="obj\**" />
-    <Content Remove="IFLibScripts.csproj" />
+    <Content Remove="IGLibScripts.csproj" />
   </ItemGroup>
     
 </Project>
