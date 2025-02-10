@@ -29,7 +29,7 @@ echo.
 
 rem Parameters for the update:
 set ModuleDirRelative=modules\IGLibCore
-set CheckoutBranch=master
+set CheckoutBranch=main
 set RepositoryAddress=https://github.com/ajgorhoe/IGLib.modules.IGLibCore.git
 set RepositoryAddressSecondary=
 set RepositoryAddressLocal=
