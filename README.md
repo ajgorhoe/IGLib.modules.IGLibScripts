@@ -2,6 +2,8 @@
 
 Copyright (c) Igor Grešovnik
 
+**Important notice**: ***main* branch** is being changed **from *master* to *main***. For some time, both branches will be **kept in sync** because there are many dependencies on this repository. Expect that since **June '24** only the *main* branch may be kept, and *master* branch may be removed from the main repository.
+
 This repository is part of the Investigative Generic Library (*IGLib*). It contains some utility scripts that are used in IGLib and wider - batch, PowerShell, and C# scripts.
 
 Main branch of the IGLibScript repository: *main*
