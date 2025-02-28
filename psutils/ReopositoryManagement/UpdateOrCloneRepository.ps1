@@ -1,9 +1,9 @@
 # UpdateOrCloneRepository.ps1
 # A Windows PowerShell–compatible script for updating or cloning a Git repository.
 
-# Note: This version avoids using logical operators (&&, ||) not supported in Windows PowerShell.
-# It also splits commands into multiple lines for clarity and error handling.
-
+###############################################################################
+# Script parameters
+###############################################################################
 param (
     [string]$Directory,
     [string]$Ref,
@@ -20,7 +20,7 @@ param (
 )
 
 ###############################################################################
-# Constants
+# Constants & Defaults
 ###############################################################################
 
 # Prefix used for setting/retrieving global variables
@@ -32,7 +32,7 @@ $DefaultRemoteSecondary = "mirror"
 $DefaultRemoteTertiary  = "local"
 
 ###############################################################################
-# Utility Functions
+# Logging & Error-Handling Helpers
 ###############################################################################
 
 function Write-Info {
@@ -46,29 +46,30 @@ function Write-Warn {
 }
 
 function Write-ErrorReport {
-    param([string]$Message)
+    param([string]$Message, [switch]$throwOnErrors)
     Write-Host "ERROR: $Message" -ForegroundColor Red
-    if ($ThrowOnErrors) {
+    if ($throwOnErrors) {
         throw $Message
     }
 }
 
+###############################################################################
+# Git Helper Functions
+###############################################################################
+
 function IsGitRepository {
     param ([string]$directoryPath)
-    # This checks upward if the path is nested within a repository.
+    # Check upwards if the path is nested within a repository.
     while ($directoryPath -and (Test-Path $directoryPath)) {
         if (Test-Path (Join-Path $directoryPath ".git")) {
-            # We can do a quick check inside the .git folder:
-            if (Test-Path (Join-Path $directoryPath ".git\HEAD")) {
+            # Quick check inside .git folder:
+            if (Test-Path (Join-Path $directoryPath ".git\\HEAD")) {
                 return $true
             }
         }
         $parentPath = Split-Path $directoryPath -Parent
-        if ($parentPath -eq $directoryPath) {
-            break
-        } else {
-            $directoryPath = $parentPath
-        }
+        if ($parentPath -eq $directoryPath) { break }
+        $directoryPath = $parentPath
     }
     return $false
 }
@@ -77,8 +78,7 @@ function GetGitRepositoryRoot {
     param ([string]$directoryPath)
     while ($directoryPath -and (Test-Path $directoryPath)) {
         if (Test-Path (Join-Path $directoryPath ".git")) {
-            # If we found .git, let's verify it is truly a Git repo:
-            if (Test-Path (Join-Path $directoryPath ".git\HEAD")) {
+            if (Test-Path (Join-Path $directoryPath ".git\\HEAD")) {
                 return $directoryPath
             }
         }
@@ -97,12 +97,9 @@ function GetGitRemoteAddress {
         [string]$remoteName
     )
     $rootDir = GetGitRepositoryRoot $directoryPath
-    if (-not $rootDir) {
-        return $null
-    }
+    if (-not $rootDir) { return $null }
     try {
-        $remoteUrl = git -C $rootDir remote get-url $remoteName 2>$null
-        return $remoteUrl
+        return git -C $rootDir remote get-url $remoteName 2>$null
     } catch {
         return $null
     }
@@ -110,34 +107,98 @@ function GetGitRemoteAddress {
 
 function GetGitRepositoryName {
     param ([string]$repositoryAddress)
-    if (-not $repositoryAddress) {
-        return $null
-    }
+    if (-not $repositoryAddress) { return $null }
     $leaf = Split-Path $repositoryAddress -Leaf
     # Remove trailing .git if it exists
     $leaf = $leaf -replace "\.git$", ""
     return $leaf
 }
 
+###############################################################################
+# Address Consistency Check
+###############################################################################
+# This function tries minimal normalization of addresses before comparison.
+
+function CheckGitAddressConsistency {
+    param (
+        [string]$expected,
+        [string]$actual
+    )
+
+    # Both empty => consistent
+    if ([string]::IsNullOrWhiteSpace($expected) -and [string]::IsNullOrWhiteSpace($actual)) {
+        return $true
+    }
+    # One empty, other not => inconsistent
+    if ([string]::IsNullOrWhiteSpace($expected) -xor [string]::IsNullOrWhiteSpace($actual)) {
+        return $false
+    }
+
+    # Minimal normalizations:
+    # 1) Trim whitespace
+    $exp = $expected.Trim()
+    $act = $actual.Trim()
+
+    # 2) If HTTP(S), remove trailing slash
+    if ($exp -match '^https?://') { $exp = $exp.TrimEnd('/') }
+    if ($act -match '^https?://') { $act = $act.TrimEnd('/') }
+
+    # 3) If local path, attempt to resolve path if it exists
+    function TryResolvePath([string]$p) {
+        try {
+            if (Test-Path $p) {
+                # Return the resolved path (canonical)
+                return (Resolve-Path -LiteralPath $p -ErrorAction Stop).Path
+            }
+            else {
+                # Return the original
+                return $p
+            }
+        } catch {
+            return $p
+        }
+    }
+
+    # A naive check for local paths: if it doesn't start with 'http' or 'ssh' or 'git@', treat as local
+    if ($exp -notmatch '^(https?://|ssh://|git@)' ) { $exp = TryResolvePath $exp }
+    if ($act -notmatch '^(https?://|ssh://|git@)' ) { $act = TryResolvePath $act }
+
+    # 4) Case-insensitive comparison
+    return ([string]::Equals($exp, $act, [System.StringComparison]::OrdinalIgnoreCase))
+}
+
+###############################################################################
+# Path Helper
+###############################################################################
+
 function EnsureFullPath {
     param ([string]$path)
     if ([IO.Path]::IsPathRooted($path)) {
-        return (Resolve-Path -LiteralPath $path).Path
-    } else {
-        # Combine with script directory or current dir?
-        # According to spec, if the script is run from the command line, use script's directory.
-        # If in function context, let's default to current directory.
+        # If it's already rooted, try to resolve
+        try {
+            return (Resolve-Path -LiteralPath $path -ErrorAction Stop).Path
+        } catch {
+            return $path  # Return raw path if it doesn't exist
+        }
+    }
+    else {
+        # Combine with script directory or current dir
         if ($MyInvocation.MyCommand.Path) {
             $scriptDir = Split-Path $MyInvocation.MyCommand.Path -Parent
-            return (Resolve-Path (Join-Path $scriptDir $path)).Path
+            $combinedPath = Join-Path $scriptDir $path
         } else {
-            return (Resolve-Path (Join-Path (Get-Location) $path)).Path
+            $combinedPath = Join-Path (Get-Location) $path
+        }
+        try {
+            return (Resolve-Path -LiteralPath $combinedPath -ErrorAction Stop).Path
+        } catch {
+            return $combinedPath
         }
     }
 }
 
 ###############################################################################
-# Main Function: UpdateOrCloneRepository
+# Main Function
 ###############################################################################
 
 function UpdateOrCloneRepository {
@@ -150,26 +211,61 @@ function UpdateOrCloneRepository {
         [string]$remoteSecondary = $DefaultRemoteSecondary,
         [string]$addressTertiary,
         [string]$remoteTertiary = $DefaultRemoteTertiary,
-        [switch]$ThrowOnErrors,
-        [switch]$DefaultFromVars
+        [switch]$throwOnErrors,       # Renamed to lower case
+        [switch]$defaultFromVars      # Renamed to lower case
     )
 
-    Write-Host ""    # blank line
     Write-Info "Updating or cloning a repository..."
-    Write-Host "Parameters:" -ForegroundColor DarkCyan
-    Write-Host "  directory:         $directory"
-    Write-Host "  ref:               $ref"
-    Write-Host "  address:           $address"
-    Write-Host "  remote:            $remote"
-    Write-Host "  addressSecondary:  $addressSecondary"
-    Write-Host "  remoteSecondary:   $remoteSecondary"
-    Write-Host "  addressTertiary:   $addressTertiary"
-    Write-Host "  remoteTertiary:    $remoteTertiary"
-    Write-Host "  ThrowOnErrors:     $ThrowOnErrors"
-    Write-Host "  DefaultFromVars:   $DefaultFromVars"
-    Write-Host ""    # blank line
 
-    # Basic parameter handling repeated here, as required by specification.
+    ############################################################################
+    # (1) Fill from global variables if $defaultFromVars is set (function scope)
+    ############################################################################
+    if ($defaultFromVars) {
+        Write-Info "defaultFromVars is set (function scope). Attempting to fill unspecified parameters from global variables."
+        
+        # Use the same set of param names in PascalCase to match script-level usage
+        $paramList = 'Directory','Ref','Address','Remote','AddressSecondary','RemoteSecondary','AddressTertiary','RemoteTertiary'
+        foreach ($p in $paramList) {
+
+            # We need to see if the function's parameter is already set
+            # We'll do a get-variable in the function scope:
+            $currentVal = (Get-Variable -Name $p -Scope 1 -ErrorAction SilentlyContinue).Value
+            
+            if ($currentVal) {
+                Write-Info "  $p is already set to: $currentVal"
+            }
+            else {
+                # Build the global var name, e.g. "RepositoryDirectory"
+                $upperParam  = $p.Substring(0,1).ToUpper() + $p.Substring(1)   # E.g. "Directory" => "Directory" 
+                $globalVarName = "${ParameterGlobalVariablePrefix}${upperParam}"
+                
+                # Logging
+                Write-Info "  >> Global variable name: $globalVarName"
+
+                $globalVal = (Get-Variable -Name $globalVarName -Scope Global -ErrorAction SilentlyContinue).Value
+                Write-Info "  >> Global variable value: $globalVal"
+
+                if ($globalVal) {
+                    Set-Variable -Name $p -Value $globalVal -Scope 1
+                    Write-Info "  $p set from $globalVarName to $globalVal"
+                }
+                else {
+                    Write-Info "  $p not set from global variable."
+                }
+            }
+        }
+    }
+
+    ############################################################################
+    # (2) Apply default values if not set
+    ############################################################################
+    if (-not $remote)           { $remote           = $DefaultRemote }
+    if (-not $remoteSecondary)  { $remoteSecondary  = $DefaultRemoteSecondary }
+    if (-not $remoteTertiary)   { $remoteTertiary   = $DefaultRemoteTertiary }
+
+    ############################################################################
+    # (3) Additional logic for deduce directory from address (if needed)
+    ############################################################################
     if (-not $directory -and $address) {
         $repoName = GetGitRepositoryName $address
         if ($repoName) {
@@ -179,62 +275,82 @@ function UpdateOrCloneRepository {
         }
     }
 
+    # Convert to full path
     if ($directory) {
         $directory = EnsureFullPath $directory
     }
 
-    # If directory is specified but address is not, try to deduce address from existing remote.
+    # If directory is specified but address is not, try to deduce from existing remote
     if (-not $address -and $directory) {
         if (Test-Path $directory -PathType Container -and (IsGitRepository $directory)) {
             $existingAddr = GetGitRemoteAddress $directory $remote
             if ($existingAddr) {
                 $address = $existingAddr
-                Write-Info "Deduced Address from existing remote '$remote': $address"
+                Write-Info "Deduced address from existing remote '$remote': $address"
             }
         }
     }
 
-    # Validate that we have either an existing repo or an address.
+    ############################################################################
+    # (4) Print final parameter values (after resolution), then validate
+    ############################################################################
+    Write-Host "Final Parameter Values:" -ForegroundColor DarkCyan
+    Write-Host "  directory:         $directory"
+    Write-Host "  ref:               $ref"
+    Write-Host "  address:           $address"
+    Write-Host "  remote:            $remote"
+    Write-Host "  addressSecondary:  $addressSecondary"
+    Write-Host "  remoteSecondary:   $remoteSecondary"
+    Write-Host "  addressTertiary:   $addressTertiary"
+    Write-Host "  remoteTertiary:    $remoteTertiary"
+    Write-Host "  throwOnErrors:     $throwOnErrors"
+    Write-Host "  defaultFromVars:   $defaultFromVars"
+    Write-Host ""
+
+    # Validate that we have either an existing repo or an address
     if (-not $address -and $directory) {
-        # Must be an existing repository to update.
         if (-not (Test-Path $directory)) {
-            Write-ErrorReport "Directory $directory does not exist, and no address specified to clone from."
+            Write-ErrorReport "Directory ${directory} does not exist, and no address specified to clone from." -throwOnErrors:$throwOnErrors
             return
         } else {
             if (-not (IsGitRepository $directory)) {
-                Write-ErrorReport "Directory $directory is not a valid Git repository, and no address was specified."
+                Write-ErrorReport "Directory ${directory} is not a valid Git repository, and no address was specified." -throwOnErrors:$throwOnErrors
                 return
             }
         }
     }
 
-    # If directory doesn't exist, create it so we can clone.
+    # If directory doesn't exist, create it so we can clone
     if ($directory -and -not (Test-Path $directory)) {
         try {
             New-Item -ItemType Directory -Path $directory | Out-Null
             Write-Info "Created directory: $directory"
-        } catch {
-            Write-ErrorReport "Could not create directory: $directory"
+        }
+        catch {
+            Write-ErrorReport "Could not create directory: ${directory}" -throwOnErrors:$throwOnErrors
             return
         }
     }
 
-    # If directory exists and is non-empty, check if it's a valid Git repo.
+    # If directory exists and is non-empty, ensure correct repository
     $dirExists = (Test-Path $directory -PathType Container)
     if ($dirExists) {
         $items = Get-ChildItem -Path $directory
         $isEmpty = ($items | Measure-Object).Count -eq 0
         if (-not $isEmpty) {
             if (-not (IsGitRepository $directory)) {
-                Write-ErrorReport "Repository directory ($directory) is not empty and does not contain a valid Git repo."
+                Write-ErrorReport "Repository directory (${directory}) is not empty and does not contain a valid Git repo." -throwOnErrors:$throwOnErrors
                 return
             } else {
-                # Check remote consistency
+                # Check remote consistency if $address is set
                 if ($address) {
                     $existingRemote = GetGitRemoteAddress $directory $remote
-                    if ($existingRemote -and $existingRemote -ne $address) {
-                        Write-ErrorReport "Repository directory ($directory) has remote '$remote' set to '$existingRemote' but should be '$address'."
-                        return
+                    if ($existingRemote) {
+                        $consistent = CheckGitAddressConsistency $address $existingRemote
+                        if (-not $consistent) {
+                            Write-ErrorReport "Repository directory (${directory}) has remote '$remote' set to '$existingRemote' but should be '$address'." -throwOnErrors:$throwOnErrors
+                            return
+                        }
                     }
                 }
             }
@@ -247,25 +363,27 @@ function UpdateOrCloneRepository {
             Write-Info "Cloning repository from $address into $directory..."
             git clone --origin $remote $address $directory
             if ($LASTEXITCODE -ne 0) {
-                Write-ErrorReport "Failed to clone repository from $address into $directory."
+                Write-ErrorReport "Failed to clone repository from $address into ${directory}." -throwOnErrors:$throwOnErrors
                 return
             }
-        } catch {
-            Write-ErrorReport "Exception occurred while cloning from $address into $directory. $_"
+        }
+        catch {
+            Write-ErrorReport ("Exception occurred while cloning from ${address} into ${directory}: " + $_) -throwOnErrors:$throwOnErrors
             return
         }
     } else {
-        # If we already have the repository in place, fetch all.
+        # If we already have the repository, fetch from the primary remote
         if ($address) {
-            Write-Info "Fetching all changes from $remote..."
+            Write-Info "Fetching changes from remote '$remote'..."
             try {
-                git -C $directory fetch --all
+                git -C $directory fetch $remote
                 if ($LASTEXITCODE -ne 0) {
-                    Write-ErrorReport "Failed to fetch updates in $directory."
+                    Write-ErrorReport "Failed to fetch updates in ${directory}." -throwOnErrors:$throwOnErrors
                     return
                 }
-            } catch {
-                Write-ErrorReport "Exception occurred while fetching in $directory: $_"
+            }
+            catch {
+                Write-ErrorReport ("Exception occurred while fetching in ${directory}: " + $_) -throwOnErrors:$throwOnErrors
                 return
             }
         }
@@ -287,8 +405,9 @@ function UpdateOrCloneRepository {
             } else {
                 Write-Info "Remote '$remoteSecondary' set to '$addressSecondary'"
             }
-        } catch {
-            Write-ErrorReport "Exception occurred while setting secondary remote. $_"
+        }
+        catch {
+            Write-ErrorReport ("Exception occurred while setting secondary remote: " + $_) -throwOnErrors:$throwOnErrors
             return
         }
     }
@@ -309,8 +428,9 @@ function UpdateOrCloneRepository {
             } else {
                 Write-Info "Remote '$remoteTertiary' set to '$addressTertiary'"
             }
-        } catch {
-            Write-ErrorReport "Exception occurred while setting tertiary remote. $_"
+        }
+        catch {
+            Write-ErrorReport ("Exception occurred while setting tertiary remote: " + $_) -throwOnErrors:$throwOnErrors
             return
         }
     }
@@ -321,106 +441,116 @@ function UpdateOrCloneRepository {
         try {
             git -C $directory checkout $ref 2>$null
             if ($LASTEXITCODE -ne 0) {
-                Write-Info "Local branch or ref '$ref' not found, attempting to fetch and create local branch."
+                Write-Info "Local branch/ref '$ref' not found, attempting to fetch and create local branch."
                 git -C $directory fetch $remote
                 if ($LASTEXITCODE -ne 0) {
-                    Write-ErrorReport "Failed to fetch from remote '$remote'."
+                    Write-ErrorReport "Failed to fetch from remote '$remote'." -throwOnErrors:$throwOnErrors
                     return
                 }
                 git -C $directory checkout -b $ref "$remote/$ref"
                 if ($LASTEXITCODE -ne 0) {
-                    Write-ErrorReport "Failed to check out new branch '$ref' from remote '$remote'."
+                    Write-ErrorReport "Failed to check out new branch '$ref' from remote '$remote'." -throwOnErrors:$throwOnErrors
                     return
                 }
                 Write-Warn "Current branch changed to '$ref' (new local branch tracking '$remote/$ref')."
             } else {
                 Write-Warn "Repository switched to '$ref' (could be branch, tag, or commit)."
             }
-        } catch {
-            Write-ErrorReport "Failed to checkout reference '$ref'. $_"
+        }
+        catch {
+            Write-ErrorReport ("Failed to checkout reference '$ref': " + $_) -throwOnErrors:$throwOnErrors
             return
         }
         # If it's a branch, we can pull to update
-        # Check if ref is a branch or commit.
-        # We'll just attempt a pull if it's a branch.
-        $branches = (git -C $directory branch --show-current 2>$null).Trim()
-        if ($branches -eq $ref) {
+        $currentBranch = (git -C $directory branch --show-current 2>$null).Trim()
+        if ($currentBranch -eq $ref) {
             Write-Info "Pulling latest commits for branch '$ref' from '$remote'"
             try {
                 git -C $directory pull $remote $ref
                 if ($LASTEXITCODE -ne 0) {
-                    Write-ErrorReport "Failed to pull latest changes for branch '$ref'."
+                    Write-ErrorReport "Failed to pull latest changes for branch '$ref'." -throwOnErrors:$throwOnErrors
                     return
                 }
-            } catch {
-                Write-ErrorReport "Exception occurred while pulling latest changes for branch '$ref'. $_"
+            }
+            catch {
+                Write-ErrorReport ("Exception occurred while pulling latest changes for branch '$ref': " + $_) -throwOnErrors:$throwOnErrors
                 return
             }
-            Write-Info "Repository in '$directory' is now updated to the latest commit of branch '$ref'"
-        } else {
-            # We might be in a detached HEAD if ref is a tag or commit
-            Write-Info "The repository in '$directory' is checked out at '$ref'. (Possibly a detached HEAD)."
+            Write-Info "Repository in '${directory}' is now updated to the latest commit of branch '$ref'"
+        }
+        else {
+            # Possibly a detached HEAD if ref is a tag or commit
+            Write-Info "The repository in '${directory}' is checked out at '$ref' (possibly a detached HEAD)."
             Write-Info "Fetching from remote '$remote' in case the tag or commit was updated..."
             try {
                 git -C $directory fetch $remote --tags
-                # There's not always a direct 'pull' for tags or commits
-                # We'll assume we've updated the objects if the tag has changed.
-            } catch {
-                Write-Warn "Could not fetch from remote '$remote' for tag or commit. $_"
+            }
+            catch {
+                Write-Warn ("Could not fetch from remote '$remote' for tag or commit: " + $_)
             }
         }
-    } else {
+    }
+    else {
         Write-Info "No ref specified. Repository remains on its current branch/tag/commit."
     }
 
-    Write-Info "Repository is up to date in directory: $directory"
+    Write-Info "Repository is up to date in directory: ${directory}"
 }
 
 ###############################################################################
-# Script logic for parameter resolution / global variables.
+# Script-level Parameter Resolution & Execution Control
 ###############################################################################
 
 function Resolve-ScriptParameters {
-    # This function merges script-level parameters with global variable values if DefaultFromVars is set,
-    # applies defaults, etc.
-
-    # 1) If $DefaultFromVars is specified, for each parameter that is null or empty, try to get the global var.
+    # 1) Fill from global variables if $DefaultFromVars is set, then apply defaults, etc.
     if ($DefaultFromVars) {
-        foreach ($paramName in "Directory","Ref","Address","Remote","AddressSecondary","RemoteSecondary","AddressTertiary","RemoteTertiary") {
-            $scriptParamValue = (Get-Variable -Name $paramName -Scope 1 -ErrorAction SilentlyContinue).Value
-            if (-not $scriptParamValue) {
-                # We look if there's a global var with prefix
-                $globalVarName = "${ParameterGlobalVariablePrefix}${paramName.Substring(0,1).ToUpper()}${paramName.Substring(1)}"
+        Write-Info "Resolve-ScriptParameters called with DefaultFromVars = $DefaultFromVars. Attempting to fill script parameters from global variables..."
+
+        # Use PascalCase param names to match main function logic
+        $paramList = 'Directory','Ref','Address','Remote','AddressSecondary','RemoteSecondary','AddressTertiary','RemoteTertiary'
+        foreach ($p in $paramList) {
+            $scriptParamValue = (Get-Variable -Name $p -Scope 1 -ErrorAction SilentlyContinue).Value
+            if ($scriptParamValue) {
+                Write-Info "  $p is already set in script parameters to: $scriptParamValue"
+            }
+            else {
+                # Build the global var name, e.g. "RepositoryDirectory"
+                $upperParam  = $p.Substring(0,1).ToUpper() + $p.Substring(1)
+                $globalVarName = "${ParameterGlobalVariablePrefix}${upperParam}"
+
+                Write-Info "  >> Global variable name: $globalVarName"
                 $globalVal = (Get-Variable -Name $globalVarName -Scope Global -ErrorAction SilentlyContinue).Value
+                Write-Info "  >> Global variable value: $globalVal"
+
                 if ($globalVal) {
-                    Set-Variable -Name $paramName -Value $globalVal -Scope 1
+                    Set-Variable -Name $p -Value $globalVal -Scope 1
+                    Write-Info "  $p set from $globalVarName to $globalVal"
+                }
+                else {
+                    Write-Info "  $p not set from global variable."
                 }
             }
         }
     }
 
-    # 2) Apply default values if not set.
-    if (-not $Remote) {
-        $Remote = $DefaultRemote
-    }
-    if (-not $RemoteSecondary) {
-        $RemoteSecondary = $DefaultRemoteSecondary
-    }
-    if (-not $RemoteTertiary) {
-        $RemoteTertiary = $DefaultRemoteTertiary
-    }
-
-    # 3) Additional logic for deduce directory if address is present.
-    # (Will be repeated in the main function too, as per specification.)
+    # 2) Apply default values if not set
+    if (-not $Remote)          { $Remote          = $DefaultRemote }
+    if (-not $RemoteSecondary) { $RemoteSecondary = $DefaultRemoteSecondary }
+    if (-not $RemoteTertiary)  { $RemoteTertiary  = $DefaultRemoteTertiary }
 }
 
 function Set-GlobalVarsIfRequested {
     if ($ParamsToVars) {
-        foreach ($paramName in "Directory","Ref","Address","Remote","AddressSecondary","RemoteSecondary","AddressTertiary","RemoteTertiary") {
-            $globalVarName = "${ParameterGlobalVariablePrefix}${paramName}" # e.g. RepositoryDirectory
-            $value = (Get-Variable -Name $paramName -Scope 1 -ErrorAction SilentlyContinue).Value
+        $paramList = 'Directory','Ref','Address','Remote','AddressSecondary','RemoteSecondary','AddressTertiary','RemoteTertiary'
+        foreach ($p in $paramList) {
+            $value = (Get-Variable -Name $p -Scope 1 -ErrorAction SilentlyContinue).Value
             if ($null -ne $value) {
+                # Build the global var name, e.g. "RepositoryDirectory"
+                $upperParam  = $p.Substring(0,1).ToUpper() + $p.Substring(1)
+                $globalVarName = "${ParameterGlobalVariablePrefix}${upperParam}"
+
                 Set-Variable -Name $globalVarName -Value $value -Scope Global
+                Write-Info "Set global variable $globalVarName to $value"
             }
         }
     }
@@ -428,10 +558,10 @@ function Set-GlobalVarsIfRequested {
 
 Resolve-ScriptParameters
 
-# Decide whether to call the main function based on the logic described.
-# 1) If $Execute is true, we run the main function unconditionally.
-# 2) If $Execute is false, do not run the main function.
-# 3) If $Execute is not specified, but Address or Directory are specified, we run the main function.
+# Decide whether to call the main function based on the logic described:
+# 1) If $Execute is true, run the main function unconditionally.
+# 2) If $Execute is false, do NOT run the main function.
+# 3) If $Execute is not specified, but Address or Directory are specified, run the main function.
 
 $shouldExecute = $false
 if ($Execute.IsPresent) {
@@ -440,8 +570,8 @@ if ($Execute.IsPresent) {
     } else {
         $shouldExecute = $false
     }
-} else {
-    # If $Execute not specified, check if user provided Address or Directory.
+}
+else {
     if ($PSBoundParameters.ContainsKey('Address') -or $PSBoundParameters.ContainsKey('Directory')) {
         $shouldExecute = $true
     }
@@ -450,14 +580,15 @@ if ($Execute.IsPresent) {
 Set-GlobalVarsIfRequested
 
 if ($shouldExecute) {
-    UpdateOrCloneRepository -directory $Directory `
-                            -ref $Ref `
-                            -address $Address `
-                            -remote $Remote `
-                            -addressSecondary $AddressSecondary `
-                            -remoteSecondary $RemoteSecondary `
-                            -addressTertiary $AddressTertiary `
-                            -remoteTertiary $RemoteTertiary `
-                            -ThrowOnErrors:$ThrowOnErrors `
-                            -DefaultFromVars:$DefaultFromVars
+    UpdateOrCloneRepository `
+        -directory $Directory `
+        -ref $Ref `
+        -address $Address `
+        -remote $Remote `
+        -addressSecondary $AddressSecondary `
+        -remoteSecondary $RemoteSecondary `
+        -addressTertiary $AddressTertiary `
+        -remoteTertiary $RemoteTertiary `
+        -throwOnErrors:$ThrowOnErrors `
+        -defaultFromVars:$DefaultFromVars
 }
