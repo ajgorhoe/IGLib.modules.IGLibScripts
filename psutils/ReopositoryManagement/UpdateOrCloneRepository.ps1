@@ -218,43 +218,52 @@ function UpdateOrCloneRepository {
     Write-Info "Updating or cloning a repository..."
 
     ############################################################################
-    # (1) Fill from global variables if $defaultFromVars is set (function scope)
+    # (1) If $defaultFromVars, fill any missing parameters from global variables
+    #     even if the function is called directly (not from the script).
     ############################################################################
     if ($defaultFromVars) {
-        Write-Info "defaultFromVars is set (function scope). Attempting to fill unspecified parameters from global variables."
-        
-        # Use the same set of param names in PascalCase to match script-level usage
+        Write-Info "defaultFromVars is set (function scope). Checking for missing parameters..."
+    
+        # Use PascalCase param names to match global variable naming
         $paramList = 'Directory','Ref','Address','Remote','AddressSecondary','RemoteSecondary','AddressTertiary','RemoteTertiary'
+    
         foreach ($p in $paramList) {
-
-            # We need to see if the function's parameter is already set
-            # We'll do a get-variable in the function scope:
-            $currentVal = (Get-Variable -Name $p -Scope 1 -ErrorAction SilentlyContinue).Value
-            
-            if ($currentVal) {
-                Write-Info "  $p is already set to: $currentVal"
-            }
-            else {
-                # Build the global var name, e.g. "RepositoryDirectory"
-                $upperParam  = $p.Substring(0,1).ToUpper() + $p.Substring(1)   # E.g. "Directory" => "Directory" 
+            # Did the caller explicitly specify this parameter?
+            if (-not $PSBoundParameters.ContainsKey($p)) {
+                # The user did NOT pass this parameter, so let's try to fill from global
+                $upperParam   = $p.Substring(0,1).ToUpper() + $p.Substring(1)
                 $globalVarName = "${ParameterGlobalVariablePrefix}${upperParam}"
-                
-                # Logging
-                Write-Info "  >> Global variable name: $globalVarName"
-
+    
+                # Retrieve the function's current parameter value
+                $currentVal = Get-Variable -Name $p -Scope 0 -ErrorAction SilentlyContinue
+    
+                # IMPORTANT: We must check $currentVal.Value, not $currentVal
+                if ($currentVal -and $currentVal.Value) {
+                    # The parameter is already set, so skip
+                    Write-Info "  $p is already set, no override from global. Value: $($currentVal.Value)"
+                    continue
+                }
+    
+                # Show which global var we are about to check
+                # Write-Info "  Checking global variable: $globalVarName"
                 $globalVal = (Get-Variable -Name $globalVarName -Scope Global -ErrorAction SilentlyContinue).Value
-                Write-Info "  >> Global variable value: $globalVal"
-
+                # Write-Info "  >> Global variable value: $globalVal"
+    
                 if ($globalVal) {
-                    Set-Variable -Name $p -Value $globalVal -Scope 1
+                    # We set the local function variable to the global value
+                    Set-Variable -Name $p -Value $globalVal -Scope 0
                     Write-Info "  $p set from $globalVarName to $globalVal"
                 }
                 else {
-                    Write-Info "  $p not set from global variable."
+                    Write-Info "  $p not set from global variable (it does not exist or is null)."
                 }
+            }
+            else {
+                Write-Info "  $p was explicitly provided by the caller, not using global variable."
             }
         }
     }
+    
 
     ############################################################################
     # (2) Apply default values if not set
@@ -518,7 +527,7 @@ function Resolve-ScriptParameters {
                 $upperParam  = $p.Substring(0,1).ToUpper() + $p.Substring(1)
                 $globalVarName = "${ParameterGlobalVariablePrefix}${upperParam}"
 
-                Write-Info "  >> Global variable name: $globalVarName"
+                Write-Info "  Checking global variable name: $globalVarName"
                 $globalVal = (Get-Variable -Name $globalVarName -Scope Global -ErrorAction SilentlyContinue).Value
                 Write-Info "  >> Global variable value: $globalVal"
 
@@ -545,7 +554,6 @@ function Set-GlobalVarsIfRequested {
         foreach ($p in $paramList) {
             $value = (Get-Variable -Name $p -Scope 1 -ErrorAction SilentlyContinue).Value
             if ($null -ne $value) {
-                # Build the global var name, e.g. "RepositoryDirectory"
                 $upperParam  = $p.Substring(0,1).ToUpper() + $p.Substring(1)
                 $globalVarName = "${ParameterGlobalVariablePrefix}${upperParam}"
 
