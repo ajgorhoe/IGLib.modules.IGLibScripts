@@ -25,3 +25,40 @@
     -Directory "u:/ws/ws/other/ajgor/iglibmodules/IGLibSandbox/scripts/IGLibScripts1" `
     -address "https://github.com/ajgorhoe/IGLib.modules.IGLibScripts.git" `
     -ref "release/latestrelease"
+
+# Cloning or updating with additional remote specified:
+# Remove or not the repository before executing.
+# Expected: The remotes should be added.
+./UpdateOrCloneRepository.ps1 -Directory "IGLibScripts" `
+    -address "https://github.com/ajgorhoe/IGLib.modules.IGLibScripts.git" `
+    -addressSecondary "https://XXXgithub.com/ajgorhoe/IGLib.modules.IGLibScripts.git"
+
+./UpdateOrCloneRepository.ps1 -Directory "IGLibScripts" `
+    -address "https://github.com/ajgorhoe/IGLib.modules.IGLibScripts.git" `
+    -addressTertiary "d:\backup_sync\bk_code\git\ig\misc\iglib_modules\IGLibCore\" `
+    -remoteTertiary "mylocalrepo"
+
+# USING the cloning/updating FUNCTION instead of script:
+# You can run teh script just to get the function defined, and then run the 
+# function instead of the script. Rules are similar, except parameter names have 
+# camel case and there are some other minor differences.
+
+# Cloning of 
+
+
+
+# PROVIDING PARAMETERS (all or part od them) VIA PowerShell FILES / VARIABLES:
+# Agreed variable names are used to provide parameter values (the same as
+# parameter names, but with a specified prefix - search the script for prefix!).
+# When setting parameters in a PowerShell script, the script must be run with .
+# (e.g. . ./SettingsCore.ps1) such that variables are reflected in the caller 
+# environment.
+
+# Cloning or updating with variables specifying parameters:
+# Here, the RepositoryAddress and RepositoryDirectory defines repository address
+# and a relative path to the cloning directory. Directory path is interpreted 
+# relative to the current directory rather than relative to the script, because
+# execution is not bound to script in this case.
+# Expected: the repository with specified address is cloned (or updated by Git pull)
+#   in the specified directory relative to the current directory.
+
