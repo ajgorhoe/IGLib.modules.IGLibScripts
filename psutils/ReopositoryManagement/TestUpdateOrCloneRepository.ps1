@@ -17,3 +17,11 @@
 ./UpdateOrCloneRepository.ps1 -Directory "IGLibScripts" `
     -address "https://github.com/ajgorhoe/IGLib.modules.IGLibScripts.git" `
     -ref "release/latestrelease"
+
+# Cloning or updating with ABSOLUTE Directory path
+# WARNING: Change directory path according to location on your machine!
+# Expected: clone or updae should be performed on the correct (specified) directory.
+./UpdateOrCloneRepository.ps1 `
+    -Directory "u:/ws/ws/other/ajgor/iglibmodules/IGLibSandbox/scripts/IGLibScripts1" `
+    -address "https://github.com/ajgorhoe/IGLib.modules.IGLibScripts.git" `
+    -ref "release/latestrelease"
