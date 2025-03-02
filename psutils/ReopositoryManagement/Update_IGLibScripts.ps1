@@ -26,39 +26,43 @@ $UpdatingScriptPath = ".\\UpdateOrCloneRepository.ps1"
 # Define parameter variables for UpdateOrCloneRepository.ps1
 #    in the same order as that script's parameters:
 
-$RepositoryDirectory = "IGLibScripts"
-$RepositoryRef = "main"
-$RepositoryAddress = "https://github.com/ajgorhoe/IGLib.modules.IGLibScripts.git"
-$RepositoryRemote = "origin"
-$RepositoryAddressSecondary = $null
-$RepositoryRemoteSecondary = $null
-$RepositoryAddressTertiary = "d:\backup_sync\bk_code\git\ig\misc\iglib_modules\IGLibScripts\"
-$RepositoryRemoteTertiary = "local"
-$RepositoryThrowOnErrors = $false
+$global:RepositoryDirectory = "IGLibScripts"
+$global:RepositoryRef = "main"
+$global:RepositoryAddress = "https://github.com/ajgorhoe/IGLib.modules.IGLibScripts.git"
+$global:RepositoryRemote = "origin"
+$global:RepositoryAddressSecondary = $null
+$global:RepositoryRemoteSecondary = $null
+$global:RepositoryAddressTertiary = "d:\backup_sync\bk_code\git\ig\misc\iglib_modules\IGLibScripts\"
+$global:RepositoryRemoteTertiary = "local"
+$global:RepositoryThrowOnErrors = $false
 
 # End of custom section
 ########################################################################
 
-$RepositoryDefaultFromVars = $true # params set from variables above
-$RepositoryBaseDirectory = $null   # base dir will be set to script dir 
+# $global:RepositoryDefaultFromVars = $true # params set from variables above
+$global:RepositoryBaseDirectory = $null   # base dir will be set to script dir 
 
 # Set RepositoryBaseDirectory to the directory containing this script:
 $scriptPath = $MyInvocation.MyCommand.Path
 $scriptDir = Split-Path $scriptPath -Parent
-$scriptFilename = [System.IO.Path]::GetFileName($fullPath)
-$RepositoryBaseDirectory = $scriptDir
+$scriptFilename = [System.IO.Path]::GetFileName($scriptPath)
+
+# Set base directory for relative paths to the current script's directory:
+$global:RepositoryBaseDirectory = $scriptDir
 
 # If $UpdatingScriptPath is a relative path, convert it to absolute
 if (-not [System.IO.Path]::IsPathRooted($UpdatingScriptPath)) {
     $UpdatingScriptPath = Join-Path $scriptDir $UpdatingScriptPath
 }
 
-Write-Host "`n($scriptFilename):"
+Write-Host "`n${scriptFilename}:"
 Write-Host "  RepositoryDirectory: $RepositoryDirectory"
 Write-Host "  RepositoryAddress: $RepositoryAddress"
 Write-Host "  RepositoryRef: $RepositoryRef"
 # Write-Host "  UpdatingScriptPath: $UpdatingScriptPath"
 # Write-Host "  RepositoryBaseDirectory: $RepositoryBaseDirectory `n"
+
+./PrintRepositoryVariales.ps1
 
 # Invoke UpdateOrCloneRepository.ps1 with no parameters, 
 #    so it uses the global variables defined above:
@@ -66,4 +70,4 @@ Write-Host "`nCalling update script without parameters; it will use global varia
 & $UpdatingScriptPath -Execute -DefaultFromVars
 
 Write-Host "`nUpdating or cloning the repository completed.`n"
-Write-Host "`n---------------------------------------------------------`n`n"
+Write-Host "---------------------------------------------------------`n`n"

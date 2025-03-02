@@ -1,5 +1,6 @@
 
 # Update / Clone settings for the IGLibCore repository
+# Must be tun dot-sourced, such that variables are defined in correct scope
 
 $RepositoryDirectory = "IGLibCore"
 $RepositoryRef = $main
