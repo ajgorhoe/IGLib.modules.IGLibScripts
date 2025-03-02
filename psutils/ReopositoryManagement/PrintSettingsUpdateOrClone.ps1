@@ -3,11 +3,8 @@
 
 # Write-Host "`n-------------------------------------------------------"
 Write-Host "`n-------------------------------------------------------"
-Write-Host "Variables for repository updating / cloning scripts:`n"
-Write-Host "  RepositoryDirectory: $RepositoryDirectory"
-
-# Print variable values:
-
+# Print variables used ad settings for updating / cloning repositories:
+Write-Host "Variables for repository updating / cloning scripts:"
 Write-Host "  RepositoryDirectory: $RepositoryDirectory"
 Write-Host "  RepositoryRef:       $RepositoryRef"
 Write-Host "  RepositoryAddress:   $RepositoryAddress"
