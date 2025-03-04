@@ -24,7 +24,7 @@ Write-Host "Updating/cloning a specific repository..."
 # Custom section (USER DEFINED):
 
 # Path to UpdateOrCloneRepository.ps1
-$UpdatingScriptPath = ".\\UpdateOrCloneRepository.ps1"
+$UpdatingScriptPath = "./UpdateOrCloneRepository.ps1"
 
 # Define parameter variables for UpdateOrCloneRepository.ps1
 #    in the same order as that script's parameters:
