@@ -17,8 +17,8 @@
     $UpdatingScriptPath (absolute or relative).
 #>
 
-Write-Host "`n`n=======================================================\n"
-Write-Host "Updating/cloning a specific repository...\n"
+Write-Host "`n`n======================================================="
+Write-Host "Updating/cloning a specific repository..."
 
 ########################################################################
 # Custom section (USER DEFINED):
@@ -58,15 +58,15 @@ if (-not [System.IO.Path]::IsPathRooted($UpdatingScriptPath)) {
     $UpdatingScriptPath = Join-Path $scriptDir $UpdatingScriptPath
 }
 
-Write-Host "`n${scriptFilename}:"
-Write-Host "  CurrentRepo_Directory: $CurrentRepo_Directory"
-Write-Host "  CurrentRepo_Address: $CurrentRepo_Address"
-Write-Host "  CurrentRepo_Ref: $CurrentRepo_Ref"
-# Write-Host "  UpdatingScriptPath: $UpdatingScriptPath"
-# Write-Host "  CurrentRepo_BaseDirectory: $CurrentRepo_BaseDirectory `n"
+# Write-Host "`n${scriptFilename}:"
+# Write-Host "  CurrentRepo_Directory: $CurrentRepo_Directory"
+# Write-Host "  CurrentRepo_Address: $CurrentRepo_Address"
+# Write-Host "  CurrentRepo_Ref: $CurrentRepo_Ref"
+# # Write-Host "  UpdatingScriptPath: $UpdatingScriptPath"
+# # Write-Host "  CurrentRepo_BaseDirectory: $CurrentRepo_BaseDirectory `n"
 
 # Print all variables used as settings for updating / cloning repositories:
-Write-Host "`n-------------------------------------------------------"
+Write-Host "-------------------------------------------------------"
 Write-Host "Variables for repository updating / cloning scripts:"
 Write-Host "  CurrentRepo_Directory: $CurrentRepo_Directory"
 Write-Host "  CurrentRepo_Ref:       $CurrentRepo_Ref"
@@ -81,7 +81,7 @@ Write-Host "  CurrentRepo_ThrowOnErrors:    $CurrentRepo_ThrowOnErrors"
 Write-Host "  CurrentRepo_DefaultFromVars:  $CurrentRepo_DefaultFromVars"
 Write-Host "  CurrentRepo_BaseDirectory   : $CurrentRepo_BaseDirectory"
 #
-Write-Host "---------------------------------------------------------`n"
+Write-Host "---------------------------------------------------------"
 
 # # Uncomment the line below only when the print script exists!
 # & (Join-Path $scriptDir PrintSettingsUpdateOrClone.ps1)
@@ -91,5 +91,5 @@ Write-Host "---------------------------------------------------------`n"
 Write-Host "`nCalling update script without parameters; it will use global variables..."
 & $UpdatingScriptPath -Execute -DefaultFromVars
 
-Write-Host "`nUpdating or cloning the repository completed.`n"
+Write-Host "`nUpdating or cloning the repository completed."
 Write-Host "---------------------------------------------------------`n`n"
