@@ -1,9 +1,40 @@
-# UpdateOrCloneRepository.ps1
-# A Windows PowerShell–compatible script for updating or cloning a Git repository.
+<#
+.SYNOPSIS
+    Script file for updating or cloning a Git repository.
+    Contains the UpdateOrCloneRepository function and helper routines.
 
-###############################################################################
-# Script parameters
-###############################################################################
+.NOTES
+
+.DESCRIPTION
+    This script defines a function `UpdateOrCloneRepository` and various helper functions
+    that clone or update a Git repository, optionally resolving parameters from global variables.
+    It supports multiple remotes, references (branch/tag/commit), error handling, and more.
+
+    When run with `-Execute`, the script calls `UpdateOrCloneRepository` with the
+    specified or inferred parameters. When run with `-DefaultFromVars`,
+    unspecified parameters are automatically pulled from global variables prefixed with 'CurrentRepo_'.
+
+.NOTES
+    Copyright © Igor Grešovnik.
+    Part of IGLib.
+    https://github.com/ajgorhoe/IGLib.modules.IGLibSandbox/
+	
+
+.EXAMPLE
+    .\UpdateOrCloneRepository.ps1 -Directory "C:\Repos\Example" -Address "https://github.com/foo/bar.git" -Execute
+
+    Clones or updates the repo in C:\Repos\Example, using the default remote name 'origin',
+    and prints status messages to the console.
+
+.EXAMPLE
+    # Rely on global variables for parameters
+    $global:CurrentRepo_Directory = "C:\MyGlobalRepo"
+    $global:CurrentRepo_Address   = "https://github.com/foo/myglobal.git"
+    .\UpdateOrCloneRepository.ps1 -DefaultFromVars -Execute
+
+    Pulls the Directory and Address from the global variables, then clones/updates the repo.
+#>
+
 param (
     [string]$Directory,
     [string]$Ref,
@@ -25,7 +56,7 @@ param (
 ###############################################################################
 
 # Prefix used for setting/retrieving global variables
-$ParameterGlobalVariablePrefix = "Repository"
+$ParameterGlobalVariablePrefix = "CurrentRepo_"
 
 # Default values
 $DefaultRemote          = "origin"
@@ -58,6 +89,22 @@ function Write-ErrorReport {
 # Git Helper Functions
 ###############################################################################
 
+<#
+.SYNOPSIS
+    Checks whether a given directory (or one of its parent directories) is a Git repository.
+
+.DESCRIPTION
+    This function starts at the specified directory and checks if `.git` is present
+    (with a valid `HEAD` file) in it or any of its parents until it reaches the filesystem root.
+
+.PARAMETER directoryPath
+    The directory path to inspect. If it's within a Git repo or is itself a Git repo root, returns $true.
+
+.EXAMPLE
+    IsGitRepository "C:\Projects\MyRepo"
+    # Returns $true if MyRepo is or contains a valid .git folder.
+
+#>
 function IsGitRepository {
     param ([string]$directoryPath)
     # Check upwards if the path is nested within a repository.
@@ -75,6 +122,23 @@ function IsGitRepository {
     return $false
 }
 
+<#
+.SYNOPSIS
+    Finds the root directory of a Git repository.
+
+.DESCRIPTION
+    Similar logic to IsGitRepository, but instead of returning $true or $false,
+    it returns the actual path where `.git` and a valid `HEAD` file are found,
+    or $null if not found.
+
+.PARAMETER directoryPath
+    The starting directory from which to search upward.
+
+.EXAMPLE
+    $root = GetGitRepositoryRoot "C:\Projects\MyRepo\src"
+    # If MyRepo is a Git repo, returns "C:\Projects\MyRepo"
+
+#>
 function GetGitRepositoryRoot {
     param ([string]$directoryPath)
     while ($directoryPath -and (Test-Path $directoryPath)) {
@@ -92,6 +156,24 @@ function GetGitRepositoryRoot {
     return $null
 }
 
+<#
+.SYNOPSIS
+    Retrieves the URL of a specific remote from a Git repository.
+
+.DESCRIPTION
+    Looks up the Git repository root (via GetGitRepositoryRoot)
+    and runs `git remote get-url <remoteName>` to obtain the address.
+
+.PARAMETER directoryPath
+    A path inside the repository.
+
+.PARAMETER remoteName
+    The name of the remote (e.g. 'origin').
+
+.EXAMPLE
+    GetGitRemoteAddress "C:\Projects\MyRepo" "origin"
+    # Might return "https://github.com/user/MyRepo.git"
+#>
 function GetGitRemoteAddress {
     param (
         [string]$directoryPath,
@@ -106,6 +188,21 @@ function GetGitRemoteAddress {
     }
 }
 
+<#
+.SYNOPSIS
+    Extracts the repository name from a Git address.
+
+.DESCRIPTION
+    This function takes a repository address (URL or local path),
+    and returns the last path component, removing a trailing `.git`.
+
+.PARAMETER repositoryAddress
+    The address of the repository. E.g. "https://github.com/foo/bar.git" or "/repos/bar.git".
+
+.EXAMPLE
+    GetGitRepositoryName "https://github.com/foo/bar.git"
+    # Returns "bar"
+#>
 function GetGitRepositoryName {
     param ([string]$repositoryAddress)
     if (-not $repositoryAddress) { return $null }
@@ -115,11 +212,24 @@ function GetGitRepositoryName {
     return $leaf
 }
 
-###############################################################################
-# Address Consistency Check
-###############################################################################
-# This function tries minimal normalization of addresses before comparison.
+<#
+.SYNOPSIS
+    Checks if two Git remote addresses are consistent, performing basic normalization.
 
+.DESCRIPTION
+    Removes trailing slashes for HTTP(S) addresses, attempts to resolve local paths,
+    then does a case-insensitive comparison. Returns $true if they match, $false otherwise.
+
+.PARAMETER expected
+    The first address to compare (e.g. user-specified remote).
+
+.PARAMETER actual
+    The second address to compare (e.g. existing remote in the local repo).
+
+.EXAMPLE
+    CheckGitAddressConsistency "https://github.com/foo/bar.git" "https://github.com/foo/bar.git/"
+    # Returns $true
+#>
 function CheckGitAddressConsistency {
     param (
         [string]$expected,
@@ -168,10 +278,25 @@ function CheckGitAddressConsistency {
     return ([string]::Equals($exp, $act, [System.StringComparison]::OrdinalIgnoreCase))
 }
 
-###############################################################################
-# Path Helper
-###############################################################################
+<#
+.SYNOPSIS
+    Returns the absolute path for a given path, optionally relative to BaseDirectory.
 
+.DESCRIPTION
+    If the given path is rooted (absolute), it attempts to resolve it.
+    If not, and BaseDirectory is provided, it joins them. Otherwise,
+    it falls back to the script directory or current directory.
+
+.PARAMETER Path
+    The path to resolve (may be absolute or relative).
+
+.PARAMETER BaseDirectory
+    If set, the returned path is combined with BaseDirectory if Path is not rooted.
+
+.EXAMPLE
+    EnsureFullPath -Path "Repo" -BaseDirectory "C:\Projects"
+    # Returns "C:\Projects\Repo" if it exists or the best guess if it does not.
+#>
 function EnsureFullPath {
     param (
         [string]$Path,
@@ -219,10 +344,56 @@ function EnsureFullPath {
     }
 }
 
-###############################################################################
-# Main Function
-###############################################################################
+<#
+.SYNOPSIS
+    Clones or updates a Git repository in a specified directory, with support for multiple remotes
+    and references.
 
+.DESCRIPTION
+    The UpdateOrCloneRepository function checks if the directory contains an existing Git repository
+    matching the specified remote address. If not found, it clones. If found, it fetches from the primary remote,
+    checks out a specified reference (branch/tag/commit), and can also configure secondary/tertiary remotes.
+
+.PARAMETER Directory
+    The directory where the repository should be cloned or updated.
+
+.PARAMETER Ref
+    A branch, tag, or commit to check out.
+
+.PARAMETER Address
+    The primary remote address (e.g. "https://github.com/user/repo.git").
+
+.PARAMETER Remote
+    The name for the primary remote (default: origin).
+
+.PARAMETER AddressSecondary
+    URL for a secondary remote, if needed.
+
+.PARAMETER RemoteSecondary
+    Name of the secondary remote (default: mirror).
+
+.PARAMETER AddressTertiary
+    URL for a tertiary remote, if needed.
+
+.PARAMETER RemoteTertiary
+    Name of the tertiary remote (default: local).
+
+.PARAMETER ThrowOnErrors
+    If set, the function throws on fatal errors instead of returning gracefully.
+
+.PARAMETER DefaultFromVars
+    If set, unspecified parameters are filled from global variables (e.g. $global:CurrentRepo_Directory).
+
+.PARAMETER BaseDirectory
+    If non-empty and Directory is relative, Directory is resolved relative to BaseDirectory.
+
+.EXAMPLE
+    UpdateOrCloneRepository -Directory "C:\Repos\MyRepo" -Address "https://github.com/foo/bar.git" -Ref "main"
+
+.NOTES
+    Additional usage details can be found in the script's overall comment or via 
+    external documentation tools like PlatyPS.
+#>
 function UpdateOrCloneRepository {
     param (
         [string]$Directory,
@@ -245,7 +416,6 @@ function UpdateOrCloneRepository {
     ############################################################################
     if ($DefaultFromVars) {
         Write-Info "DefaultFromVars is set (function scope). Checking for missing parameters..."
-
         $paramList = 'Directory','Ref','Address','Remote','AddressSecondary','RemoteSecondary','AddressTertiary','RemoteTertiary','BaseDirectory'
         foreach ($p in $paramList) {
             # Did the caller explicitly specify this parameter?
@@ -253,12 +423,11 @@ function UpdateOrCloneRepository {
                 # The user did NOT pass this parameter, so let's try to fill from global
                 $upperParam   = $p.Substring(0,1).ToUpper() + $p.Substring(1)
                 $globalVarName = "${ParameterGlobalVariablePrefix}${upperParam}"
-
                 $currentVal = Get-Variable -Name $p -Scope 0 -ErrorAction SilentlyContinue
 
                 # We must check .Value to see if the param is actually set
                 if ($currentVal -and $currentVal.Value) {
-                    Write-Info "  $p is already set (somehow). No override from global. Value: $($currentVal.Value)"
+                    Write-Info "  $p is already set. Value: $($currentVal.Value)"
                     continue
                 }
 
@@ -271,11 +440,11 @@ function UpdateOrCloneRepository {
                     Write-Info "  $p set from $globalVarName to $globalVal"
                 }
                 else {
-                    Write-Info "  $p not set from global variable (it does not exist or is null)."
+                    Write-Info "  $p not set from global variable."
                 }
             }
             else {
-                Write-Info "  $p was explicitly provided by the caller, not using global variable."
+                Write-Info "  $p was explicitly provided by the caller."
             }
         }
     }
@@ -283,9 +452,9 @@ function UpdateOrCloneRepository {
     ############################################################################
     # (2) Apply default values if not set
     ############################################################################
-    if (-not $Remote)           { $Remote           = $DefaultRemote }
-    if (-not $RemoteSecondary)  { $RemoteSecondary  = $DefaultRemoteSecondary }
-    if (-not $RemoteTertiary)   { $RemoteTertiary   = $DefaultRemoteTertiary }
+    if (-not $Remote)          { $Remote          = $DefaultRemote }
+    if (-not $RemoteSecondary) { $RemoteSecondary = $DefaultRemoteSecondary }
+    if (-not $RemoteTertiary)  { $RemoteTertiary  = $DefaultRemoteTertiary }
 
     ############################################################################
     # (3) Additional logic for deduce Directory from Address (if needed)
@@ -527,10 +696,20 @@ function UpdateOrCloneRepository {
     Write-Info "Repository is up to date in directory: ${Directory}"
 }
 
-###############################################################################
-# Script-level Parameter Resolution & Execution Control
-###############################################################################
+<#
+.SYNOPSIS
+    Resolves script-level parameters from global variables, applying defaults if needed.
 
+.DESCRIPTION
+    If -DefaultFromVars is set at the script level, this function attempts to copy
+    values from global variables named $CurrentRepo_<PropertyName> into the script's
+    local parameter variables (e.g. Directory, Address, etc.). It also applies default
+    values for Remote, etc., if they remain unset.
+
+.NOTES
+    This function is called automatically near the end of the script, before deciding
+    whether to execute UpdateOrCloneRepository.
+#>
 function Resolve-ScriptParameters {
     # 1) Fill from global variables if $DefaultFromVars is set, then apply defaults, etc.
     if ($DefaultFromVars) {
@@ -567,6 +746,18 @@ function Resolve-ScriptParameters {
     if (-not $RemoteTertiary)  { $RemoteTertiary  = $DefaultRemoteTertiary }
 }
 
+<#
+.SYNOPSIS
+    Copies current script parameter values into global variables if requested.
+
+.DESCRIPTION
+    If -ParamsToVars is set, for each recognized parameter name, this function
+    updates the corresponding $CurrentRepo_<Name> global variable to the parameter's value.
+
+.NOTES
+    This is typically used so that after the script completes, the parameter values 
+    remain accessible in the global scope.
+#>
 function Set-GlobalVarsIfRequested {
     if ($ParamsToVars) {
         $paramList = 'Directory','Ref','Address','Remote','AddressSecondary','RemoteSecondary','AddressTertiary','RemoteTertiary','BaseDirectory'
