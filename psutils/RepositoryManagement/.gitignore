@@ -1,0 +1,19 @@
+
+# Remark: Ignore directories that are created in the scope of testing of the
+# update/create script.
+
+/testscripts
+
+/IGLibScripts
+/IGLibScripts1
+/IGLibScripts11
+
+/IGLibCore
+/IGLibCore1
+/IGLibCore11
+
+/repos
+/repos1
+/repos11
+
+

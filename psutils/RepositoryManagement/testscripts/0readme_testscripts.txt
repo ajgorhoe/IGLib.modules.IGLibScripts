@@ -1,0 +1,1 @@
+This directory is aimed at testing the scripts.
