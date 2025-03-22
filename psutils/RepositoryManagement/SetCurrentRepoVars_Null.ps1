@@ -1,14 +1,18 @@
 
 # Resets repository update / clone settings
 
-$global:RepositoryDirectory = $null
-$global:RepositoryRef = $null
-$global:RepositoryAddress = $null
-$global:RepositoryRemote = $null
-$global:RepositoryAddressSecondary = $null
-$global:RepositoryRemoteSecondary = $null
-$global:RepositoryAddressTertiary = $null
-$global:RepositoryRemoteTertiary = $null
-$global:RepositoryThrowOnErrors = $null
-$global:RepositoryDefaultFromVars = $null
-$global:RepositoryBaseDirectory = $null
+## Removing variables in a single shot:
+# Remove-Variable -Name CurrentRepo_* -Scope Global
+
+# Removing variables one by one:
+$global:CurrentRepo_Directory        = $null
+$global:CurrentRepo_Ref              = $null
+$global:CurrentRepo_Address          = $null
+$global:CurrentRepo_Remote           = $null
+$global:CurrentRepo_AddressSecondary = $null
+$global:CurrentRepo_RemoteSecondary  = $null
+$global:CurrentRepo_AddressTertiary  = $null
+$global:CurrentRepo_RemoteTertiary   = $null
+$global:CurrentRepo_ThrowOnErrors    = $null
+$global:CurrentRepo_DefaultFromVars  = $null
+$global:CurrentRepo_BaseDirectory    = $null

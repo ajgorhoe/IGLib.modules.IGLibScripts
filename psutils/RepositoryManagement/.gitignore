@@ -2,18 +2,18 @@
 # Remark: Ignore directories that are created in the scope of testing of the
 # update/create script.
 
-/testscripts
+/TestScripts
 
 /IGLibScripts
 /IGLibScripts1
-/IGLibScripts11
+/IGLibScripts2
 
 /IGLibCore
 /IGLibCore1
-/IGLibCore11
+/IGLibCore2
 
 /repos
 /repos1
-/repos11
+/repos2
 
 

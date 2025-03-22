@@ -1,21 +1,20 @@
 # Prints variables used by repository updating/cloning script to fill
 # unset parameters.
 
-# Write-Host "`n-------------------------------------------------------"
 Write-Host "`n-------------------------------------------------------"
-# Print variables used ad settings for updating / cloning repositories:
+# Print all variables used as settings for updating / cloning repositories:
 Write-Host "Variables for repository updating / cloning scripts:"
-Write-Host "  RepositoryDirectory: $RepositoryDirectory"
-Write-Host "  RepositoryRef:       $RepositoryRef"
-Write-Host "  RepositoryAddress:   $RepositoryAddress"
-Write-Host "  RepositoryRemote:    $RepositoryRemote"
-Write-Host "  RepositoryAddressSecondary: $RepositoryAddressSecondary"
-Write-Host "  RepositoryRemoteSecondary:  $RepositoryRemoteSecondary"
-Write-Host "  RepositoryAddressTertiary:  $RepositoryAddressTertiary"
-Write-Host "  RepositoryRemoteTertiary:   $RepositoryRemoteTertiary"
-Write-Host "  RepositoryThrowOnErrors:    $RepositoryThrowOnErrors"
+Write-Host "  CurrentRepo_Directory: $CurrentRepo_Directory"
+Write-Host "  CurrentRepo_Ref:       $CurrentRepo_Ref"
+Write-Host "  CurrentRepo_Address:   $CurrentRepo_Address"
+Write-Host "  CurrentRepo_Remote:    $CurrentRepo_Remote"
+Write-Host "  CurrentRepo_AddressSecondary: $CurrentRepo_AddressSecondary"
+Write-Host "  CurrentRepo_RemoteSecondary:  $CurrentRepo_RemoteSecondary"
+Write-Host "  CurrentRepo_AddressTertiary:  $CurrentRepo_AddressTertiary"
+Write-Host "  CurrentRepo_RemoteTertiary:   $CurrentRepo_RemoteTertiary"
+Write-Host "  CurrentRepo_ThrowOnErrors:    $CurrentRepo_ThrowOnErrors"
 
-Write-Host "  RepositoryDefaultFromVars:  $RepositoryDefaultFromVars"
-Write-Host "  RepositoryBaseDirectory   : $RepositoryBaseDirectory"
+Write-Host "  CurrentRepo_DefaultFromVars:  $CurrentRepo_DefaultFromVars"
+Write-Host "  CurrentRepo_BaseDirectory   : $CurrentRepo_BaseDirectory"
 
 Write-Host "---------------------------------------------------------`n"

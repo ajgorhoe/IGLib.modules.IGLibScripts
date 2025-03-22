@@ -1,15 +1,15 @@
 
 # Update / Clone settings for the IGLibScripts repository
 
-$global:RepositoryDirectory = "IGLibScripts"
-$global:RepositoryRef = $main
-$global:RepositoryAddress = "https://github.com/ajgorhoe/IGLib.modules.IGLibScripts.git"
-$global:RepositoryRemote = "origin"
-$global:RepositoryAddressSecondary = $null
-$global:RepositoryRemoteSecondary = $null
-$global:RepositoryAddressTertiary = "d:\backup_sync\bk_code\git\ig\misc\iglib_modules\IGLibScripts\"
-$global:RepositoryRemoteTertiary = "local"
-$global:RepositoryThrowOnErrors = $null
-$global:RepositoryDefaultFromVars = $null
-$global:RepositoryBaseDirectory = $null
+$global:CurrentRepo_Directory = "IGLibScripts"
+$global:CurrentRepo_Ref = $main
+$global:CurrentRepo_Address = "https://github.com/ajgorhoe/IGLib.modules.IGLibScripts.git"
+$global:CurrentRepo_Remote = "origin"
+$global:CurrentRepo_AddressSecondary = $null
+$global:CurrentRepo_RemoteSecondary = $null
+$global:CurrentRepo_AddressTertiary = "d:\backup_sync\bk_code\git\ig\misc\iglib_modules\IGLibScripts\"
+$global:CurrentRepo_RemoteTertiary = "local"
+$global:CurrentRepo_ThrowOnErrors = $null
+$global:CurrentRepo_DefaultFromVars = $null
+$global:CurrentRepo_BaseDirectory = $null
 

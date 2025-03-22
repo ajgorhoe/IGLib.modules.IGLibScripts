@@ -1,11 +1,11 @@
 
-# Clones or updates the depencencies repositories for IGLibSandbox.
+# Clones or updates the dependencies repositories for IGLibSandbox.
 Write-Host "`nCloning / updating dependency repositories of IGLibSandbox ..."
 
 # Get the script directory such that relative paths can be resolved:
 $scriptPath = $MyInvocation.MyCommand.Path
 $scriptDir = Split-Path $scriptPath -Parent
-$scriptFilename = [System.IO.Path]::GetFileName($scriptPath)
+# $scriptFilename = [System.IO.Path]::GetFileName($scriptPath)
 
 Write-Host "Script directory: $scriptDir"
 

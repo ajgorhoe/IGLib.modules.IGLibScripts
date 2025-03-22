@@ -3,12 +3,36 @@
 # Open the PowerShell CLI in the directory of this script and copy-paste commands
 # from this file, then verify the results.
 
+# Set variables containing repository parameters for IGLibScripts:
+./SetUpdateOrClone_IGLibScripts.ps1
+./PrintSettingsUpdateOrClone.ps1
+# Resets variables containing repository parameters to null:
+./SetUpdateOrClone_Null.ps1
+./PrintSettingsUpdateOrClone.ps1
+
 # Cloning repository without specifying the checkout branch, into nested directory:
 # Before, either remove the clone directory, or let it exist.
 # Both if directory does not exist or it exists but it is empty,
-# the remote repository should be cloned into the directory.
+# the remote repository should be cloned into the repos/IGLibScripts directory.
 ./UpdateOrCloneRepository.ps1 -Directory "repos/IGLibScripts" `
     -address "https://github.com/ajgorhoe/IGLib.modules.IGLibScripts.git"
+
+# Cloning repository from a directory different from script directory, with a
+# relative path.
+# Expected: Relative path resolves relative to the current directory.
+Set-Location TestScripts  # change to directory different than script directory
+../UpdateOrCloneRepository.ps1 -Directory "repos/IGLibScripts" `
+    -address "https://github.com/ajgorhoe/IGLib.modules.IGLibScripts.git"
+Set-Location ..  # Change back to the initial directory
+
+# Cloning repository from a directory different from script directory, with a
+# relative path.
+# Expected: Relative path resolves relative to the base directory.
+Set-Location TestScripts  # change to directory different than script directory
+../UpdateOrCloneRepository.ps1 -Directory "repos/IGLibScripts" `
+    -BaseDirectory "../"  `
+    -address "https://github.com/ajgorhoe/IGLib.modules.IGLibScripts.git"
+Set-Location ..  # Change back to the initial directory
 
 # Cloning or updating with a different branch than the default one:
 # Remove the repo directory before executing, or keep it with another ref
@@ -20,7 +44,7 @@
 
 # Cloning or updating with ABSOLUTE Directory path
 # WARNING: Change directory path according to location on your machine!
-# Expected: clone or updae should be performed on the correct (specified) directory.
+# Expected: clone or update should be performed on the correct (specified) directory.
 ./UpdateOrCloneRepository.ps1 `
     -Directory "u:/ws/ws/other/ajgor/iglibmodules/IGLibSandbox/scripts/IGLibScripts1" `
     -address "https://github.com/ajgorhoe/IGLib.modules.IGLibScripts.git" `
@@ -49,13 +73,13 @@
 # both the -DefaultFromVars and -Execute switches must be on.
 
 # Cloning or updating with VARIABLES specifying PARAMETERS:
-# Variables RepositoryAddress and RepositoryDirectory defines repository address
+# Variables CurrentRepo_Address and CurrentRepo_Directory defines repository address
 # and a relative path to the cloning directory w.r. the script directory.
 # Expected: the repository with specified address is cloned (or updated by Git pull)
 #   in the specified directory relative to the script directory.
 # The lines below must be run from the PowerShell command-line:
-$RepositoryDirectory = "IGLibScripts";
-$RepositoryAddress = "https://github.com/ajgorhoe/IGLib.modules.IGLibScripts.git";
+$CurrentRepo_Directory = "IGLibScripts";
+$CurrentRepo_Address = "https://github.com/ajgorhoe/IGLib.modules.IGLibScripts.git";
 ./UpdateOrCloneRepository.ps1 -DefaultFromVars -Execute
 
 # Cloning or updating with VARIABLES that define script parameters IN THE SETTINGs
@@ -75,8 +99,8 @@ $RepositoryAddress = "https://github.com/ajgorhoe/IGLib.modules.IGLibScripts.git
 #   the clone directory is set to "IGLibScripts11" defined as script parameter,
 #   rather than "IGLibScript" defined in a variable.
 # The lines below must be run from the PowerShell command-line:
-$RepositoryDirectory = "IGLibScripts";
-$RepositoryAddress = "https://github.com/ajgorhoe/IGLib.modules.IGLibScripts.git";
+$CurrentRepo_Directory = "IGLibScripts";
+$CurrentRepo_Address = "https://github.com/ajgorhoe/IGLib.modules.IGLibScripts.git";
 ./UpdateOrCloneRepository.ps1 -Directory "IGLibScripts11" -DefaultFromVars -Execute
 
 
@@ -98,6 +122,25 @@ $RepositoryAddress = "https://github.com/ajgorhoe/IGLib.modules.IGLibScripts.git
 #   Parameters must be specified as camel case, and relative directories are stated
 #   with respect to the current directory rather than script directory.
 . ./UpdateOrCloneRepository.ps1    # running of the script defines the function
-UpdateOrCloneRepository -directory "IGLibScript" `
+UpdateOrCloneRepository -directory "IGLibScripts" `
     -address "https://github.com/ajgorhoe/IGLib.modules.IGLibScripts.git"
 
+
+# Cloning or Updating using specific script for a repository (Update_IGLibScripts.ps1):
+# The specific update script always resolves the directories relative to script
+# directory.
+
+# Cloning from the same directory that contains the custom script:
+# Repository directory is specified as relative path, which should be resolved
+# relative to script directory.
+# Expected results: The IFLib repository should be cloned or updated at the path 
+# specified in the specific update script, with relative path resolved relative
+# to the custom script directory.
+./Update_IGLibScripts.ps1
+
+# Calling the specific (custom) update / clone script from a different directory:
+# Expected: the repository directory should have the same path regardless of
+# the current directory at the time when the script is called.
+Set-Location TestScripts   # change to a directory different than script directory
+../Update_IGLibScripts.ps1
+Set-Location ..
