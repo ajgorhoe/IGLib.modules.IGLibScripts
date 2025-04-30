@@ -20,6 +20,7 @@
 		<TargetFrameworks>net8.0</TargetFrameworks>
 		<OutputType>Library</OutputType>
 		<ImplicitUsings>disable</ImplicitUsings>
+		<LangVersion>latest</LangVersion>
 		<GenerateAssemblyInfo>false</GenerateAssemblyInfo>
 		 <!-- <OutputType>None</OutputType> Prevents creating bin/obj directories -->
 		<BuildProjectReferences>false</BuildProjectReferences>   <!-- Prevents building the project -->
