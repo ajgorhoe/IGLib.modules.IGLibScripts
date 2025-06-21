@@ -37,6 +37,8 @@ param(
     [switch]$InPlace,
     [switch]$OverwriteOlder,
     [switch]$KeepNonexistent,
+    [switch]$Verbose,
+    [switch]$DryRun,
 
     [int]$NumCopies = 0,
     [int]$MinDigits = 2
@@ -56,25 +58,53 @@ function Copy-DirectoryRecursive {
     param(
         [string]$Source,
         [string]$Destination,
-        [bool]$OverwriteOlder = $false
+        [bool]$OverwriteOlder = $false,
+        [bool]$VerboseMode = $false,
+        [bool]$DryRun = $false
     )
 
     if (-not (Test-Path -Path $Destination)) {
-        New-Item -Path $Destination -ItemType Directory -Force | Out-Null
+        if ($DryRun) {
+            Write-Output "[DryRun] Would create directory: $Destination"
+        } else {
+            New-Item -Path $Destination -ItemType Directory -Force | Out-Null
+        }
     }
 
     Get-ChildItem -Path $Source -Recurse -File | ForEach-Object {
         $relativePath = $_.FullName.Substring($Source.Length).TrimStart('\')
         $destFile = Join-Path $Destination $relativePath
         $destDir = Split-Path $destFile -Parent
+
         if (-not (Test-Path $destDir)) {
-            New-Item -Path $destDir -ItemType Directory -Force | Out-Null
+            if ($DryRun) {
+                Write-Output "[DryRun] Would create directory: $destDir"
+            } else {
+                New-Item -Path $destDir -ItemType Directory -Force | Out-Null
+            }
         }
-        if (-not (Test-Path $destFile) -or
-            ($OverwriteOlder -and
-                ($_.LastWriteTime -gt (Get-Item $destFile).LastWriteTime -or
-                ($_.LastWriteTime -eq (Get-Item $destFile).LastWriteTime -and $_.Length -ne (Get-Item $destFile).Length)))) {
-            Copy-Item -Path $_.FullName -Destination $destFile -Force
+
+        $shouldCopy = $true
+        if (Test-Path $destFile) {
+            if ($OverwriteOlder) {
+                $destItem = Get-Item $destFile
+                if ($_.LastWriteTime -lt $destItem.LastWriteTime -or
+                    ($_.LastWriteTime -eq $destItem.LastWriteTime -and $_.Length -eq $destItem.Length)) {
+                    $shouldCopy = $false
+                }
+            }
+        }
+
+        if ($shouldCopy) {
+            if ($DryRun) {
+                Write-Output "[DryRun] Would copy: $_ => $destFile"
+            } else {
+                Copy-Item -Path $_.FullName -Destination $destFile -Force
+            }
+        }
+
+        if ($VerboseMode -and !$DryRun) {
+            Write-Output "Copied: $_ => $destFile"
         }
     }
 }
@@ -82,14 +112,23 @@ function Copy-DirectoryRecursive {
 function Remove-NonexistentItems {
     param(
         [string]$Source,
-        [string]$Destination
+        [string]$Destination,
+        [bool]$VerboseMode = $false,
+        [bool]$DryRun = $false
     )
     $sourceItems = Get-ChildItem -Path $Source -Recurse | ForEach-Object { $_.FullName.Substring($Source.Length).TrimStart('\') }
     $destItems = Get-ChildItem -Path $Destination -Recurse | ForEach-Object { $_.FullName.Substring($Destination.Length).TrimStart('\') }
     $toRemove = $destItems | Where-Object { $_ -notin $sourceItems }
     foreach ($item in $toRemove) {
         $fullPath = Join-Path $Destination $item
-        Remove-Item -Path $fullPath -Recurse -Force -ErrorAction SilentlyContinue
+        if ($DryRun) {
+            Write-Output "[DryRun] Would remove: $fullPath"
+        } else {
+            Remove-Item -Path $fullPath -Recurse -Force -ErrorAction SilentlyContinue
+        }
+        if ($VerboseMode -and !$DryRun) {
+            Write-Output "Removed: $fullPath"
+        }
     }
 }
 
@@ -120,12 +159,12 @@ function Get-ExistingCopies {
 
 function Perform-InPlaceCopy {
     if (-not (Test-Path -Path $DestDir)) {
-        Copy-DirectoryRecursive -Source $SourceDir -Destination $DestDir -OverwriteOlder:$false
+        Copy-DirectoryRecursive -Source $SourceDir -Destination $DestDir -OverwriteOlder:$false -VerboseMode:$Verbose -DryRun:$DryRun
         return
     }
-    Copy-DirectoryRecursive -Source $SourceDir -Destination $DestDir -OverwriteOlder:$OverwriteOlder
+    Copy-DirectoryRecursive -Source $SourceDir -Destination $DestDir -OverwriteOlder:$OverwriteOlder -VerboseMode:$Verbose -DryRun:$DryRun
     if (-not $KeepNonexistent) {
-        Remove-NonexistentItems -Source $SourceDir -Destination $DestDir
+        Remove-NonexistentItems -Source $SourceDir -Destination $DestDir -VerboseMode:$Verbose -DryRun:$DryRun
     }
 }
 
@@ -139,37 +178,44 @@ function Perform-CompleteCopy {
         $maxIndex = ($copies.Keys | Measure-Object -Maximum).Maximum
     }
 
-    # Promote copies (start from highest)
     for ($i = $maxIndex; $i -ge 1; $i--) {
         $oldPath = Get-CopyName -BaseName $baseName -Index $i -Digits $MinDigits
         $oldFullPath = Join-Path $parent $oldPath
         $newPath = Get-CopyName -BaseName $baseName -Index ($i + 1) -Digits $MinDigits
         $newFullPath = Join-Path $parent $newPath
         if (Test-Path $oldFullPath) {
-            Rename-Item -Path $oldFullPath -NewName (Split-Path $newFullPath -Leaf)
+            if ($DryRun) {
+                Write-Output "[DryRun] Would rename: $oldFullPath => $newFullPath"
+            } else {
+                Rename-Item -Path $oldFullPath -NewName (Split-Path $newFullPath -Leaf)
+            }
         }
     }
 
-    # Promote primary backup
     if (Test-Path $DestDir) {
         $newName = Get-CopyName -BaseName $baseName -Index 1 -Digits $MinDigits
-        Rename-Item -Path $DestDir -NewName $newName
+        $newFullPath = Join-Path $parent $newName
+        if ($DryRun) {
+            Write-Output "[DryRun] Would rename: $DestDir => $newFullPath"
+        } else {
+            Rename-Item -Path $DestDir -NewName $newName
+        }
     }
 
-    # Copy fresh backup
-    Copy-DirectoryRecursive -Source $SourceDir -Destination $DestDir
+    Copy-DirectoryRecursive -Source $SourceDir -Destination $DestDir -VerboseMode:$Verbose -DryRun:$DryRun
 
-    # Cleanup older backups
     $currentCopies = Get-ExistingCopies -BasePath $parent -BaseName $baseName -Digits $MinDigits
     $removeThreshold = $NumCopies + 1
     foreach ($k in $currentCopies.Keys | Sort-Object -Descending) {
         if ($k -ge $removeThreshold) {
-            Remove-Item -Path $currentCopies[$k] -Recurse -Force -ErrorAction SilentlyContinue
+            if ($DryRun) {
+                Write-Output "[DryRun] Would delete: $($currentCopies[$k])"
+            } else {
+                Remove-Item -Path $currentCopies[$k] -Recurse -Force -ErrorAction SilentlyContinue
+            }
         }
     }
 }
-
-# Entry point
 
 if (-not (Test-Path $SourceDir)) {
     Show-ErrorAndExit "Source directory to be backed up does not exist: \"$SourceDir\""
