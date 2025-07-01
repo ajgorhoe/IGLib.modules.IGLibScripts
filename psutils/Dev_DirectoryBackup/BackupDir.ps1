@@ -4,11 +4,11 @@ param(
     [switch]$InPlace,
     [switch]$OverwriteOlder,
     [switch]$KeepNonexistent,
-    [int]$NumCopies = 0,
-    [int]$MinDigits = 2,
-    [switch]$Execute,
     [switch]$DryRun,
-    [switch]$IsVerbose
+    [switch]$Execute,
+    [switch]$IsVerbose,
+    [int]$NumCopies = 0,
+    [int]$MinDigits = 2
 )
 
 # Constants
@@ -30,17 +30,25 @@ function Copy-DirectoryRecursive {
         [bool]$DryRun = $false
     )
 
-    if (-not (Test-Path -Path $Destination)) {
+    $resolvedSource = (Get-Item -Path $Source).FullName
+    $resolvedDestination = (Resolve-Path -Path $Destination -ErrorAction SilentlyContinue)
+    if (-not $resolvedDestination) {
+        $resolvedDestination = [System.IO.Path]::GetFullPath($Destination)
+    } else {
+        $resolvedDestination = $resolvedDestination.Path
+    }
+
+    if (-not (Test-Path -Path $resolvedDestination)) {
         if ($DryRun) {
-            Write-Output "[DryRun] Would create directory: $Destination"
+            Write-Output "[DryRun] Would create directory: $resolvedDestination"
         } else {
-            New-Item -Path $Destination -ItemType Directory -Force | Out-Null
+            New-Item -Path $resolvedDestination -ItemType Directory -Force | Out-Null
         }
     }
 
-    Get-ChildItem -Path $Source -Recurse -File | ForEach-Object {
-        $relativePath = $_.FullName.Substring($Source.Length).TrimStart('\')
-        $destFile = Join-Path $Destination $relativePath
+    Get-ChildItem -Path $resolvedSource -Recurse -File | ForEach-Object {
+        $relativePath = $_.FullName.Substring($resolvedSource.Length).TrimStart('\')
+        $destFile = Join-Path $resolvedDestination $relativePath
         $destDir = Split-Path $destFile -Parent
 
         if (-not (Test-Path $destDir)) {
@@ -82,11 +90,16 @@ function Remove-NonexistentItems {
         [bool]$VerboseMode = $false,
         [bool]$DryRun = $false
     )
-    $sourceItems = Get-ChildItem -Path $Source -Recurse | ForEach-Object { $_.FullName.Substring($Source.Length).TrimStart('\') }
-    $destItems = Get-ChildItem -Path $Destination -Recurse | ForEach-Object { $_.FullName.Substring($Destination.Length).TrimStart('\') }
+
+    $resolvedSource = (Get-Item -Path $Source).FullName
+    $resolvedDestination = (Get-Item -Path $Destination).FullName
+
+    $sourceItems = Get-ChildItem -Path $resolvedSource -Recurse | ForEach-Object { $_.FullName.Substring($resolvedSource.Length).TrimStart('\') }
+    $destItems = Get-ChildItem -Path $resolvedDestination -Recurse | ForEach-Object { $_.FullName.Substring($resolvedDestination.Length).TrimStart('\') }
     $toRemove = $destItems | Where-Object { $_ -notin $sourceItems }
+
     foreach ($item in $toRemove) {
-        $fullPath = Join-Path $Destination $item
+        $fullPath = Join-Path $resolvedDestination $item
         if ($DryRun) {
             Write-Output "[DryRun] Would remove: $fullPath"
         } else {
@@ -153,7 +166,7 @@ function Perform-CompleteCopy {
         [bool]$DryRun
     )
 
-    $parent = Split-Path -Parent $DestDir
+    $parent = Split-Path -Parent (Get-Item -Path $DestDir).FullName
     $baseName = Split-Path -Leaf $DestDir
 
     $copies = Get-ExistingCopies -BasePath $parent -BaseName $baseName -Digits $MinDigits
@@ -234,9 +247,7 @@ function BackupDir {
     }
 }
 
-
 if ($IsVerbose) {
-    # Verbose parameter printout
     Write-Output "BackupDir script invoked."
     Write-Output "Parameters:"
     Write-Output "  SourceDir: $SourceDir"
@@ -249,11 +260,8 @@ if ($IsVerbose) {
     Write-Output "  MinDigits: $MinDigits"
     Write-Output "  Execute: $Execute"
     Write-Output "  IsVerbose: $IsVerbose"
-} else {
-    Write-Output "`nThe IsVerbose is NOT true!`n."
 }
 
-# Determine if we should execute
 $shouldExecute = $false
 if ($Execute.IsPresent) {
     $shouldExecute = $Execute
@@ -261,7 +269,6 @@ if ($Execute.IsPresent) {
     $shouldExecute = $true
 }
 
-# Perform backup if applicable
 if ($shouldExecute) {
     BackupDir -SourceDir:$SourceDir -DestDir:$DestDir -InPlace:$InPlace -OverwriteOlder:$OverwriteOlder -KeepNonexistent:$KeepNonexistent -DryRun:$DryRun -NumCopies:$NumCopies -MinDigits:$MinDigits -VerboseMode:$IsVerbose
 }
