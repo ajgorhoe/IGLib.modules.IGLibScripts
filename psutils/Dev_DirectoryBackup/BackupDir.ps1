@@ -1,15 +1,14 @@
 param(
     [string]$SourceDir,
     [string]$DestDir,
-
     [switch]$InPlace,
     [switch]$OverwriteOlder,
     [switch]$KeepNonexistent,
-    [switch]$DryRun,
-    [switch]$Execute,
-
     [int]$NumCopies = 0,
-    [int]$MinDigits = 2
+    [int]$MinDigits = 2,
+    [switch]$Execute,
+    [switch]$DryRun,
+    [switch]$IsVerbose
 )
 
 # Constants
@@ -69,7 +68,7 @@ function Copy-DirectoryRecursive {
             } else {
                 Copy-Item -Path $_.FullName -Destination $destFile -Force
                 if ($VerboseMode) {
-                    Write-Verbose "Copied: $_ => $destFile"
+                    Write-Output "Copied: $_ => $destFile"
                 }
             }
         }
@@ -93,7 +92,7 @@ function Remove-NonexistentItems {
         } else {
             Remove-Item -Path $fullPath -Recurse -Force -ErrorAction SilentlyContinue
             if ($VerboseMode) {
-                Write-Verbose "Removed: $fullPath"
+                Write-Output "Removed: $fullPath"
             }
         }
     }
@@ -174,7 +173,7 @@ function Perform-CompleteCopy {
             } else {
                 Rename-Item -Path $oldFullPath -NewName (Split-Path $newFullPath -Leaf)
                 if ($VerboseMode) {
-                    Write-Verbose "Renamed: $oldFullPath => $newFullPath"
+                    Write-Output "Renamed: $oldFullPath => $newFullPath"
                 }
             }
         }
@@ -188,7 +187,7 @@ function Perform-CompleteCopy {
         } else {
             Rename-Item -Path $DestDir -NewName $newName
             if ($VerboseMode) {
-                Write-Verbose "Renamed: $DestDir => $newFullPath"
+                Write-Output "Renamed: $DestDir => $newFullPath"
             }
         }
     }
@@ -204,7 +203,7 @@ function Perform-CompleteCopy {
             } else {
                 Remove-Item -Path $currentCopies[$k] -Recurse -Force -ErrorAction SilentlyContinue
                 if ($VerboseMode) {
-                    Write-Verbose "Deleted: $($currentCopies[$k])"
+                    Write-Output "Deleted: $($currentCopies[$k])"
                 }
             }
         }
@@ -235,22 +234,21 @@ function BackupDir {
     }
 }
 
-# Determine verbosity
-$IsVerbose = $VerbosePreference -eq 'Continue'
 
-# Verbose parameter printout
 if ($IsVerbose) {
-    Write-Output \"BackupDir script invoked.\"
-    Write-Output \"Parameters:\"
-    Write-Output \"  SourceDir: $SourceDir\"
-    Write-Output \"  DestDir: $DestDir\"
-    Write-Output \"  InPlace: $InPlace\"
-    Write-Output \"  OverwriteOlder: $OverwriteOlder\"
-    Write-Output \"  KeepNonexistent: $KeepNonexistent\"
-    Write-Output \"  DryRun: $DryRun\"
-    Write-Output \"  NumCopies: $NumCopies\"
-    Write-Output \"  MinDigits: $MinDigits\"
-    Write-Output \"  Execute: $Execute\"
+    # Verbose parameter printout
+    Write-Output "BackupDir script invoked."
+    Write-Output "Parameters:"
+    Write-Output "  SourceDir: $SourceDir"
+    Write-Output "  DestDir: $DestDir"
+    Write-Output "  InPlace: $InPlace"
+    Write-Output "  OverwriteOlder: $OverwriteOlder"
+    Write-Output "  KeepNonexistent: $KeepNonexistent"
+    Write-Output "  DryRun: $DryRun"
+    Write-Output "  NumCopies: $NumCopies"
+    Write-Output "  MinDigits: $MinDigits"
+    Write-Output "  Execute: $Execute"
+    Write-Output "  IsVerbose: $IsVerbose"
 } else {
     Write-Output "`nThe IsVerbose is NOT true!`n."
 }
