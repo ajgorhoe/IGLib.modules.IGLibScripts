@@ -4,6 +4,10 @@
     Contains the UpdateOrCloneRepository function and helper routines.
 
 .NOTES
+    Copyright © Igor Grešovnik.
+    Part of IGLib: https://github.com/ajgorhoe/IGLib.modules.IGLibScripts
+	License:
+	https://github.com/ajgorhoe/IGLib.modules.IGLibScripts/blob/main/LICENSE.md
 
 .DESCRIPTION
     This script defines a function `UpdateOrCloneRepository` and various helper functions
@@ -14,12 +18,61 @@
     specified or inferred parameters. When run with `-DefaultFromVars`,
     unspecified parameters are automatically pulled from global variables prefixed with 'CurrentRepo_'.
 
-.NOTES
-    Copyright © Igor Grešovnik.
-    Part of IGLib: https://github.com/ajgorhoe/IGLib.modules.IGLibScripts
-	License:
-	https://github.com/ajgorhoe/IGLib.modules.IGLibScripts/blob/main/LICENSE.md
-	
+.PARAMETER Directory
+    The local repository clone directory.
+    If specified as relative path, then: if the BaseDirectory is specified then
+    the path is taken relative to the BaseDirectory. Otherwise, the path is 
+    taken relative to script directory, if defined, and if not, the path is
+    taken relative to the current directory.
+
+.PARAMETER Ref
+    The reference (branch, commit, tag) to be checked out.
+
+.PARAMETER Address
+    Address of the repository (of the primary remote).
+
+.PARAMETER Remote
+    Name of the primary remote. Default is "origin".
+
+.PARAMETER AddressSecondary
+    Address of the secondary remote. Optional.
+
+.PARAMETER RemoteSecondary
+    Name of the secondary remote. Default is "mirror".
+
+.PARAMETER AddressTertiary
+    Address of the tertiary remote. By convention, this is usually (but not 
+    necessary) a remote that exists on a local machine.
+
+.PARAMETER RemoteTertiary
+    Name of the tertiary remote. Default is "local".
+
+.PARAMETER ThrowOnErrors
+    If specified (true) then exceptions are thrown on errors (by default,
+    exceptions are caught internally and not thrown).
+
+.PARAMETER DefaultFromVars
+    If true then default values of parameters are set from environment 
+    variables with the agreed upon names. These names are parameter names
+    prefixed by 'CurrentRepo_' (contained in the constant
+    ParameterGlobalVariablePrefix).
+
+.PARAMETER Execute
+    If true then the main function UpdateOrCloneRepository() is executed
+    according to the specified parameters. If false then the main function
+    is not executed, and running the script just brings in the definitions of
+    functions defined in it. If not specified at all, then the main function
+    is executed if sufficient parameters are provided, i.e., if either the
+    Address or the Directory parameters are specified.
+
+.PARAMETER ParamsToVars
+    If specified (true) then parameter passed to the script are written to the
+    environment variables that by convention contain the default values of 
+    parameters (see description of the DefaultFromVars).
+
+.PARAMETER BaseDirectory
+    If specified then if the Directory parameter is specified as relative path,
+    this path is taken relative to the BaseDirectory.
 
 .EXAMPLE
     .\UpdateOrCloneRepository.ps1 -Directory "C:\Repos\Example" -Address "https://github.com/foo/bar.git" -Execute
