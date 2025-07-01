@@ -1,14 +1,12 @@
 param(
-    [Parameter(Mandatory = $true)]
     [string]$SourceDir,
-
-    [Parameter(Mandatory = $true)]
     [string]$DestDir,
 
     [switch]$InPlace,
     [switch]$OverwriteOlder,
     [switch]$KeepNonexistent,
     [switch]$DryRun,
+    [switch]$Execute,
 
     [int]$NumCopies = 0,
     [int]$MinDigits = 2
@@ -127,17 +125,35 @@ function Get-ExistingCopies {
 }
 
 function Perform-InPlaceCopy {
+    param(
+        [string]$SourceDir,
+        [string]$DestDir,
+        [bool]$OverwriteOlder,
+        [bool]$KeepNonexistent,
+        [bool]$VerboseMode,
+        [bool]$DryRun
+    )
+
     if (-not (Test-Path -Path $DestDir)) {
-        Copy-DirectoryRecursive -Source $SourceDir -Destination $DestDir -OverwriteOlder:$false -VerboseMode:$IsVerbose -DryRun:$DryRun
+        Copy-DirectoryRecursive -Source $SourceDir -Destination $DestDir -OverwriteOlder:$false -VerboseMode:$VerboseMode -DryRun:$DryRun
         return
     }
-    Copy-DirectoryRecursive -Source $SourceDir -Destination $DestDir -OverwriteOlder:$OverwriteOlder -VerboseMode:$IsVerbose -DryRun:$DryRun
+    Copy-DirectoryRecursive -Source $SourceDir -Destination $DestDir -OverwriteOlder:$OverwriteOlder -VerboseMode:$VerboseMode -DryRun:$DryRun
     if (-not $KeepNonexistent) {
-        Remove-NonexistentItems -Source $SourceDir -Destination $DestDir -VerboseMode:$IsVerbose -DryRun:$DryRun
+        Remove-NonexistentItems -Source $SourceDir -Destination $DestDir -VerboseMode:$VerboseMode -DryRun:$DryRun
     }
 }
 
 function Perform-CompleteCopy {
+    param(
+        [string]$SourceDir,
+        [string]$DestDir,
+        [int]$NumCopies,
+        [int]$MinDigits,
+        [bool]$VerboseMode,
+        [bool]$DryRun
+    )
+
     $parent = Split-Path -Parent $DestDir
     $baseName = Split-Path -Leaf $DestDir
 
@@ -157,7 +173,7 @@ function Perform-CompleteCopy {
                 Write-Output "[DryRun] Would rename: $oldFullPath => $newFullPath"
             } else {
                 Rename-Item -Path $oldFullPath -NewName (Split-Path $newFullPath -Leaf)
-                if ($IsVerbose) {
+                if ($VerboseMode) {
                     Write-Verbose "Renamed: $oldFullPath => $newFullPath"
                 }
             }
@@ -171,13 +187,13 @@ function Perform-CompleteCopy {
             Write-Output "[DryRun] Would rename: $DestDir => $newFullPath"
         } else {
             Rename-Item -Path $DestDir -NewName $newName
-            if ($IsVerbose) {
+            if ($VerboseMode) {
                 Write-Verbose "Renamed: $DestDir => $newFullPath"
             }
         }
     }
 
-    Copy-DirectoryRecursive -Source $SourceDir -Destination $DestDir -OverwriteOlder:$false -VerboseMode:$IsVerbose -DryRun:$DryRun
+    Copy-DirectoryRecursive -Source $SourceDir -Destination $DestDir -OverwriteOlder:$false -VerboseMode:$VerboseMode -DryRun:$DryRun
 
     $currentCopies = Get-ExistingCopies -BasePath $parent -BaseName $baseName -Digits $MinDigits
     $removeThreshold = $NumCopies + 1
@@ -187,7 +203,7 @@ function Perform-CompleteCopy {
                 Write-Output "[DryRun] Would delete: $($currentCopies[$k])"
             } else {
                 Remove-Item -Path $currentCopies[$k] -Recurse -Force -ErrorAction SilentlyContinue
-                if ($IsVerbose) {
+                if ($VerboseMode) {
                     Write-Verbose "Deleted: $($currentCopies[$k])"
                 }
             }
@@ -195,16 +211,59 @@ function Perform-CompleteCopy {
     }
 }
 
-# Determine verbosity once
-$IsVerbose = $VerbosePreference -eq 'Continue'
+function BackupDir {
+    param(
+        [string]$SourceDir,
+        [string]$DestDir,
+        [bool]$InPlace,
+        [bool]$OverwriteOlder,
+        [bool]$KeepNonexistent,
+        [bool]$DryRun,
+        [int]$NumCopies,
+        [int]$MinDigits,
+        [bool]$VerboseMode
+    )
 
-# Entry point
-if (-not (Test-Path $SourceDir)) {
-    Show-ErrorAndExit "Source directory to be backed up does not exist: \"$SourceDir\""
+    if (-not (Test-Path $SourceDir)) {
+        Show-ErrorAndExit "Source directory to be backed up does not exist: \"$SourceDir\""
+    }
+
+    if ($InPlace) {
+        Perform-InPlaceCopy -SourceDir $SourceDir -DestDir $DestDir -OverwriteOlder:$OverwriteOlder -KeepNonexistent:$KeepNonexistent -VerboseMode:$VerboseMode -DryRun:$DryRun
+    } else {
+        Perform-CompleteCopy -SourceDir $SourceDir -DestDir $DestDir -NumCopies:$NumCopies -MinDigits:$MinDigits -VerboseMode:$VerboseMode -DryRun:$DryRun
+    }
 }
 
-if ($InPlace) {
-    Perform-InPlaceCopy
+# Determine verbosity
+$IsVerbose = $VerbosePreference -eq 'Continue'
+
+# Verbose parameter printout
+if ($IsVerbose) {
+    Write-Output \"BackupDir script invoked.\"
+    Write-Output \"Parameters:\"
+    Write-Output \"  SourceDir: $SourceDir\"
+    Write-Output \"  DestDir: $DestDir\"
+    Write-Output \"  InPlace: $InPlace\"
+    Write-Output \"  OverwriteOlder: $OverwriteOlder\"
+    Write-Output \"  KeepNonexistent: $KeepNonexistent\"
+    Write-Output \"  DryRun: $DryRun\"
+    Write-Output \"  NumCopies: $NumCopies\"
+    Write-Output \"  MinDigits: $MinDigits\"
+    Write-Output \"  Execute: $Execute\"
 } else {
-    Perform-CompleteCopy
+    Write-Output "`nThe IsVerbose is NOT true!`n."
+}
+
+# Determine if we should execute
+$shouldExecute = $false
+if ($Execute.IsPresent) {
+    $shouldExecute = $Execute
+} elseif ($SourceDir -and $DestDir) {
+    $shouldExecute = $true
+}
+
+# Perform backup if applicable
+if ($shouldExecute) {
+    BackupDir -SourceDir:$SourceDir -DestDir:$DestDir -InPlace:$InPlace -OverwriteOlder:$OverwriteOlder -KeepNonexistent:$KeepNonexistent -DryRun:$DryRun -NumCopies:$NumCopies -MinDigits:$MinDigits -VerboseMode:$IsVerbose
 }
