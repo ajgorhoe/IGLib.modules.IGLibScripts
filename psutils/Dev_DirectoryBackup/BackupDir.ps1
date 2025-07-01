@@ -1,32 +1,3 @@
-
-<#
-.SYNOPSIS
-    Script file for backing up an individual directory
-
-.DESCRIPTION
-    To be added.
-
-.NOTES
-    Copyright © Igor Grešovnik.
-    Part of IGLib: https://github.com/ajgorhoe/IGLib.modules.IGLibScripts
-	License:
-	https://github.com/ajgorhoe/IGLib.modules.IGLibScripts/blob/main/LICENSE.md
-
-.EXAMPLE
-    BackupDir c:\users\admin\mail e:\backups\users\admin\mail -NumCopies 2 -MinDigits 2
-
-
-.EXAMPLE
-    BackupDir c:\users\admin\mail e:\backups\users\admin\mail
-
-.EXAMPLE
-    BackupDir c:\users\admin\mail e:\backups\users\admin\mail -InPlace
-
-.EXAMPLE
-    BackupDir c:\users\admin\mail e:\backups\users\admin\mail -InPlace -OverwriteOlder `-KeepNonexistent`
-    
-#>
-
 param(
     [Parameter(Mandatory = $true)]
     [string]$SourceDir,
@@ -37,7 +8,6 @@ param(
     [switch]$InPlace,
     [switch]$OverwriteOlder,
     [switch]$KeepNonexistent,
-    [switch]$Verbose,
     [switch]$DryRun,
 
     [int]$NumCopies = 0,
@@ -100,11 +70,10 @@ function Copy-DirectoryRecursive {
                 Write-Output "[DryRun] Would copy: $_ => $destFile"
             } else {
                 Copy-Item -Path $_.FullName -Destination $destFile -Force
+                if ($VerboseMode) {
+                    Write-Verbose "Copied: $_ => $destFile"
+                }
             }
-        }
-
-        if ($VerboseMode -and !$DryRun) {
-            Write-Output "Copied: $_ => $destFile"
         }
     }
 }
@@ -125,9 +94,9 @@ function Remove-NonexistentItems {
             Write-Output "[DryRun] Would remove: $fullPath"
         } else {
             Remove-Item -Path $fullPath -Recurse -Force -ErrorAction SilentlyContinue
-        }
-        if ($VerboseMode -and !$DryRun) {
-            Write-Output "Removed: $fullPath"
+            if ($VerboseMode) {
+                Write-Verbose "Removed: $fullPath"
+            }
         }
     }
 }
@@ -148,7 +117,7 @@ function Get-ExistingCopies {
         [int]$Digits
     )
     $copies = @{}
-    $regex = [regex]::Escape($BaseName) + "_(\d{$Digits,})$"
+    $regex = [regex]::Escape($BaseName) + "_(\\d{$Digits,})$"
     Get-ChildItem -Path $BasePath -Directory | ForEach-Object {
         if ($_.Name -match $regex) {
             $copies[[int]$matches[1]] = $_.FullName
@@ -159,12 +128,12 @@ function Get-ExistingCopies {
 
 function Perform-InPlaceCopy {
     if (-not (Test-Path -Path $DestDir)) {
-        Copy-DirectoryRecursive -Source $SourceDir -Destination $DestDir -OverwriteOlder:$false -VerboseMode:$Verbose -DryRun:$DryRun
+        Copy-DirectoryRecursive -Source $SourceDir -Destination $DestDir -OverwriteOlder:$false -VerboseMode:$IsVerbose -DryRun:$DryRun
         return
     }
-    Copy-DirectoryRecursive -Source $SourceDir -Destination $DestDir -OverwriteOlder:$OverwriteOlder -VerboseMode:$Verbose -DryRun:$DryRun
+    Copy-DirectoryRecursive -Source $SourceDir -Destination $DestDir -OverwriteOlder:$OverwriteOlder -VerboseMode:$IsVerbose -DryRun:$DryRun
     if (-not $KeepNonexistent) {
-        Remove-NonexistentItems -Source $SourceDir -Destination $DestDir -VerboseMode:$Verbose -DryRun:$DryRun
+        Remove-NonexistentItems -Source $SourceDir -Destination $DestDir -VerboseMode:$IsVerbose -DryRun:$DryRun
     }
 }
 
@@ -188,6 +157,9 @@ function Perform-CompleteCopy {
                 Write-Output "[DryRun] Would rename: $oldFullPath => $newFullPath"
             } else {
                 Rename-Item -Path $oldFullPath -NewName (Split-Path $newFullPath -Leaf)
+                if ($IsVerbose) {
+                    Write-Verbose "Renamed: $oldFullPath => $newFullPath"
+                }
             }
         }
     }
@@ -199,10 +171,13 @@ function Perform-CompleteCopy {
             Write-Output "[DryRun] Would rename: $DestDir => $newFullPath"
         } else {
             Rename-Item -Path $DestDir -NewName $newName
+            if ($IsVerbose) {
+                Write-Verbose "Renamed: $DestDir => $newFullPath"
+            }
         }
     }
 
-    Copy-DirectoryRecursive -Source $SourceDir -Destination $DestDir -VerboseMode:$Verbose -DryRun:$DryRun
+    Copy-DirectoryRecursive -Source $SourceDir -Destination $DestDir -OverwriteOlder:$false -VerboseMode:$IsVerbose -DryRun:$DryRun
 
     $currentCopies = Get-ExistingCopies -BasePath $parent -BaseName $baseName -Digits $MinDigits
     $removeThreshold = $NumCopies + 1
@@ -212,11 +187,18 @@ function Perform-CompleteCopy {
                 Write-Output "[DryRun] Would delete: $($currentCopies[$k])"
             } else {
                 Remove-Item -Path $currentCopies[$k] -Recurse -Force -ErrorAction SilentlyContinue
+                if ($IsVerbose) {
+                    Write-Verbose "Deleted: $($currentCopies[$k])"
+                }
             }
         }
     }
 }
 
+# Determine verbosity once
+$IsVerbose = $VerbosePreference -eq 'Continue'
+
+# Entry point
 if (-not (Test-Path $SourceDir)) {
     Show-ErrorAndExit "Source directory to be backed up does not exist: \"$SourceDir\""
 }
