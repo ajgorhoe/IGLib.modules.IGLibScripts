@@ -146,6 +146,18 @@ function Perform-InPlaceCopy {
         [bool]$DryRun
     )
 
+    if ($VerboseMode) {
+        Write-Output "`nBackupDir script invoked."
+        Write-Output "Parameters:"
+        Write-Output "  SourceDir: $SourceDir"
+        Write-Output "  DestDir: $DestDir"
+        Write-Output "  OverwriteOlder: $OverwriteOlder"
+        Write-Output "  KeepNonexistent: $KeepNonexistent"
+        Write-Output "  DryRun: $DryRun"
+        Write-Output "  VerboseMode: $VerboseMode"
+        Write-Output ""
+    }
+
     if (-not (Test-Path -Path $DestDir)) {
         Copy-DirectoryRecursive -Source $SourceDir -Destination $DestDir -OverwriteOlder:$false -VerboseMode:$VerboseMode -DryRun:$DryRun
         return
@@ -165,6 +177,20 @@ function Perform-CompleteCopy {
         [bool]$VerboseMode,
         [bool]$DryRun
     )
+
+    if ($VerboseMode)
+    {
+        Write-Output "`nPerform-CompleteCopy function invoked."
+        Write-Output "Parameters:"
+        Write-Output "  SourceDir: $SourceDir"
+        Write-Output "  DestDir: $DestDir"
+        Write-Output "  DryRun: $DryRun"
+        Write-Output "  NumCopies: $NumCopies"
+        Write-Output "  MinDigits: $MinDigits"
+        Write-Output "  VerboseMode: $VerboseMode"
+        Write-Output ""
+    }
+
 
     $parent = Split-Path -Parent (Get-Item -Path $DestDir).FullName
     $baseName = Split-Path -Leaf $DestDir
@@ -248,7 +274,7 @@ function BackupDir {
 }
 
 if ($IsVerbose) {
-    Write-Output "BackupDir script invoked."
+    Write-Output "nBackupDir script invoked."
     Write-Output "Parameters:"
     Write-Output "  SourceDir: $SourceDir"
     Write-Output "  DestDir: $DestDir"
@@ -260,6 +286,7 @@ if ($IsVerbose) {
     Write-Output "  MinDigits: $MinDigits"
     Write-Output "  Execute: $Execute"
     Write-Output "  IsVerbose: $IsVerbose"
+    Write-Output ""
 }
 
 $shouldExecute = $false
