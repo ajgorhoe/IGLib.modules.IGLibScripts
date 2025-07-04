@@ -14,6 +14,8 @@ Remove-Item -Path "backups/BackupSourceBasic" -Recurse -Force  # first, remove t
 
 # Backup a directory (BackupSourceBasic) with usual mode (without the InPlace 
 # option) and with ABSOLUTE PATHS
+# Remark: adapt the absolute path according to the absolute path of the test 
+# directory after repository checkout!
 Remove-Item -Path "backups/BackupSourceBasic" -Recurse -Force  # first, remove the backup if it exists
 . ../BackupDir.ps1 "e:\wsorkspace\ws\other\iglibmodules\IGLibScripts\psutils\Dev_DirectoryBackup\testscripts\sourcedirs/BackupSourceBasic" "e:\wsorkspace\ws\other\iglibmodules\IGLibScripts\psutils\Dev_DirectoryBackup\testscripts/backups/BackupSourceBasic"
 
