@@ -2,6 +2,7 @@
 # IGLibScripts
 
 Copyright (c) Igor Grešovnik
+See LICENSE.md at https://github.com/ajgorhoe/IGLib.modules.IGLibScripts/
 
 [IGLibScripts repository](https://github.com/ajgorhoe/IGLib.modules.IGLibScripts/) / [README.md](./README.md)
 
@@ -41,7 +42,7 @@ This section contains documentation for some of the scripts. For more extensive 
 
 ## Introduction
 
-The IHLibScripts is an ***IGLib*** (**Investigation Generic Library**) module that contains some useful batch scripts and shell scripts used by the library (e.g. for managing repository cloning and updates).
+The IGLibScripts is an ***IGLib*** (**Investigation Generic Library**) module that contains some useful batch scripts and shell scripts used by the library (e.g. for managing repository cloning and updates).
 Mainly these utilities are generally useful and their use is not limited to IGLib.
 
 ## Selected Utilities
@@ -55,7 +56,7 @@ Clones or updates a Git repository at particular location on the disk. Parameter
 > **_RepositoryAddress_** - address of remote Git repository that is cloned into the _ModuleDir_ or from which repository is updated (changes pulled).  
 > **_Remote_** (optional, default is _origin_) - name of the main Git remote, corresponding to _RepositoryAddress_. All remote operations executed by this script will act on remote with this name.  
 > **_RepositoryAddressSecondary_** (optional, default is undefined) - address of alternative remote repository. In case the script performs cloning of the repository (which is when the repository has not yet been cloned at the location specified by _ModuleDir_, or when that directory does not contain a valid Git repository), the secondary remote specified by _RemoteSecondary_ will be defined on the cloned repository and linked tho this address.  
-> **_RemoteSecondary_** (optional, default is _originsecondary_) - name of the secondary remote. If the script performs cloning of the repository at _RepositoryAddress_ then  it will assign the address _RepositoryAddressSecondary_ to a remote named _RemoteSecondary_.  
+> **_RemoteSecondary_** (optional, default is _originsecondary_) - name of the secondary remote. If the script performs cloning of the repository at _RepositoryAddress_ then  it will assign the address _RepositoryAddressSecondary_ to a remote named _RemoteSecondary_.  
 > _**RepositoryAddressLocal**_ (optinal, default is undefined) - an eventual additional alternative repository address, usually a local repository but not necessarily. Behavior is equivalent as for _RepositoryAddressSecondary_ / _RemoteSecondary_: If the variable is defined and not an empty string, and the script also performs cloning (i.t., the repository is first cloned at the location _ModuleDir_), then the script also defines the remote named _RemoteLocal_ with this address.  
 > _**RemoteLocal**_ (optional, default is _local_) - name of the additional alternative origin whose address is set to the value of _RepositoryAddressLocal_ if this variable is defined.
 
@@ -71,21 +72,21 @@ Clones or updates a Git repository at particular location on the disk. Parameter
 > 
 > > This will first call the _EmbeddedCommand_ with eventual arguments (optional parameters _arg1_, _arg2_, etc.), and then perform the repository update in the same manner as _UpdateRepo_ called without arguments.  
 > > The _EmbeddedCommand_ will typically be another batch _script that sets all the relevant environment variables_ that define parameters for repository updating or cloning (see description of parameters via environment variables above).  
-> > The body of the _UpdateRepo.bat_  script is **embedded in setlocal / endlocal** block, therefore any **side effects will not propagate to the caller environment**. This applies for side effects of _UpdateRepo.bat_ as well as _EmbeddedCommand_.  
-> > It is desirable that **_update setting scripts_** (that set environment variables carrying parameters for repository updating operations), which are commonly specified as the _EmbeddedCommand_ argument, are also defined in the way that they can take embedded command to be run (together with its arguments) specified via command-line arguments of the settings script. In this way, one can chain nested calls of useful commands or scripts that are called recursively before the main body of the _UpdateRepo_ script is executed. This adds a great flexibility to the repository updating scripts while preventing the scripts from polluting the calling environment with environment variables that are necessary to carry update parameters to scripts. A typical use of this is passing to the _UpdateRepo_ script a settings script, e.g. _SettingsIGLibScripts.bat,_ which defines the necessary environment variables containing updating parameters such as local directory and remote address (in this example, for cloning / updating the IGLibScripts repository to a specified location by the specified remote repository). Then, with additional arguments, further commands can be passed to the _SettingsIGLibScripts_ script, which would be executed recursively within _SettingsIGLibScripts.bat_, after the script main body that sets the environment variables. These further commands can for example modify some values set by the script, which enables **reusing the settings script**, but **with some updating parameters modified** (for example **_ModuleDir_** or **_RepositoryAddressSecondary_**) to achieve a bit different behavior. This can be achieved e.g. by the _**SetVar.bat**_ script (see its description), which sets the specified environment variable. The (imaginary, assuming existence of the  setting _SettingsIGLibScripts.bat_ script) example command below would call the _UpdateRepo_ script to update (or clone) the repository defined by parameters set by the _SettingsIGLibScripts_ script, but overriding the values of the **_ModuleDir_** (defining the repository's local cloning directory) and the **_CheckoutBranch_** (defining the branch that is checked out by the _UpdateRepo_ script):  
+> > The body of the _UpdateRepo.bat_ script is **embedded in setlocal / endlocal** block, therefore any **side effects will not propagate to the caller environment**. This applies for side effects of _UpdateRepo.bat_ as well as _EmbeddedCommand_.  
+> > It is desirable that **_update setting scripts_** (that set environment variables carrying parameters for repository updating operations), which are commonly specified as the _EmbeddedCommand_ argument, are also defined in the way that they can take embedded command to be run (together with its arguments) specified via command-line arguments of the settings script. In this way, one can chain nested calls of useful commands or scripts that are called recursively before the main body of the _UpdateRepo_ script is executed. This adds a great flexibility to the repository updating scripts while preventing the scripts from polluting the calling environment with environment variables that are necessary to carry update parameters to scripts. A typical use of this is passing to the _UpdateRepo_ script a settings script, e.g. _SettingsIGLibScripts.bat,_ which defines the necessary environment variables containing updating parameters such as local directory and remote address (in this example, for cloning / updating the IGLibScripts repository to a specified location by the specified remote repository). Then, with additional arguments, further commands can be passed to the _SettingsIGLibScripts_ script, which would be executed recursively within _SettingsIGLibScripts.bat_, after the script main body that sets the environment variables. These further commands can for example modify some values set by the script, which enables **reusing the settings script**, but **with some updating parameters modified** (for example **_ModuleDir_** or **_RepositoryAddressSecondary_**) to achieve a bit different behavior. This can be achieved e.g. by the _**SetVar.bat**_ script (see its description), which sets the specified environment variable. The (imaginary, assuming existence of the  setting _SettingsIGLibScripts.bat_ script) example command below would call the _UpdateRepo_ script to update (or clone) the repository defined by parameters set by the _SettingsIGLibScripts_ script, but overriding the values of the **_ModuleDir_** (defining the repository's local cloning directory) and the **_CheckoutBranch_** (defining the branch that is checked out by the _UpdateRepo_ script):  
 > > 
-> > > _<u>UpdateRepo</u> "___D:\\GitUser_\\RepositorySettings\\SettingsIGLibScripts.bat"  <u>SetVar</u> ModuleDir "D:\\GitUser\\My Workspace" <u>SetVar</u> CheckoutBranch "release/1.9.1"  
+> > > _<u>UpdateRepo</u> "___D:\\GitUser_\\RepositorySettings\\SettingsIGLibScripts.bat"  <u>SetVar</u> ModuleDir "D:\\GitUser\\My Workspace" <u>SetVar</u> CheckoutBranch "release/1.9.1"  
 > > > _
 > > 
 > > The .bat extensions in some script names were omitted in the above command, and scripts available in the _IGLibScripts_ repository are underlined. To check out how this actually works in practice, refer to examples contained in <_IGLibScripts_\>\\examples\_repos .  
 
 **Operation**:  
-If the directory specified by  does **not** contain **a valid Git repository**, the directory is first **removed** (recursively, including complete direcory structure). The script must therefore be used with some caution, please take care that **_ModuleDir_** **does not point to a directory with useful content that is not a clone of the repository specified by _RepositoryAddre__ss_**.  
-Then, if the directory specified by **_ModuleDir_** does **not exist**, the **repository at** the address **_RepositoryAddress_** is **cloned into** **_ModuleDir_**. After cloning is complete, the **additional remotes are defined** on the cloned repository, provided that the corresponding addresses, **_RepositoryAddressSecondary_** or / and _**RepositoryAddressLocal**_ are specified. Finally, the remote branch specified by **_CheckoutBranch_** is checked out and updated (pulled) from the main remote from which repository was cloned.  
+If the directory specified by _ModuleDir_ does **not** contain **a valid Git repository**, the directory is first **removed** (recursively, including complete direcory structure). The script must therefore be used with some caution, please take care that **_ModuleDir_** **does not point to a directory with useful content that is not a clone of the repository specified by _RepositoryAddre__ss_**.  
+Then, if the directory specified by **_ModuleDir_** does **not exist**, the **repository at** the address **_RepositoryAddress_** is **cloned into** **_ModuleDir_**. After cloning is complete, the **additional remotes are defined** on the cloned repository, provided that the corresponding addresses, **_RepositoryAddressSecondary_** or / and _**RepositoryAddressLocal**_ are specified. Finally, the remote branch specified by **_CheckoutBranch_** is checked out and updated (pulled) from the main remote from which repository was cloned.  
 If the directory specified by **_ModuleDir_** **already contains a Git repository** then the script will only **make sure that the correct branch** (specified by **_CheckoutBranch_**) **is checked out** and will **update the branch** by pulling any changes **from the remote repository** (at **_RepositoryAddress_**).
 
 **Warning**:  
-When repository already exists (so it does not need to be cloned), the script will **not verify whether the repository contained in** ****_ModuleDir_** is the correct one and corresponds to the remote repository at** ****_RepositoryAddress_****. Performing  such a check would require execution of additional scripts (such scripts may be provided in the future).
+When repository already exists (so it does not need to be cloned), the script will **not verify whether the repository contained in** ****_ModuleDir_** is the correct one and corresponds to the remote repository at** ****_RepositoryAddress_****. Performing  such a check would require execution of additional scripts (such scripts may be provided in the future).
 
 ### PrintRepoSettings.bat
 
@@ -121,7 +122,7 @@ Beside variable name and value, the script can **optionally** take **further arg
 > _SetVar.bat VariableName ValueAssigned_ _EmbeddedCommand <arg 1 arg 2 ....>_
 
 > > The same as above, but in addition the _EmbeddedCommand_ is also executed recursively, receiving the eventual remaining arguments (the optional _arg1_, _arg2_, etc.)  
-> > The _EmbeddedCommand_ is **_executed after the variable is assigned_**. In his way, the recursively executed command can already make use of the newly assigned value of the environment variable _VariableName_ that had been assigned by the script.  
+> > The _EmbeddedCommand_ is **_executed after the variable is assigned_**. In his way, the recursively executed command can already make use of the newly assigned value of the environment variable _VariableName_ that had been assigned by the script.  
 
   
 
@@ -144,9 +145,9 @@ in the same console window after running the above command. On the contrary, whe
 
 > _SetVar xy NewValue_
 
- the variable _xy_ will actually be defined in the calling environment after the call and its value will be _NewValue_, as expected.
+ the variable _xy_ will actually be defined in the calling environment after the call and its value will be _NewValue_, as expected.
 
-At first glance this does not seem like a very useful functionality, however, it may be quite valuable when testing the scripts similar to those contained  in the IGLibScripts repository, or in case of these scripts, also to contain side effects of scripts that do something but also have unintentional side effects.
+At first glance this does not seem like a very useful functionality, however, it may be quite valuable when testing the scripts similar to those contained  in the IGLibScripts repository, or in case of these scripts, also to contain side effects of scripts that do something but also have unintentional side effects.
 
 For example, several scripts described in this document can recursively run embedded commands that can be specified via additional command-line arguments that follow those that are requested (if any). Batch scripts of the Windows command shell are rather limited in how command-line arguments can be processed within scripts (e.g. in the number of arguments that can be referenced by consecutive numbers, like %1, %2, etc., limited to 9; or the ways how arbitrary groups of command-line arguments can be passed on to commands run recursively). In order to evade some of these limitations we needed to define auxiliary variables used to assemble command-lines for recursive commands, and in some scripts this cannot be done within _setlocal_ / _endlocal_ block because some side effect need to propagate to the calling environment. Therefore, when recursively chaining several commands, it may sometimes make sens to break propagation of side effect at some point in hierarchy, and this can be achieved by using the _RunLocal.bat_ script.
 
@@ -166,7 +167,7 @@ The other usage is in testing. Some scripts have intended side effects, such as 
 Sets a set of predetermined environment variables to the paths of the current locally cloned _IGLibScripts_ repository and some commonly used scripts within that are included in the repository. The assignment of environment variables defined by the script propagate back to the caller's environment.
 
 This script is commonly used in bootstrapping scripts, which take care that the _IGLibScripts_ is cloned at known location such that its scripts can be used. There are several advantages in putting script paths into environment variables. The scripts can in this way be run in shorter form, e.g.:  
-    _<u>"%UpdateRepo%"</u> .\\SettingsIGLibCore <u>"%SetVar%"</u> ModuleDir ..\\modules\\IGLibCore_
+    _<u>"%UpdateRepo%"</u> .\\SettingsIGLibCore <u>"%SetVar%"</u> ModuleDir ..\\modules\\IGLibCore_
 
 The second advantage is that reasonable attempts will be made that names of these meaningful variables will remain unchanged, while relative locations of the corresponding scripts within the _IGLibScripts_ repository or script names may change often.  
 If a location within the _IGLibScripts_ repository or name of a certain script would change, the _SetScriptReferences.bat_ would be updated accordingly to reflect the new path (if not, this would be a bug). In case that some variable name is found strange and would be changed, the previous name can still remain set in the script for some time.
