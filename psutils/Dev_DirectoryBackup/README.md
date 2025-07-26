@@ -1,5 +1,5 @@
 
-# PowerShell Scripts for Repository Management
+# PowerShell Scripts for Directory Backups
 
 Copyright (c) Igor Grešovnik
 
