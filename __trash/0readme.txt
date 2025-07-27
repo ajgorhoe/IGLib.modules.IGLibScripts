@@ -36,4 +36,16 @@ directories to the save/ sub-direectory. this directory is not affected by the
 scripts. When you are sure that you will want to remove specific files or directories, just move them to the trash_contents/ directory and run the 
 removal script to remove the contents of the directory.
 
+REMARK about runnig the PowerShell scripts on Windows:
+You may need to adjust PowerShell execution policy. In elevated PowerShell
+(with administrator privilege), run:
+
+> Set-ExecutionPolicy RemoteSigned
+
+Run the PowerShell script by right-clicking it in File Explorer and selecting
+"Run with PowerShell" in the context menu. In order to run PowerShell scripts
+by double-clicking the script file, execute the following in elevated
+Windows command:
+
+> ftype Microsoft.PowerShellScript.1="%SystemRoot%\System32\WindowsPowerShell\v1.0\powershell.exe" -NoLogo -NoProfile -ExecutionPolicy Bypass -File "%1" %*
 
