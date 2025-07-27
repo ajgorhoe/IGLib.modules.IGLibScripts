@@ -1,6 +1,7 @@
 
-
 echo off
+rem Windows command file; creates the trash_contents/ and save/
+rem subdirectories, removes contents of trash_contents/
 
 echo Removing all directories from the trash directory...
 
