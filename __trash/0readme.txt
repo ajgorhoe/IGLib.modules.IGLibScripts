@@ -49,3 +49,8 @@ Windows command:
 
 > ftype Microsoft.PowerShellScript.1="%SystemRoot%\System32\WindowsPowerShell\v1.0\powershell.exe" -NoLogo -NoProfile -ExecutionPolicy Bypass -File "%1" %*
 
+There is a known issue with running PowerShell scripts by double-click on
+Windows: If path of the directory where the script is located contains spaces,
+the script might not run. Workaround is to run  the script by right-clicking
+the script file and selecting "Run with PoweShell".
+
