@@ -2,13 +2,15 @@
 # PowerShell Scripts for Repository Management
 
 Copyright (c) Igor Grešovnik
+See LICENSE.md at https://github.com/ajgorhoe/IGLib.modules.IGLibScripts/
 
-[IGLibScripts repository](https://github.com/ajgorhoe/IGLib.modules.IGLibScripts/blob/main/README.md) / [PowerShell Utilities (directory psutils/)](./README.md) / [Repository Management](#powershell-scripts-for-repository-management)
+[IGLibScripts repository](https://github.com/ajgorhoe/IGLib.modules.IGLibScripts/blob/main/README.md) / [PowerShell Utilities (directory psutils/)](../README.md) / [Repository Management](./README.md)
 
 This  is a **development directory** for PowerShell scripts for management of local repository directories.
 
 **Contents**: 
-* [Scripts for Updating or Cloning Repositories]()
+* [Scripts for Updating or Cloning Repositories](#scripts-for-updating-or-cloning-repositories)
+  * [Self-contained PowerShell Script for Updating or Cloning Repositories](#self-contained-powershell-script-for-updating-or-cloning-repositories)
 
 ## Scripts for Updating or Cloning Repositories
 
@@ -16,6 +18,7 @@ See also:
 
 * [Wiki - Update or Clone Repositories](https://github.com/ajgorhoe/wiki.IGLib/blob/main/IGLib/scripts/DevPowerShell/UpdateOrCloneRepositories.md#repository-update-or-clone---updateorclonerepository-script) /
   * **[UpdateOrCloneRepositories.ps1](https://github.com/ajgorhoe/wiki.IGLib/blob/main/IGLib/scripts/DevPowerShell/UpdateOrCloneRepositories.md#repository-update-or-clone---updateorclonerepository-script)**.
+  * [...]()
 
 ### Self-contained PowerShell Script for Updating or Cloning Repositories
 
