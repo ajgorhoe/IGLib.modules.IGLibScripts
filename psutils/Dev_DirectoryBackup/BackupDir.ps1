@@ -96,7 +96,7 @@ function Copy-DirectoryRecursive {
             }
         } else {
             $copyFile = $true
-            if (Test-Path $targetPath -and $OverwriteOlder) {
+            if ((Test-Path $targetPath) -and $OverwriteOlder) {
                 $srcTime = $_.LastWriteTime
                 $dstItem = Get-Item $targetPath
                 $dstTime = $dstItem.LastWriteTime
