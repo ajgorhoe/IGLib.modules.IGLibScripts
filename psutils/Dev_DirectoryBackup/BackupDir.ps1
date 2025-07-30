@@ -1,4 +1,4 @@
-# BackupDir.ps1 - Refined
+# BackupDir.ps1 - Refined and Robustified
 
 param(
     [Parameter(Mandatory=$true, Position=0)]
@@ -26,6 +26,48 @@ function Get-CanonicalAbsolutePath {
     }
 }
 
+function Get-CopyName {
+    param(
+        [string]$BaseName,
+        [int]$Index,
+        [int]$Digits
+    )
+    return "$BaseName" + "_" + $Index.ToString("D$Digits")
+}
+
+function Remove-ExcessCopies {
+    param(
+        [string]$ParentDir,
+        [string]$BaseName,
+        [int]$NumCopies,
+        [int]$MinDigits,
+        [bool]$DryRun,
+        [bool]$VerboseMode
+    )
+
+    $maxExisting = 0
+    while ($true) {
+        $testName = Get-CopyName -BaseName $BaseName -Index ($maxExisting + 1) -Digits $MinDigits
+        $testPath = Join-Path $ParentDir $testName
+        if (Test-Path $testPath) {
+            $maxExisting++
+        } else {
+            break
+        }
+    }
+
+    for ($i = $NumCopies + 1; $i -le $maxExisting; $i++) {
+        $redundantName = Get-CopyName -BaseName $BaseName -Index $i -Digits $MinDigits
+        $redundantPath = Join-Path $ParentDir $redundantName
+        if (Test-Path $redundantPath) {
+            if ($VerboseMode) { Write-Output "Removing redundant backup copy: $redundantPath" }
+            if (-not $DryRun) {
+                Remove-Item -Path $redundantPath -Recurse -Force
+            }
+        }
+    }
+}
+
 function Copy-DirectoryRecursive {
     param(
         [string]$Source,
@@ -36,12 +78,9 @@ function Copy-DirectoryRecursive {
         [bool]$VerboseMode
     )
 
-    $copiedFiles = 0
-    if (-not $DryRun) {
-        if (-not (Test-Path -Path $Destination)) {
-            if ($VerboseMode) { Write-Output "Creating destination root: $Destination" }
-            New-Item -Path $Destination -ItemType Directory -Force | Out-Null
-        }
+    if (-not $DryRun -and -not (Test-Path -Path $Destination)) {
+        if ($VerboseMode) { Write-Output "Creating destination root: $Destination" }
+        New-Item -Path $Destination -ItemType Directory -Force | Out-Null
     }
 
     Get-ChildItem -Path $Source -Recurse -Force | ForEach-Object {
@@ -57,26 +96,21 @@ function Copy-DirectoryRecursive {
             }
         } else {
             $copyFile = $true
-            if (Test-Path $targetPath) {
-                if ($OverwriteOlder) {
-                    $srcTime = $_.LastWriteTime
-                    $dstItem = Get-Item $targetPath
-                    $dstTime = $dstItem.LastWriteTime
-                    $srcSize = $_.Length
-                    $dstSize = $dstItem.Length
+            if (Test-Path $targetPath -and $OverwriteOlder) {
+                $srcTime = $_.LastWriteTime
+                $dstItem = Get-Item $targetPath
+                $dstTime = $dstItem.LastWriteTime
+                $srcSize = $_.Length
+                $dstSize = $dstItem.Length
 
-                    if ($srcTime -eq $dstTime -and $srcSize -eq $dstSize) {
-                        $copyFile = $false
-                    } elseif ($dstTime -gt $srcTime) {
-                        $copyFile = $false
-                    }
+                if (($srcTime -eq $dstTime -and $srcSize -eq $dstSize) -or ($dstTime -gt $srcTime)) {
+                    $copyFile = $false
                 }
             }
             if ($copyFile) {
                 if ($VerboseMode) { Write-Output "Copying file: $_ -> $targetPath" }
                 if (-not $DryRun) {
                     Copy-Item $_.FullName -Destination $targetPath -Force
-                    $copiedFiles++
                 }
             }
         }
@@ -118,22 +152,21 @@ function Perform-CompleteCopy {
         [bool]$DryRun,
         [bool]$VerboseMode
     )
-    if ($VerboseMode) { Write-Output "Starting complete copy..." }
-
     $dirBase = Split-Path -Leaf $TargetDir
     $parentDir = Split-Path -Parent $TargetDir
 
+    Remove-ExcessCopies -ParentDir $parentDir -BaseName $dirBase -NumCopies $NumCopies -MinDigits $MinDigits -DryRun:$DryRun -VerboseMode:$VerboseMode
+
     for ($i = $NumCopies; $i -ge 1; $i--) {
-        $suffixOld = "_" + ($i - 1).ToString("D$MinDigits")
-        $suffixNew = "_" + $i.ToString("D$MinDigits")
+        $srcName = if ($i -eq 1) { $dirBase } else { Get-CopyName -BaseName $dirBase -Index ($i - 1) -Digits $MinDigits }
+        $dstName = Get-CopyName -BaseName $dirBase -Index $i -Digits $MinDigits
+        $srcPath = Join-Path $parentDir $srcName
+        $dstPath = Join-Path $parentDir $dstName
 
-        $oldPath = if ($i -eq 1) { $TargetDir } else { Join-Path $parentDir ("$dirBase$suffixOld") }
-        $newPath = Join-Path $parentDir ("$dirBase$suffixNew")
-
-        if (Test-Path $oldPath) {
-            if ($VerboseMode) { Write-Output "Renaming $oldPath -> $newPath" }
+        if (Test-Path $srcPath) {
+            if ($VerboseMode) { Write-Output "Renaming $srcPath -> $dstPath" }
             if (-not $DryRun) {
-                Rename-Item -Path $oldPath -NewName (Split-Path -Leaf $newPath) -Force
+                Rename-Item -Path $srcPath -NewName (Split-Path -Leaf $dstPath) -Force
             }
         }
     }
@@ -141,13 +174,7 @@ function Perform-CompleteCopy {
     if ($VerboseMode) { Write-Output "Copying fresh source to $TargetDir" }
     Copy-DirectoryRecursive -Source $SourceDir -Destination $TargetDir -OverwriteOlder:$false -KeepNonexistent:$false -DryRun:$DryRun -VerboseMode:$VerboseMode
 
-    $redundantCopy = Join-Path $parentDir ("$dirBase_" + ($NumCopies + 1).ToString("D$MinDigits"))
-    if (Test-Path $redundantCopy) {
-        if ($VerboseMode) { Write-Output "Removing redundant copy: $redundantCopy" }
-        if (-not $DryRun) {
-            Remove-Item -Path $redundantCopy -Recurse -Force
-        }
-    }
+    Remove-ExcessCopies -ParentDir $parentDir -BaseName $dirBase -NumCopies $NumCopies -MinDigits $MinDigits -DryRun:$DryRun -VerboseMode:$VerboseMode
 }
 
 function BackupDir {
@@ -194,8 +221,7 @@ function BackupDir {
     }
 }
 
-# Main execution block
-if ($IsVerbose -or $true) {
+if ($IsVerbose) {
     Write-Output "\nScript input parameters:"
     Write-Output "  SourceDir: $SourceDir"
     Write-Output "  DestDir: $DestDir"
