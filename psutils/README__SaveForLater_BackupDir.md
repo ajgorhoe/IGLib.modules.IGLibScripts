@@ -1,8 +1,8 @@
 
 # PowerShell Scripts for Directory Backups
 
-Copyright (c) Igor Grešovnik
-Se LICENSE.md at https://github.com/ajgorhoe/IGLib.modules.IGLibScripts
+Copyright (c) Igor Grešovnik; 
+See LICENSE.md at https://github.com/ajgorhoe/IGLib.modules.IGLibScripts
 
 [IGLibScripts repository](https://github.com/ajgorhoe/IGLib.modules.IGLibScripts/blob/main/README.md) / [PowerShell Utilities (directory psutils/)](../README.md) / [Repository Management](#powershell-scripts-for-repository-management)
 
