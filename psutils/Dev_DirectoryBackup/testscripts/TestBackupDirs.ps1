@@ -21,12 +21,18 @@
 
 # TEST CASES:
 
+# IN-PLACE mode:
+
+../BackupDir.ps1 "./sourcedirs/BackupSourceBasic" "./backups" -InPlace
+
 # COMPLETE COPY mode (without -InPlace):
 
+# COPY ROTATION:
 
+# Basic correctness of copy rotation:
 # Backup a directory (BackupSourceBasic) without the -InPlace option and with
 # relative paths, backup does not exist, target dir. (parent dir. of backup) exists,
-# and THERE IS 1 BACKUP COPY KEPT (-NumCopies = 1):
+# and THERE ARE 2 BACKUP COPIES KEPT (-NumCopies = 1):
 # Remove eventual existing backup directory:
 Remove-Item -Path "backups/BackupSourceBasic" -Recurse -Force  # first, remove the backup if it exists
 # Run backup script (1st time):
@@ -47,11 +53,37 @@ robocopy "./backups/BackupSourceBasic/Dir1" "./backups/BackupSourceBasic/Dir1_co
 # EXPECTED result: backups/BackupSourceBasic should contain exact copy of sourcedirs/BackupSourceBasic
 #   plus there are TWO COPIES, BackupSourceBasic_01 and BackupSourceBasic_02
 #   plus added ./backups/BackupSourceBasic/Dir1_copy moves to BackupSourceBasic_02
-#   - DOES NOT WORK! - error!
 
-# EXISTING/NONEXISTING backup directory
-# Path resolution should be the same for both: target path specifies the parent directory of the 
-# backup directory.
+
+# Different suffix length + removal of excessive copies when -NumCopies is reduced:
+# Remove eventual existing backup directory:
+Remove-Item -Path "backups/BackupSourceBasic" -Recurse -Force  # first, remove the backup if it exists
+# Run backup script 4 times:
+../BackupDir.ps1 "./sourcedirs/BackupSourceBasic" "./backups" -NumCopies 3 -MinDigits 4
+../BackupDir.ps1 "./sourcedirs/BackupSourceBasic" "./backups" -NumCopies 3 -MinDigits 4
+../BackupDir.ps1 "./sourcedirs/BackupSourceBasic" "./backups" -NumCopies 3 -MinDigits 4
+../BackupDir.ps1 "./sourcedirs/BackupSourceBasic" "./backups" -NumCopies 3 -MinDigits 4
+# EXPECTED result: backups/BackupSourceBasic should contain exact copy of sourcedirs/BackupSourceBasic
+#   Plus there should be 3 older copies, having name suffixes _0001, _0002, and _0003.
+# Run backup script with the same parameters again (5th time):
+../BackupDir.ps1 "./sourcedirs/BackupSourceBasic" "./backups" -NumCopies 3 -MinDigits 4
+# EXPECTED result: the situation should be the same as before (the additional copy generated
+#   via copy rotation is removed because it exceeds the maximal number of copies)
+# Run the backup script again, but now with reduced number of copies (2):
+../BackupDir.ps1 "./sourcedirs/BackupSourceBasic" "./backups" -NumCopies 2 -MinDigits 4
+# EXPECTED result: A fresh backup should be created again and copies should be rotated
+#   (newer copies replacing older ones), but now there should be ONLY 2 additional 
+#   copies (due to -NumCopies 2), as excessive copies should be removed.
+# Run again, but reduce the number of additional copies to 0:
+../BackupDir.ps1 "./sourcedirs/BackupSourceBasic" "./backups" -NumCopies 0 -MinDigits 4
+# EXPECTED result: A fresh backup should be created again, but this time there should be
+#   no additional backup copies because all copies should be removed (due to -NumCopies 0)
+
+
+
+# EXISTING / NONEXISTING backup directory
+# Target path meaning should be the same for both: target path specifies the parent directory 
+# of the backup directory.
 
 # Backup a directory (BackupSourceBasic) without the -InPlace option and with
 # relative paths, backup  does not exist, target dir. (parent dir. of backup) exists:
