@@ -163,6 +163,10 @@ function Perform-CompleteCopy {
         $srcPath = Join-Path $parentDir $srcName
         $dstPath = Join-Path $parentDir $dstName
 
+        if ((Test-Path $dstPath) -and (-not $DryRun)) {
+            Remove-Item -Path $dstPath -Recurse -Force
+        }
+
         if (Test-Path $srcPath) {
             if ($VerboseMode) { Write-Output "Renaming $srcPath -> $dstPath" }
             if (-not $DryRun) {
