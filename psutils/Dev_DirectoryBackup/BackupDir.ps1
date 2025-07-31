@@ -226,7 +226,7 @@ function BackupDir {
 }
 
 if ($IsVerbose) {
-    Write-Output "\nScript input parameters:"
+    Write-Output "`nScript input parameters:"
     Write-Output "  SourceDir: $SourceDir"
     Write-Output "  DestDir: $DestDir"
     Write-Output "  InPlace: $InPlace"

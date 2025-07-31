@@ -27,7 +27,7 @@
 # Prepare the state - we will back up from copies/ directory; remove any remainders of
 # previous operations and prepare a copy to back up:
 Remove-Item -Path "backups/BackupSourceBasic" -Recurse -Force  # remove the backup if it exists
-RemoveItem -Path "copies/BackupSourceBasic" -Recurse -Force  # remove the copy that will be backed up
+Remove-Item -Path "copies/BackupSourceBasic" -Recurse -Force  # remove the copy that will be backed up
 robocopy "./sourcedirs/BackupSourceBasic" "./copies/BackupSourceBasic" /E  # prepare a new copy by copying the source
 # Perform in-place backup:
 ../BackupDir.ps1 "./copies/BackupSourceBasic" "./backups" -InPlace -IsVerbose
@@ -37,12 +37,44 @@ Copy-Item "./copies/BackupSourceBasic/File0.1.txt" "./copies/BackupSourceBasic/A
 ../BackupDir.ps1 "./copies/BackupSourceBasic" "./backups" -InPlace -IsVerbose
 # EXPECTED results: backups/BackupSourceBasic is exact copy of ./copies/BackupSourceBasic;
 #   the file "./backups/BackupSourceBasic/AddedFile.txt" is added. Files that exist in
-#   both source and backup directory are overwritten, which can be seen from verbose output. 
+#   both source and backup directory and versions in source directory are not newer,
+#   are NOT copied (which is seen in script's verbose output). 
 # In the original directory, REMOVE a FILE and perform backup again:
 Remove-Item "./copies/BackupSourceBasic/File0.2.txt" -Force
 ../BackupDir.ps1 "./copies/BackupSourceBasic" "./backups" -InPlace -IsVerbose
 # EXPECTED results: backups/BackupSourceBasic is exact copy of ./copies/BackupSourceBasic;
 #   the file "./backups/BackupSourceBasic/File0.2.txt" is removed.
+
+# Similar steps as above, but testing the OverwriteOlder and KeepNonexistent options:
+# Prepare the state - we will back up from copies/ directory; remove any remainders of
+# previous operations and prepare a copy to back up:
+Remove-Item -Path "backups/BackupSourceBasic" -Recurse -Force  # remove the backup if it exists
+Remove-Item -Path "copies/BackupSourceBasic" -Recurse -Force  # remove the copy that will be backed up
+robocopy "./sourcedirs/BackupSourceBasic" "./copies/BackupSourceBasic" /E  # prepare a new copy by copying the source
+# Perform in-place backup:
+../BackupDir.ps1 "./copies/BackupSourceBasic" "./backups" -InPlace -IsVerbose
+# EXPECTED result: backups/BackupSourceBasic is exact copy of ./copies/BackupSourceBasic
+# In the original directory, ADD a FILE and perform backup again, with OverwriteOlder set to true:
+Copy-Item "./copies/BackupSourceBasic/File0.1.txt" "./copies/BackupSourceBasic/AddedFile.txt" -Force
+../BackupDir.ps1 "./copies/BackupSourceBasic" "./backups" -InPlace -OverwriteOlder -IsVerbose
+# EXPECTED results: backups/BackupSourceBasic is exact copy of ./copies/BackupSourceBasic;
+#   the file "./backups/BackupSourceBasic/AddedFile.txt" is added. Files that exist in
+#   both source and backup directory are overwritten, which can be seen from verbose output. 
+# In the original directory, REMOVE a FILE and perform backup again with -OverwriteOlder and -KeepNonexistent:
+Remove-Item "./copies/BackupSourceBasic/File0.2.txt" -Force
+../BackupDir.ps1 "./copies/BackupSourceBasic" "./backups" -InPlace -OverwriteOlder -KeepNonexistent -IsVerbose
+# EXPECTED results: backups/BackupSourceBasic is (almost) exact copy of ./copies/BackupSourceBasic, except for
+#   the file "./backups/BackupSourceBasic/File0.2.txt", which is NOT removed from the backup although
+#   the file is no longer contained in the source directory, due to -KeepNonexistent. Only files
+#   that are older in the backup are overwritten.
+# Finally, run this backup without the -KeepNonexistent option:
+../BackupDir.ps1 "./copies/BackupSourceBasic" "./backups" -InPlace -OverwriteOlder -IsVerbose
+# EXPECTED results: backups/BackupSourceBasic is EXACT COPY of ./copies/BackupSourceBasic;
+#   the file "./backups/BackupSourceBasic/File0.2.txt" is REMOVED from the backup because
+#   the file is no longer contained in the source directory, due to KeepNonexistent being false. 
+# Only files
+#   that are older in the backup are overwritten.
+
 
 # ToDo: test parameters OverwriteOlder and -KeepNonexistent!
 
