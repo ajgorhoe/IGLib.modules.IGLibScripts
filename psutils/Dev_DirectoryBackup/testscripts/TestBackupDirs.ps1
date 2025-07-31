@@ -23,9 +23,32 @@
 
 # IN-PLACE mode:
 
-../BackupDir.ps1 "./sourcedirs/BackupSourceBasic" "./backups" -InPlace
+# Basic correctness of in-place backup:
+# Prepare the state - we will back up from copies/ directory; remove any remainders of
+# previous operations and prepare a copy to back up:
+Remove-Item -Path "backups/BackupSourceBasic" -Recurse -Force  # remove the backup if it exists
+RemoveItem -Path "copies/BackupSourceBasic" -Recurse -Force  # remove the copy that will be backed up
+robocopy "./sourcedirs/BackupSourceBasic" "./copies/BackupSourceBasic" /E  # prepare a new copy by copying the source
+# Perform in-place backup:
+../BackupDir.ps1 "./copies/BackupSourceBasic" "./backups" -InPlace -IsVerbose
+# EXPECTED result: backups/BackupSourceBasic is exact copy of ./copies/BackupSourceBasic
+# In the original directory, ADD a FILE and perform backup again:
+Copy-Item "./copies/BackupSourceBasic/File0.1.txt" "./copies/BackupSourceBasic/AddedFile.txt" -Force
+../BackupDir.ps1 "./copies/BackupSourceBasic" "./backups" -InPlace -IsVerbose
+# EXPECTED results: backups/BackupSourceBasic is exact copy of ./copies/BackupSourceBasic;
+#   the file "./backups/BackupSourceBasic/AddedFile.txt" is added. Files that exist in
+#   both source and backup directory are overwritten, which can be seen from verbose output. 
+# In the original directory, REMOVE a FILE and perform backup again:
+Remove-Item "./copies/BackupSourceBasic/File0.2.txt" -Force
+../BackupDir.ps1 "./copies/BackupSourceBasic" "./backups" -InPlace -IsVerbose
+# EXPECTED results: backups/BackupSourceBasic is exact copy of ./copies/BackupSourceBasic;
+#   the file "./backups/BackupSourceBasic/File0.2.txt" is removed.
+
+# ToDo: test parameters OverwriteOlder and -KeepNonexistent!
+
 
 # COMPLETE COPY mode (without -InPlace):
+
 
 # COPY ROTATION:
 
