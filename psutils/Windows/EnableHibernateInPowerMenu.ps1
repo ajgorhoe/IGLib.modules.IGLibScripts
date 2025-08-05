@@ -73,13 +73,27 @@ function Set-HibernateState {
     if ($Revert) {
         Write-Host "Disabling hibernation..." -ForegroundColor Yellow
         powercfg /hibernate off | Out-Null
+
+        # Remove ShowHibernateOption override
+        Remove-ItemProperty -Path "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\FlyoutMenuSettings" -Name "ShowHibernateOption" -ErrorAction SilentlyContinue
+
         Write-Host "Hibernation has been disabled." -ForegroundColor Yellow
     } else {
         Write-Host "Enabling hibernation..." -ForegroundColor Green
         powercfg /hibernate on | Out-Null
-        Write-Host "Hibernation has been enabled." -ForegroundColor Green
+
+        # Ensure the Explorer flyout menu shows Hibernate
+        $flyoutKey = "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\FlyoutMenuSettings"
+        if (-not (Test-Path $flyoutKey)) {
+            New-Item -Path $flyoutKey -Force | Out-Null
+        }
+
+        Set-ItemProperty -Path $flyoutKey -Name "ShowHibernateOption" -Value 1 -Type DWord -Force
+
+        Write-Host "Hibernation has been enabled and set to appear in Power menu." -ForegroundColor Green
     }
 }
+
 
 # Apply setting
 Set-HibernateState -Revert:$Revert
