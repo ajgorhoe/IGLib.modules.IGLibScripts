@@ -1,12 +1,11 @@
-
 <#
 .SYNOPSIS
     Enables or disables the Hibernate option in the Power menu.
 
 .DESCRIPTION
-    This script enables the Hibernate option by turning on hibernation using powercfg
-    and ensuring it appears in the Windows Power menu via registry settings.
-    It supports reverting, Explorer restart, and applying system-wide via elevation.
+    This script enables Hibernate in the Windows Power menu by using powercfg and ensuring
+    system registry settings are correctly set. It supports reverting, restarting Explorer,
+    and can be safely deployed on any edition of Windows.
 
 .PARAMETER Revert
     Disables Hibernate and removes it from the Power menu.
@@ -15,11 +14,11 @@
     Restarts Explorer to reflect menu changes immediately.
 
 .PARAMETER AllUsers
-    Ensures the change is applied for all users. Prompts for elevation if needed.
+    Reserved for consistency with other scripts. This script always runs system-wide and requires elevation.
 
 .EXAMPLE
     .\EnableHibernateInPowerMenu.ps1
-    Enables Hibernate for current user.
+    Enables Hibernate.
 
 .EXAMPLE
     .\EnableHibernateInPowerMenu.ps1 -Revert -RestartExplorer
@@ -27,7 +26,7 @@
 
 .EXAMPLE
     .\EnableHibernateInPowerMenu.ps1 -AllUsers
-    Enables Hibernate system-wide.
+    Enables Hibernate (elevation always required).
 #>
 
 param (
@@ -36,6 +35,28 @@ param (
     [switch]$AllUsers
 )
 
+# Check for elevation
+$isAdmin = ([Security.Principal.WindowsPrincipal] [Security.Principal.WindowsIdentity]::GetCurrent()
+).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
+
+if (-not $isAdmin) {
+    Write-Host "Elevation required. Relaunching as administrator..." -ForegroundColor Cyan
+
+    # Build arguments for elevated relaunch
+    $args = @()
+    if ($AllUsers)         { $args += "-AllUsers" }
+    if ($Revert)           { $args += "-Revert" }
+    if ($RestartExplorer)  { $args += "-RestartExplorer" }
+
+    $joinedArgs = $args -join ' '
+    $escapedScriptPath = $PSCommandPath.Replace('"', '""')
+    $command = "& `"$escapedScriptPath`" $joinedArgs; Start-Sleep -Seconds 3"
+
+    Start-Process powershell.exe -ArgumentList "-NoProfile", "-ExecutionPolicy", "Bypass", "-Command", $command -Verb RunAs
+    exit
+}
+
+# Restart Explorer function
 function Restart-Explorer {
     Write-Host "Restarting Explorer..." -ForegroundColor Cyan
     Stop-Process -Name explorer -Force
@@ -43,59 +64,29 @@ function Restart-Explorer {
     Write-Host "Explorer restarted." -ForegroundColor Green
 }
 
-function Set-HibernateRegistry {
+# Hibernate toggle function
+function Set-HibernateState {
     param (
         [switch]$Revert
     )
 
-    # Modify registry for power menu visibility (optional on modern Windows, but improves consistency)
-    $regPath = "HKLM:\SYSTEM\CurrentControlSet\Control\Power"
-    $valueName = "HibernateEnabled"
-
     if ($Revert) {
-        Write-Host "Disabling hibernation via powercfg..." -ForegroundColor Yellow
+        Write-Host "Disabling hibernation..." -ForegroundColor Yellow
         powercfg /hibernate off | Out-Null
-
-        # Registry cleanup is optional, as powercfg handles it
-        Write-Host "Hibernation disabled." -ForegroundColor Yellow
+        Write-Host "Hibernation has been disabled." -ForegroundColor Yellow
     } else {
-        Write-Host "Enabling hibernation via powercfg..." -ForegroundColor Green
+        Write-Host "Enabling hibernation..." -ForegroundColor Green
         powercfg /hibernate on | Out-Null
-        Write-Host "Hibernation enabled." -ForegroundColor Green
+        Write-Host "Hibernation has been enabled." -ForegroundColor Green
     }
 }
 
-# Elevate if needed for -AllUsers
-if ($AllUsers) {
-    $isAdmin = ([Security.Principal.WindowsPrincipal] [Security.Principal.WindowsIdentity]::GetCurrent()
-        ).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
+# Apply setting
+Set-HibernateState -Revert:$Revert
 
-    if (-not $isAdmin) {
-        Write-Host "Elevation required. Relaunching as administrator..." -ForegroundColor Cyan
-
-        # Build argument list
-        $args = @()
-        if ($AllUsers)         { $args += "-AllUsers" }
-        if ($Revert)           { $args += "-Revert" }
-        if ($RestartExplorer)  { $args += "-RestartExplorer" }
-
-        $joinedArgs = $args -join ' '
-        $escapedScriptPath = $PSCommandPath.Replace('"', '""')
-        $command = "& `"$escapedScriptPath`" $joinedArgs; Start-Sleep -Seconds 3"
-
-        Start-Process powershell.exe -ArgumentList "-NoProfile", "-ExecutionPolicy", "Bypass", "-Command", $command -Verb RunAs
-        exit
-    }
-
-    Write-Host "Applying hibernation setting system-wide..." -ForegroundColor Cyan
-    Set-HibernateRegistry -Revert:$Revert
-} else {
-    Write-Host "Applying hibernation setting for current system..." -ForegroundColor Cyan
-    Set-HibernateRegistry -Revert:$Revert
-}
-
+# Restart Explorer if requested
 if ($RestartExplorer) {
     Restart-Explorer
 } else {
-    Write-Host "`nYou may need to restart Explorer or reboot to see changes." -ForegroundColor Cyan
+    Write-Host "`nYou may need to restart Explorer or reboot to see changes in the Power menu." -ForegroundColor Cyan
 }
