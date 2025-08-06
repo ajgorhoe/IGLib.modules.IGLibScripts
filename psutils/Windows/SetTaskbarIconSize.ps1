@@ -96,10 +96,14 @@ if ($AllUsers) {
 		if ($Size)             { $scriptArgs += "-Size `"$Size`"" }
 
 		$joinedArgs = $scriptArgs -join ' '
-		$scriptPathQuoted = '"' + $PSCommandPath + '"'
-		$command = "`"& $scriptPathQuoted $joinedArgs; Start-Sleep -Seconds 3`""
+		$escapedScriptPath = '"' + $PSCommandPath + '"'
 
-		Start-Process powershell.exe -ArgumentList "-NoProfile", "-ExecutionPolicy", "Bypass", "-Command", $command -Verb RunAs
+		# Final command to run: '& "scriptPath" args; Start-Sleep'
+		$fullCommand = "'& $escapedScriptPath $joinedArgs; Start-Sleep -Seconds 3'"
+
+		Start-Process powershell.exe `
+			-ArgumentList "-NoProfile", "-ExecutionPolicy", "Bypass", "-Command", $fullCommand `
+			-Verb RunAs
 		exit
 		
     }
