@@ -1,0 +1,8 @@
+Windows Registry Editor Version 5.00
+
+; DISABLE S0 standby (Modern Sleep or Low Power Idle):
+; Caution: After this, SYSTEM MAY CRASH if trying to put the computer into
+; sleep mode.
+
+[HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Control\Power]
+"PlatformAoAcOverride"=dword:00000000

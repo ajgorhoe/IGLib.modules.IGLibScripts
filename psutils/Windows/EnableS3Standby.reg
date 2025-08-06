@@ -1,6 +1,0 @@
-Windows Registry Editor Version 5.00
-
-; DISABLE S0 standby (modern sleep) & ENABLE S3 standby (normal sleep):
-
-[HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Control\Power]
-"PlatformAoAcOverride"=dword:00000001

@@ -1,0 +1,15 @@
+Windows Registry Editor Version 5.00
+
+; DISABLE S0 standby (Modern Sleep or Low Power Idle) & ENABLE S3 standby 
+; (Normal Sleep):
+; AFTER double-clicking this file to make chanes in the registry, RESTART the 
+; computer and run "powercfg /a" in Admin mode to check the eddect.
+; This MAY NOT WORK on many computers. Many OEMs disable S3 mode by firmware 
+; and they don't document it. See also:
+; https://www.elevenforum.com/t/disable-modern-standby-in-windows-10-and-windows-11.3929/?utm_source=chatgpt.com
+
+; https://www.reddit.com/r/Dell/comments/h0r56s/getting_back_s3_sleep_and_disabling_modern/?utm_source=chatgpt.com
+; https://www.elevenforum.com/t/does-my-asus-support-s3-sleep.19076/?utm_source=chatgpt.com
+
+[HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Control\Power]
+"PlatformAoAcOverride"=dword:00000001
