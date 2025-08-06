@@ -79,7 +79,7 @@ function Set-TaskbarSize {
 
     try {
         if (-not (Test-Path $regPath)) {
-            Write-Warning "Skipping user: Cannot access registry path `${regPath}`"
+            Write-Warning "Skipping user: Cannot access registry path ${regPath}"
             return
         }
 
@@ -87,7 +87,7 @@ function Set-TaskbarSize {
         Write-Host "Set taskbar size to '$targetSize' at: $regPath" -ForegroundColor Green
     }
     catch {
-        Write-Warning "Failed to apply taskbar size to `${regPath}`: $_"
+        Write-Warning "Failed to apply taskbar size to ${regPath}: $_"
     }
 }
 
@@ -143,5 +143,6 @@ if ($AllUsers) {
 if ($RestartExplorer) {
     Restart-Explorer
 } else {
-    Write-Host "`nYou may need to restart Explorer or log off/on to see the changes." -ForegroundColor Cyan
+    Write-Host ""
+    Write-Host "You may need to restart Explorer or log off/on to see the changes." -ForegroundColor Cyan
 }
