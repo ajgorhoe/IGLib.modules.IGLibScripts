@@ -21,6 +21,18 @@
 
 .PARAMETER AllUsers
     Applies the setting to all users (requires admin rights).
+
+.EXAMPLE
+    .\SetTaskbarIconSize.ps1
+    Applies Small taskbar size to current user.
+
+.EXAMPLE
+    .\SetTaskbarIconSize.ps1 -Revert -RestartExplorer
+    Reverts to Medium and restarts Explorer.
+
+.EXAMPLE
+    .\SetTaskbarIconSize.ps1 -Size Large -AllUsers
+    Sets Large taskbar size for all users (elevated).
 #>
 
 param (
@@ -31,14 +43,14 @@ param (
     [switch]$AllUsers
 )
 
-# Mapping descriptive size to registry value
+# Map size names to registry values
 $sizeMap = @{
     Small  = 0
     Medium = 1
     Large  = 2
 }
 
-# Determine target size
+# Determine effective size setting
 if ($Size) {
     $targetSize = $Size
 } elseif ($Revert) {
@@ -57,7 +69,7 @@ function Restart-Explorer {
     Write-Host "Explorer restarted." -ForegroundColor Green
 }
 
-# Apply setting to a single registry path
+# Apply taskbar size setting to a given user hive
 function Set-TaskbarSize {
     param (
         [string]$BasePath
@@ -79,36 +91,31 @@ function Set-TaskbarSize {
     }
 }
 
-# Main logic
+# Elevation and user handling
 if ($AllUsers) {
-    # Check elevation
     $isAdmin = ([Security.Principal.WindowsPrincipal] [Security.Principal.WindowsIdentity]::GetCurrent()
         ).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
 
     if (-not $isAdmin) {
         Write-Host "Elevation required. Relaunching as administrator..." -ForegroundColor Cyan
 
-		# Elevation relaunch
-		$scriptArgs = @()
-		if ($AllUsers)         { $scriptArgs += "-AllUsers" }
-		if ($Revert)           { $scriptArgs += "-Revert" }
-		if ($RestartExplorer)  { $scriptArgs += "-RestartExplorer" }
-		if ($Size)             { $scriptArgs += "-Size `"$Size`"" }
+        $scriptArgs = @()
+        if ($AllUsers)         { $scriptArgs += "-AllUsers" }
+        if ($Revert)           { $scriptArgs += "-Revert" }
+        if ($RestartExplorer)  { $scriptArgs += "-RestartExplorer" }
+        if ($Size)             { $scriptArgs += "-Size `"$Size`"" }
 
-		$joinedArgs = $scriptArgs -join ' '
-		$escapedScriptPath = '"' + $PSCommandPath + '"'
+        $joinedArgs = $scriptArgs -join ' '
+        $quotedScriptPath = '"' + $PSCommandPath + '"'
+        $fullCommand = "'& $quotedScriptPath $joinedArgs; Start-Sleep -Seconds 3'"
 
-		# Final command to run: '& "scriptPath" args; Start-Sleep'
-		$fullCommand = "'& $escapedScriptPath $joinedArgs; Start-Sleep -Seconds 3'"
-
-		Start-Process powershell.exe `
-			-ArgumentList "-NoProfile", "-ExecutionPolicy", "Bypass", "-Command", $fullCommand `
-			-Verb RunAs
-		exit
-		
+        Start-Process powershell.exe `
+            -ArgumentList "-NoProfile", "-ExecutionPolicy", "Bypass", "-Command", $fullCommand `
+            -Verb RunAs
+        exit
     }
 
-    # Elevated: loop over all loaded user profiles
+    # Elevated: apply to all user profiles
     Write-Host "Applying taskbar size to all users..." -ForegroundColor Cyan
 
     $profiles = Get-ChildItem "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\ProfileList" |
@@ -127,7 +134,7 @@ if ($AllUsers) {
         }
     }
 } else {
-    # Current user only
+    # Apply to current user
     Write-Host "Applying taskbar size to current user..." -ForegroundColor Cyan
     Set-TaskbarSize -BasePath "HKCU:"
 }
