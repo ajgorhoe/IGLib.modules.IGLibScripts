@@ -21,22 +21,6 @@
 
 .PARAMETER AllUsers
     Applies the setting to all users (requires admin rights).
-
-.EXAMPLE
-    .\SetTaskbarIconSize.ps1
-    Sets taskbar size to Small.
-
-.EXAMPLE
-    .\SetTaskbarIconSize.ps1 -Revert
-    Reverts taskbar size to Medium.
-
-.EXAMPLE
-    .\SetTaskbarIconSize.ps1 -Size Large -RestartExplorer
-    Sets taskbar to Large size and restarts Explorer.
-
-.EXAMPLE
-    .\SetTaskbarIconSize.ps1 -AllUsers -Revert
-    Reverts taskbar size to Medium for all users.
 #>
 
 param (
@@ -47,14 +31,14 @@ param (
     [switch]$AllUsers
 )
 
-# Define mapping from size names to registry values
+# Mapping descriptive size to registry value
 $sizeMap = @{
     Small  = 0
     Medium = 1
     Large  = 2
 }
 
-# Determine effective size
+# Determine target size
 if ($Size) {
     $targetSize = $Size
 } elseif ($Revert) {
@@ -65,7 +49,7 @@ if ($Size) {
 
 $regValue = $sizeMap[$targetSize]
 
-# Function to restart Explorer
+# Restart Explorer function
 function Restart-Explorer {
     Write-Host "Restarting Explorer..." -ForegroundColor Cyan
     Stop-Process -Name explorer -Force
@@ -73,7 +57,7 @@ function Restart-Explorer {
     Write-Host "Explorer restarted." -ForegroundColor Green
 }
 
-# Function to apply the taskbar size setting to a specific registry base path
+# Apply setting to a single registry path
 function Set-TaskbarSize {
     param (
         [string]$BasePath
@@ -82,48 +66,48 @@ function Set-TaskbarSize {
     $regPath = "$BasePath\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced"
 
     try {
-        # Test if registry path is accessible
         if (-not (Test-Path $regPath)) {
             Write-Warning "Skipping user: Cannot access registry path `${regPath}`"
             return
         }
 
-        # Set the TaskbarSi value
         Set-ItemProperty -Path $regPath -Name "TaskbarSi" -Value $regValue -Type DWord -Force
         Write-Host "Set taskbar size to '$targetSize' at: $regPath" -ForegroundColor Green
-    } catch {
+    }
+    catch {
         Write-Warning "Failed to apply taskbar size to `${regPath}`: $_"
     }
 }
 
-
-# Handle elevation if -AllUsers is used
+# Main logic
 if ($AllUsers) {
+    # Check elevation
     $isAdmin = ([Security.Principal.WindowsPrincipal] [Security.Principal.WindowsIdentity]::GetCurrent()
         ).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
 
     if (-not $isAdmin) {
         Write-Host "Elevation required. Relaunching as administrator..." -ForegroundColor Cyan
 
-        # Rebuild arguments
-        $scriptArgs = @()
-        if ($AllUsers)         { $scriptArgs += "-AllUsers" }
-        if ($Revert)           { $scriptArgs += "-Revert" }
-        if ($RestartExplorer)  { $scriptArgs += "-RestartExplorer" }
-        if ($Size)             { $scriptArgs += "-Size `"$Size`"" }
+		# Elevation relaunch
+		$scriptArgs = @()
+		if ($AllUsers)         { $scriptArgs += "-AllUsers" }
+		if ($Revert)           { $scriptArgs += "-Revert" }
+		if ($RestartExplorer)  { $scriptArgs += "-RestartExplorer" }
+		if ($Size)             { $scriptArgs += "-Size `"$Size`"" }
 
-        $joinedArgs = $scriptArgs -join ' '
-        $escapedScriptPath = $PSCommandPath.Replace('"', '""')
-        $command = "& `"$escapedScriptPath`" $joinedArgs; Start-Sleep -Seconds 3"
+		$joinedArgs = $scriptArgs -join ' '
+		$scriptPathQuoted = '"' + $PSCommandPath + '"'
+		$command = "`"& $scriptPathQuoted $joinedArgs; Start-Sleep -Seconds 3`""
 
-        Start-Process powershell.exe -ArgumentList "-NoProfile", "-ExecutionPolicy", "Bypass", "-Command", $command -Verb RunAs
-        exit
+		Start-Process powershell.exe -ArgumentList "-NoProfile", "-ExecutionPolicy", "Bypass", "-Command", $command -Verb RunAs
+		exit
+		
     }
 
-    # Elevated: Apply setting to all user profiles
+    # Elevated: loop over all loaded user profiles
     Write-Host "Applying taskbar size to all users..." -ForegroundColor Cyan
 
-    $profiles = Get-ChildItem 'HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\ProfileList' |
+    $profiles = Get-ChildItem "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\ProfileList" |
         Where-Object {
             (Get-ItemProperty $_.PSPath).ProfileImagePath -notlike "*systemprofile*"
         }
@@ -132,14 +116,14 @@ if ($AllUsers) {
         $sid = $profile.PSChildName
         $userHive = "Registry::HKEY_USERS\$sid"
 
-        if (Test-Path "Registry::HKEY_USERS\$sid\Software") {
-			Set-TaskbarSize -BasePath "Registry::HKEY_USERS\$sid"
-		} else {
-			Write-Warning "User hive not loaded for SID $sid — skipping"
-		}
-	}
+        if (Test-Path "$userHive\Software") {
+            Set-TaskbarSize -BasePath $userHive
+        } else {
+            Write-Warning "User hive not loaded for SID $sid — skipping"
+        }
+    }
 } else {
-    # Apply to current user
+    # Current user only
     Write-Host "Applying taskbar size to current user..." -ForegroundColor Cyan
     Set-TaskbarSize -BasePath "HKCU:"
 }
