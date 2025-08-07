@@ -73,6 +73,7 @@ function Set-TaskbarSize {
 
         Set-ItemProperty -Path $regPath -Name "TaskbarSi" -Value $regValue -Type DWord -Force
         Write-Host "Set taskbar size to '$targetSize' at: $regPath" -ForegroundColor Green
+        Write-Host "    regValue: $regValue" -ForegroundColor Green
     }
     catch {
         Write-Warning "Failed to apply taskbar size to ${regPath}: $_"
@@ -95,17 +96,13 @@ if ($AllUsers) {
 
         $joinedArgs = $scriptArgs -join ' '
         $quotedScriptPath = '"' + $PSCommandPath + '"'
-        $fullCommand = "'& $quotedScriptPath $joinedArgs; Start-Sleep -Seconds 8'"
-
-        Write-Host "Full command: `n$fullCommand"
-        Write-Host "`nSleeping for some time before running the command ..."
-        Start-Sleep -Seconds 8
-        Write-Host "`   ...Sleep timed out.`n"
+        $fullCommand = "& $quotedScriptPath $joinedArgs; Start-Sleep -Seconds 6"
+        Write-Host "The following command will be executed with elevated privilege: `n$fullCommand"
 
         Start-Process powershell.exe -ArgumentList @(
             "-NoProfile",
             "-ExecutionPolicy", "Bypass",
-            "-Command", $fullCommand
+            "-Command", "`"$fullCommand`""
         ) -Verb RunAs
         exit
     }
