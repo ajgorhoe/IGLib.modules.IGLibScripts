@@ -41,8 +41,10 @@ function Apply-TaskbarAutoHide {
         # Modify byte at index 8: bit 5 controls auto-hide
         if ($EnableAutoHide) {
             $bytes[8] = $bytes[8] -bor 0x08  # Set bit 3 (auto-hide)
+            Write-Warning "Byte set to ENABLE Autohide, value = $bytes[8] "
         } else {
             $bytes[8] = $bytes[8] -band 0xF7  # Clear bit 3
+            Write-Warning "Byte set to DISABLE Autohide, value = $bytes[8] "
         }
 
         Set-ItemProperty -Path $regPath -Name Settings -Value $bytes
