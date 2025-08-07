@@ -95,7 +95,12 @@ if ($AllUsers) {
 
         $joinedArgs = $scriptArgs -join ' '
         $quotedScriptPath = '"' + $PSCommandPath + '"'
-        $fullCommand = "'& $quotedScriptPath $joinedArgs; Start-Sleep -Seconds 3'"
+        $fullCommand = "'& $quotedScriptPath $joinedArgs; Start-Sleep -Seconds 8'"
+
+        Write-Host "Full command: `n$fullCommand"
+        Write-Host "`nSleeping for some time before running the command ..."
+        Start-Sleep -Seconds 8
+        Write-Host "`   ...Sleep timed out.`n"
 
         Start-Process powershell.exe -ArgumentList @(
             "-NoProfile",
