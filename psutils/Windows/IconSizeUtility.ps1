@@ -114,7 +114,7 @@ $form.Controls.Add($taskbarGroupBox)
 
 # === Warning label ===
 $taskbarWarning = New-Object Windows.Forms.Label
-$taskbarWarning.Text = "⚠️  Taskbar size setting may not be supported on this version of Windows."
+$taskbarWarning.Text = "Warning:  Taskbar size setting may not be supported on `nthis version of Windows."
 $taskbarWarning.AutoSize = $true
 $taskbarWarning.ForeColor = "DarkRed"
 $taskbarWarning.Top = 185
