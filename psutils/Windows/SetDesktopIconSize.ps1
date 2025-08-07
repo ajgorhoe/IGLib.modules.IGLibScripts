@@ -1,143 +1,177 @@
-<#
-.SYNOPSIS
-    Sets the desktop icon size in Windows.
+Add-Type -AssemblyName System.Windows.Forms
+# Add-Type -AssemblyName Microsoft.VisualBasic
 
-.DESCRIPTION
-    Changes the desktop icon size via registry.
-    Default behavior sets to Small (16).
-    Use -Revert to reset to Medium (32).
-    Use -Size to specify Small, Medium, Large, or ExtraLarge.
-    -AllUsers applies the setting to all user profiles (requires elevation).
-    -RestartExplorer restarts the Explorer process after changes.
+# Size mappings
+$desktopSizes = @{ Small = 16; Medium = 32; Large = 48; ExtraLarge = 64 }
+$taskbarSizes = @{ Small = 0; Medium = 1; Large = 2 }
 
-.PARAMETER Revert
-    Reverts icon size to Medium (32).
-
-.PARAMETER Size
-    Explicitly set to Small, Medium, Large, or ExtraLarge.
-
-.PARAMETER RestartExplorer
-    Restart Explorer to apply changes.
-
-.PARAMETER AllUsers
-    Apply changes to all users (requires admin rights).
-#>
-
-param (
-    [switch]$Revert,
-    [ValidateSet("Small", "Medium", "Large", "ExtraLarge")]
-    [string]$Size,
-    [switch]$RestartExplorer,
-    [switch]$AllUsers
-)
-
-# Map sizes to values
-$sizeMap = @{
-    Small      = 16
-    Medium     = 32
-    Large      = 48
-    ExtraLarge = 64
+# Get current settings for preselection
+function Get-CurrentDesktopSize {
+    try {
+        $value = Get-ItemPropertyValue -Path "HKCU:\Software\Microsoft\Windows\Shell\Bags\1\Desktop" -Name "IconSize" -ErrorAction Stop
+        return ($desktopSizes.GetEnumerator() | Where-Object { $_.Value -eq $value }).Name
+    } catch {
+        return "Medium"
+    }
 }
 
-# Determine desired value
-if ($Size) {
-    $targetSize = $Size
-} elseif ($Revert) {
-    $targetSize = "Medium"
-} else {
-    $targetSize = "Small"
+function Get-CurrentTaskbarSize {
+    try {
+        $value = Get-ItemPropertyValue -Path "HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced" -Name "TaskbarSi" -ErrorAction Stop
+        return ($taskbarSizes.GetEnumerator() | Where-Object { $_.Value -eq $value }).Name
+    } catch {
+        return "Medium"
+    }
 }
 
-$regValue = $sizeMap[$targetSize]
+function IsTaskbarSizeUnsupported {
+    $osVersion = [System.Environment]::OSVersion.Version
+    return ($osVersion.Major -eq 10 -and $osVersion.Build -ge 26000)
+}
 
-# Restart Explorer
+function Set-DesktopIconSize {
+    param($value, $hive = "HKCU")
+    $regPath = "$hive\Software\Microsoft\Windows\Shell\Bags\1\Desktop"
+    if (-not (Test-Path $regPath)) { New-Item -Path $regPath -Force | Out-Null }
+    Set-ItemProperty -Path $regPath -Name "IconSize" -Value $value
+}
+
+function Set-TaskbarSize {
+    param($value, $hive = "HKCU")
+    $regPath = "$hive\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced"
+    if (-not (Test-Path $regPath)) { return }
+    Set-ItemProperty -Path $regPath -Name "TaskbarSi" -Value $value
+}
+
 function Restart-Explorer {
-    Write-Host "Restarting Explorer..." -ForegroundColor Cyan
     Stop-Process -Name explorer -Force
     Start-Process explorer
-    Write-Host "Explorer restarted." -ForegroundColor Green
 }
 
-# Apply setting
-function Set-DesktopIconSize {
-    param (
-        [string]$BasePath
-    )
+# GUI
+$form = New-Object Windows.Forms.Form
+$form.Text = "Icon Size Utility"
+$form.Width = 400
+$form.Height = 330
+$form.StartPosition = "CenterScreen"
 
-    $osVersion = [System.Environment]::OSVersion.Version
-    if ($osVersion.Major -eq 10 -and $osVersion.Build -ge 26000) {
-        Write-Warning "This version of Windows (Build $($osVersion.Build)) may handle desktop icon sizing differently. Proceeding anyway..."
+# === Desktop group ===
+$desktopGroupBox = New-Object Windows.Forms.GroupBox
+$desktopGroupBox.Text = "Desktop Icon Size"
+$desktopGroupBox.Width = 340
+$desktopGroupBox.Height = 80
+$desktopGroupBox.Left = 20
+$desktopGroupBox.Top = 10
+
+$desktopButtons = @{}
+$topOffset = 20
+foreach ($label in "Small","Medium","Large","ExtraLarge") {
+    $rb = New-Object Windows.Forms.RadioButton
+    $rb.Text = $label
+    $rb.Left = 15 + (($desktopButtons.Count % 2) * 160)
+    $rb.Top = $topOffset + [math]::Floor($desktopButtons.Count / 2) * 25
+    $desktopButtons[$label] = $rb
+    $desktopGroupBox.Controls.Add($rb)
+}
+$form.Controls.Add($desktopGroupBox)
+
+# === Taskbar group ===
+$taskbarGroupBox = New-Object Windows.Forms.GroupBox
+$taskbarGroupBox.Text = "Taskbar Icon Size"
+$taskbarGroupBox.Width = 340
+$taskbarGroupBox.Height = 80
+$taskbarGroupBox.Left = 20
+$taskbarGroupBox.Top = 100
+
+$taskbarButtons = @{}
+$left = 15
+foreach ($label in "Small","Medium","Large") {
+    $rb = New-Object Windows.Forms.RadioButton
+    $rb.Text = $label
+    $rb.Left = $left
+    $rb.Top = 30
+    $left += 100
+    $taskbarButtons[$label] = $rb
+    $taskbarGroupBox.Controls.Add($rb)
+}
+$form.Controls.Add($taskbarGroupBox)
+
+# === Warning label (hidden unless needed) ===
+$taskbarWarning = New-Object Windows.Forms.Label
+$taskbarWarning.Text = "⚠️  Taskbar size setting may not be supported on this version of Windows."
+$taskbarWarning.AutoSize = $true
+$taskbarWarning.ForeColor = "DarkRed"
+$taskbarWarning.Top = 185
+$taskbarWarning.Left = 20
+$taskbarWarning.Visible = $false
+$form.Controls.Add($taskbarWarning)
+
+# === Buttons ===
+$applyBtn = New-Object Windows.Forms.Button
+$applyBtn.Text = "Apply"
+$applyBtn.Width = 130
+$applyBtn.Top = 220
+$applyBtn.Left = 40
+
+$applyAllBtn = New-Object Windows.Forms.Button
+$applyAllBtn.Text = "Apply to All Users"
+$applyAllBtn.Width = 130
+$applyAllBtn.Top = 220
+$applyAllBtn.Left = 200
+
+$form.Controls.Add($applyBtn)
+$form.Controls.Add($applyAllBtn)
+
+# === Preselect current settings ===
+$desktopCurrent = Get-CurrentDesktopSize
+$taskbarCurrent = Get-CurrentTaskbarSize
+if ($desktopButtons.ContainsKey($desktopCurrent)) { $desktopButtons[$desktopCurrent].Checked = $true }
+if ($taskbarButtons.ContainsKey($taskbarCurrent)) { $taskbarButtons[$taskbarCurrent].Checked = $true }
+if (IsTaskbarSizeUnsupported) { $taskbarWarning.Visible = $true }
+
+# === Apply logic ===
+function Apply-Settings {
+    param ($allUsers)
+
+    $selectedDesktop = ($desktopButtons.GetEnumerator() | Where-Object { $_.Value.Checked }).Key
+    $selectedTaskbar = ($taskbarButtons.GetEnumerator() | Where-Object { $_.Value.Checked }).Key
+
+    if (-not $selectedDesktop -and -not $selectedTaskbar) {
+        [System.Windows.Forms.MessageBox]::Show("Please select icon sizes to apply.")
+        return
     }
 
-    $regPath = "$BasePath\Software\Microsoft\Windows\Shell\Bags\1\Desktop"
+    if ($allUsers -and -not ([Security.Principal.WindowsPrincipal] [Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)) {
+        [System.Windows.Forms.MessageBox]::Show("Please run PowerShell as administrator to apply settings to all users.")
+        return
+    }
 
     try {
-        if (-not (Test-Path $regPath)) {
-            New-Item -Path $regPath -Force | Out-Null
-        }
+        if ($allUsers) {
+            $profiles = Get-ChildItem "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\ProfileList" |
+                Where-Object { (Get-ItemProperty $_.PSPath).ProfileImagePath -notlike "*systemprofile*" }
 
-        Set-ItemProperty -Path $regPath -Name "IconSize" -Value $regValue -Type DWord -Force
-        Write-Host "Set desktop icon size to '$targetSize' at: $regPath" -ForegroundColor Green
-        Write-Host "    regValue: $regValue"
-    }
-    catch {
-        Write-Warning "Failed to set icon size at ${regPath}: $_"
-    }
-}
-
-# Handle elevation for -AllUsers
-if ($AllUsers) {
-    $isAdmin = ([Security.Principal.WindowsPrincipal] [Security.Principal.WindowsIdentity]::GetCurrent()
-        ).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
-
-    if (-not $isAdmin) {
-        Write-Host "Elevation required. Relaunching as administrator..." -ForegroundColor Cyan
-
-        $scriptArgs = @()
-        if ($AllUsers)         { $scriptArgs += "-AllUsers" }
-        if ($Revert)           { $scriptArgs += "-Revert" }
-        if ($RestartExplorer)  { $scriptArgs += "-RestartExplorer" }
-        if ($Size)             { $scriptArgs += "-Size `"$Size`"" }
-
-        $joinedArgs = $scriptArgs -join ' '
-        $quotedScriptPath = '"' + $PSCommandPath + '"'
-        $fullCommand = "& $quotedScriptPath $joinedArgs; Start-Sleep -Seconds 3"
-
-        Start-Process powershell.exe -ArgumentList @(
-            "-NoProfile", "-ExecutionPolicy", "Bypass",
-            "-Command", "`"$fullCommand`""
-        ) -Verb RunAs
-
-        exit
-    }
-
-    Write-Host "Applying desktop icon size to all users..." -ForegroundColor Cyan
-
-    $profiles = Get-ChildItem "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\ProfileList" |
-        Where-Object {
-            (Get-ItemProperty $_.PSPath).ProfileImagePath -notlike "*systemprofile*"
-        }
-
-    foreach ($profile in $profiles) {
-        $sid = $profile.PSChildName
-        $userHive = "Registry::HKEY_USERS\$sid"
-
-        if (Test-Path "$userHive\Software") {
-            Set-DesktopIconSize -BasePath $userHive
+            foreach ($profile in $profiles) {
+                $sid = $profile.PSChildName
+                $hive = "Registry::HKEY_USERS\$sid"
+                if ($selectedDesktop) { Set-DesktopIconSize -value $desktopSizes[$selectedDesktop] -hive $hive }
+                if ($selectedTaskbar) { Set-TaskbarSize -value $taskbarSizes[$selectedTaskbar] -hive $hive }
+            }
         } else {
-            Write-Warning "User hive not loaded for SID $sid - skipping"
+            if ($selectedDesktop) { Set-DesktopIconSize -value $desktopSizes[$selectedDesktop] }
+            if ($selectedTaskbar) { Set-TaskbarSize -value $taskbarSizes[$selectedTaskbar] }
         }
+
+        Restart-Explorer
+        [System.Windows.Forms.MessageBox]::Show("Settings applied successfully.")
+
+    } catch {
+        [System.Windows.Forms.MessageBox]::Show("Error applying settings: $_")
     }
 }
-else {
-    Write-Host "Applying desktop icon size to current user..." -ForegroundColor Cyan
-    Set-DesktopIconSize -BasePath "HKCU:"
-}
 
-# Restart if requested
-if ($RestartExplorer) {
-    Restart-Explorer
-} else {
-    Write-Host ""
-    Write-Host "You may need to restart Explorer or log off/on to see the changes." -ForegroundColor Cyan
-}
+$applyBtn.Add_Click({ Apply-Settings -allUsers:$false })
+$applyAllBtn.Add_Click({ Apply-Settings -allUsers:$true })
+
+# Run GUI
+[void]$form.ShowDialog()
