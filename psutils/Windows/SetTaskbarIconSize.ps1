@@ -9,12 +9,19 @@
     Use -Size to explicitly specify Small, Medium, or Large.
     -AllUsers applies the setting to all user profiles (requires elevation).
     -RestartExplorer restarts the Explorer process after changes.
+    IMPORTANT:
+    As of recent Windows 11 23H2 and 24H2 builds, Microsoft has removed or
+    hidden the taskbar icon size setting from the UI — it is no longer 
+    available in Settings. Also, changes in the registry and therefore this
+    script may not have any effect. It is not known whether this feature will
+    be supported again in future versions of Windows.
 
 .PARAMETER Revert
     Reverts taskbar size to Medium.
 
 .PARAMETER Size
-    Overrides default/Revert and sets taskbar size to a specific value.
+    Overrides default/Revert and sets taskbar size to a specific value. Possible values are
+    Small, Medium, and Large.
 
 .PARAMETER RestartExplorer
     Restarts Explorer after making changes.
@@ -62,6 +69,12 @@ function Set-TaskbarSize {
     param (
         [string]$BasePath
     )
+
+    # 🛠️ Version check
+    $osVersion = [System.Environment]::OSVersion.Version
+    if ($osVersion.Major -eq 10 -and $osVersion.Build -ge 26000) {
+        Write-Warning "This version of Windows (Build $($osVersion.Build)) may not support TaskbarSi registry setting. Proceeding anyway..."
+    }
 
     $regPath = "$BasePath\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced"
 
