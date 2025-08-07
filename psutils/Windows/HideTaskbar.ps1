@@ -49,7 +49,7 @@ function Apply-TaskbarAutoHide {
         Write-Host "Taskbar auto-hide set to $EnableAutoHide in $Hive"
 
     } catch {
-        Write-Warning "Failed to apply taskbar auto-hide to $Hive: $_"
+        Write-Warning "Failed to apply taskbar auto-hide to ${Hive}: $_"
     }
 }
 
@@ -97,6 +97,7 @@ if ($AllUsers) {
 
 if ($RestartExplorer) {
     Restart-Explorer
-} else {
-    Write-Host "You may need to restart Explorer or log out/in for the changes to take effect."
+}
+else {
+    Write-Host "You may need to restart Explorer or log out/in for the changes to take effect." -ForegroundColor Cyan
 }
