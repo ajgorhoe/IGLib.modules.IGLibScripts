@@ -1,14 +1,12 @@
 Add-Type -AssemblyName System.Windows.Forms
-Add-Type -AssemblyName Microsoft.VisualBasic
 
 # Size mappings
 $desktopSizes = @{ Small = 16; Medium = 32; Large = 48; ExtraLarge = 64 }
 $taskbarSizes = @{ Small = 0; Medium = 1; Large = 2 }
 
-# Get current settings for preselection
 function Get-CurrentDesktopSize {
     try {
-        $value = Get-ItemPropertyValue -Path "HKCU:\Software\Microsoft\Windows\Shell\Bags\1\Desktop" -Name "IconSize" -ErrorAction Stop
+        $value = Get-ItemPropertyValue -Path "HKCU:\Software\Microsoft\Windows\Shell\Bags\1\Desktop" -Name "IconSize"
         return ($desktopSizes.GetEnumerator() | Where-Object { $_.Value -eq $value }).Name
     } catch {
         return "Medium"
@@ -17,7 +15,7 @@ function Get-CurrentDesktopSize {
 
 function Get-CurrentTaskbarSize {
     try {
-        $value = Get-ItemPropertyValue -Path "HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced" -Name "TaskbarSi" -ErrorAction Stop
+        $value = Get-ItemPropertyValue -Path "HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced" -Name "TaskbarSi"
         return ($taskbarSizes.GetEnumerator() | Where-Object { $_.Value -eq $value }).Name
     } catch {
         return "Medium"
@@ -31,16 +29,34 @@ function IsTaskbarSizeUnsupported {
 
 function Set-DesktopIconSize {
     param($value, $hive = "HKCU")
-    $regPath = "$hive\Software\Microsoft\Windows\Shell\Bags\1\Desktop"
-    if (-not (Test-Path $regPath)) { New-Item -Path $regPath -Force | Out-Null }
-    Set-ItemProperty -Path $regPath -Name "IconSize" -Value $value -Type DWord
+    $regPath = "Registry::$hive\Software\Microsoft\Windows\Shell\Bags\1\Desktop"
+
+    if (-not (Test-Path $regPath)) {
+        New-Item -Path $regPath -Force | Out-Null
+    }
+
+    $existing = Get-ItemProperty -Path $regPath -Name "IconSize" -ErrorAction SilentlyContinue
+    if ($null -eq $existing) {
+        New-ItemProperty -Path $regPath -Name "IconSize" -Value $value -PropertyType DWord -Force | Out-Null
+    } else {
+        Set-ItemProperty -Path $regPath -Name "IconSize" -Value $value
+    }
 }
 
 function Set-TaskbarSize {
     param($value, $hive = "HKCU")
-    $regPath = "$hive\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced"
-    if (-not (Test-Path $regPath)) { return }
-    Set-ItemProperty -Path $regPath -Name "TaskbarSi" -Value $value -Type DWord
+    $regPath = "Registry::$hive\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced"
+
+    if (-not (Test-Path $regPath)) {
+        New-Item -Path $regPath -Force | Out-Null
+    }
+
+    $existing = Get-ItemProperty -Path $regPath -Name "TaskbarSi" -ErrorAction SilentlyContinue
+    if ($null -eq $existing) {
+        New-ItemProperty -Path $regPath -Name "TaskbarSi" -Value $value -PropertyType DWord -Force | Out-Null
+    } else {
+        Set-ItemProperty -Path $regPath -Name "TaskbarSi" -Value $value
+    }
 }
 
 function Restart-Explorer {
@@ -96,7 +112,7 @@ foreach ($label in "Small","Medium","Large") {
 }
 $form.Controls.Add($taskbarGroupBox)
 
-# === Warning label (hidden unless needed) ===
+# === Warning label ===
 $taskbarWarning = New-Object Windows.Forms.Label
 $taskbarWarning.Text = "⚠️  Taskbar size setting may not be supported on this version of Windows."
 $taskbarWarning.AutoSize = $true
@@ -153,7 +169,7 @@ function Apply-Settings {
 
             foreach ($profile in $profiles) {
                 $sid = $profile.PSChildName
-                $hive = "Registry::HKEY_USERS\$sid"
+                $hive = "HKEY_USERS\$sid"
                 if ($selectedDesktop) { Set-DesktopIconSize -value $desktopSizes[$selectedDesktop] -hive $hive }
                 if ($selectedTaskbar) { Set-TaskbarSize -value $taskbarSizes[$selectedTaskbar] -hive $hive }
             }
