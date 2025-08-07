@@ -21,18 +21,6 @@
 
 .PARAMETER AllUsers
     Applies the setting to all users (requires admin rights).
-
-.EXAMPLE
-    .\SetTaskbarIconSize.ps1
-    Applies Small taskbar size to current user.
-
-.EXAMPLE
-    .\SetTaskbarIconSize.ps1 -Revert -RestartExplorer
-    Reverts to Medium and restarts Explorer.
-
-.EXAMPLE
-    .\SetTaskbarIconSize.ps1 -Size Large -AllUsers
-    Sets Large taskbar size for all users (elevated).
 #>
 
 param (
@@ -43,14 +31,14 @@ param (
     [switch]$AllUsers
 )
 
-# Map size names to registry values
+# Map size labels to registry values
 $sizeMap = @{
     Small  = 0
     Medium = 1
     Large  = 2
 }
 
-# Determine effective size setting
+# Determine the target size
 if ($Size) {
     $targetSize = $Size
 } elseif ($Revert) {
@@ -61,7 +49,7 @@ if ($Size) {
 
 $regValue = $sizeMap[$targetSize]
 
-# Restart Explorer function
+# Function to restart Explorer
 function Restart-Explorer {
     Write-Host "Restarting Explorer..." -ForegroundColor Cyan
     Stop-Process -Name explorer -Force
@@ -69,7 +57,7 @@ function Restart-Explorer {
     Write-Host "Explorer restarted." -ForegroundColor Green
 }
 
-# Apply taskbar size setting to a given user hive
+# Function to apply the setting to a specific registry path
 function Set-TaskbarSize {
     param (
         [string]$BasePath
@@ -91,7 +79,7 @@ function Set-TaskbarSize {
     }
 }
 
-# Elevation and user handling
+# Handle elevation if necessary
 if ($AllUsers) {
     $isAdmin = ([Security.Principal.WindowsPrincipal] [Security.Principal.WindowsIdentity]::GetCurrent()
         ).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
@@ -109,13 +97,10 @@ if ($AllUsers) {
         $quotedScriptPath = '"' + $PSCommandPath + '"'
         $fullCommand = "'& $quotedScriptPath $joinedArgs; Start-Sleep -Seconds 3'"
 
-        Start-Process powershell.exe `
-            -ArgumentList "-NoProfile", "-ExecutionPolicy", "Bypass", "-Command", $fullCommand `
-            -Verb RunAs
+        # Start-Process powershell.exe -ArgumentList "-NoProfile", "-ExecutionPolicy", "Bypass", "-Command", $fullCommand" -Verb RunAs
         exit
     }
 
-    # Elevated: apply to all user profiles
     Write-Host "Applying taskbar size to all users..." -ForegroundColor Cyan
 
     $profiles = Get-ChildItem "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\ProfileList" |
@@ -130,11 +115,11 @@ if ($AllUsers) {
         if (Test-Path "$userHive\Software") {
             Set-TaskbarSize -BasePath $userHive
         } else {
-            Write-Warning "User hive not loaded for SID $sid — skipping"
+        #    Write-Warning "User hive not loaded for SID $sid — skipping"
         }
     }
-} else {
-    # Apply to current user
+}
+else {
     Write-Host "Applying taskbar size to current user..." -ForegroundColor Cyan
     Set-TaskbarSize -BasePath "HKCU:"
 }
