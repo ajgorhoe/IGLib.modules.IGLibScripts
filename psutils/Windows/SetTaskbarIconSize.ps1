@@ -97,7 +97,11 @@ if ($AllUsers) {
         $quotedScriptPath = '"' + $PSCommandPath + '"'
         $fullCommand = "'& $quotedScriptPath $joinedArgs; Start-Sleep -Seconds 3'"
 
-        # Start-Process powershell.exe -ArgumentList "-NoProfile", "-ExecutionPolicy", "Bypass", "-Command", $fullCommand" -Verb RunAs
+        Start-Process powershell.exe -ArgumentList @(
+            "-NoProfile",
+            "-ExecutionPolicy", "Bypass",
+            "-Command", $fullCommand
+        ) -Verb RunAs
         exit
     }
 
@@ -115,7 +119,7 @@ if ($AllUsers) {
         if (Test-Path "$userHive\Software") {
             Set-TaskbarSize -BasePath $userHive
         } else {
-        #    Write-Warning "User hive not loaded for SID $sid — skipping"
+            Write-Warning "User hive not loaded for SID $sid - skipping"
         }
     }
 }
