@@ -88,7 +88,7 @@ if ($AllUsers) {
         if (Test-Path "Registry::$hive\Software\Microsoft\Windows\CurrentVersion\Explorer\StuckRects3") {
             Apply-TaskbarAutoHide -Hive $hive -EnableAutoHide:$enable
         } else {
-            Write-Warning "User hive not loaded for SID $sid — skipping"
+            Write-Warning "User hive not loaded for SID $sid - skipping"
         }
     }
 } else {
