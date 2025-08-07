@@ -81,7 +81,7 @@ function Set-DesktopIconSize {
         Write-Host "    regValue: $regValue"
     }
     catch {
-        Write-Warning "Failed to set icon size at $regPath: $_"
+        Write-Warning "Failed to set icon size at ${regPath}: $_"
     }
 }
 
