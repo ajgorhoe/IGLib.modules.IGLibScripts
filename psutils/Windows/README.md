@@ -40,3 +40,20 @@ In Registry Editor (Win-R, regedit), go to
 Another variant [from here](https://www.nextofwindows.com/hide-taskbar-windows-11) (methodunder No. 3): In registy, navigate to  `Computer\HKEY_CURRENT_USER\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced`, then on the right pane, right-click any space and click New, then DWORD (32-bit) Value, and name the new DWORD **`AutoHideTaskbar`**.
 
 In UI, hide / unhide the taskbar via `Settings/Personalization/Taskbar/Taskbar Behaviors/Automatically hide the taskbar`.
+
+### Notes - ToDo
+
+#### Add to Context Menu
+
+Script `AddToContextMenu.ps1`, which adds a certain command to the Explorer's context menu. For example, "Open with VS Code".
+
+Patameters:
+
+* **Title** (e.g. "Open with VS Code")
+* **Command** (e.g. `"C:\\Users\\YourUserName\\AppData\\Local\\Programs\\Microsoft VS Code\\Code.exe" "%V"` to open directories, `"...\\Code.exe" "%1"` for files)
+* **Icon** (optional) - you can set it to the path of executable, e.g. `"C:\\Users\\YourUserName\\AppData\\Local\\Programs\\Microsoft VS Code\\Code.exe"`
+
+##### Add Open with VS Code
+
+See: [how to do it manually](https://learn.microsoft.com/en-gb/answers/questions/2006361/how-do-i-get-microsoft-code-to-come-up-in-my-right).
+
