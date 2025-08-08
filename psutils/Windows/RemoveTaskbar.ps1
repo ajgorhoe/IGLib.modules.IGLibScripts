@@ -26,7 +26,7 @@ function Test-IsAdministrator {
 
 function Restart-Explorer {
     Write-Host "Restarting Windows Explorer..."
-    Stop-Process -Name explorer -Force -ErrorAction SilentlyContinue
+    Stop-Process explorer -Force -ErrorAction SilentlyContinue
     Start-Process explorer.exe
 }
 
@@ -48,14 +48,14 @@ function Set-BinaryRegistryValue {
 
     try {
         switch -regex ($Hive) {
-            '^HKCU:$' { $root = [Microsoft.Win32.Registry]::CurrentUser }
-            '^HKLM:$' { $root = [Microsoft.Win32.Registry]::LocalMachine }
+            '^HKCU:$'    { $root = [Microsoft.Win32.Registry]::CurrentUser }
+            '^HKLM:$'    { $root = [Microsoft.Win32.Registry]::LocalMachine }
             '^HKEY_USERS\\(.+)$' {
-                $sid  = $Matches[1]
+                $sid = $Matches[1]
                 $root = [Microsoft.Win32.RegistryKey]::OpenBaseKey(
-                    [Microsoft.Win32.RegistryHive]::Users,
-                    [Microsoft.Win32.RegistryView]::Default
-                ).OpenSubKey($sid, $true)
+                            [Microsoft.Win32.RegistryHive]::Users,
+                            [Microsoft.Win32.RegistryView]::Default
+                        ).OpenSubKey($sid, $true)
             }
             default {
                 Write-Warning "Unsupported hive: $Hive"
@@ -72,8 +72,7 @@ function Set-BinaryRegistryValue {
         $bytes = $key.GetValue($ValueName)
         if (-not $bytes -or $bytes.Length -lt 9) {
             Write-Warning "Invalid data in $psPath"
-            $key.Close()
-            return
+            $key.Close(); return
         }
 
         if ($EnableAutoHide) {
@@ -95,8 +94,8 @@ function Set-BinaryRegistryValue {
         } else {
             Write-Warning "Verification FAILED: byte[8] = $actual (expected $($bytes[8]))"
         }
-
-    } catch {
+    }
+    catch {
         Write-Warning "Error writing to ${Hive}: $_"
     }
 }
@@ -106,9 +105,10 @@ $subKey         = "Software\Microsoft\Windows\CurrentVersion\Explorer\StuckRects
 $valueName      = "Settings"
 $enableAutoHide = -not $Revert
 
-# Elevate if needed
+# Elevation for AllUsers (with 6s pause)
 if ($AllUsers -and -not (Test-IsAdministrator)) {
     Write-Host "Elevation required. Relaunching as administrator..." -ForegroundColor Cyan
+
     $scriptArgs = @()
     if ($Revert)          { $scriptArgs += "-Revert" }
     if ($RestartExplorer) { $scriptArgs += "-RestartExplorer" }
@@ -125,12 +125,12 @@ if ($AllUsers -and -not (Test-IsAdministrator)) {
     exit
 }
 
+# Apply to all users by loading each user's hive
 if ($AllUsers) {
-    # Only include real user profiles under C:\Users
-    $profiles = Get-ChildItem HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\ProfileList |
+    $profiles = Get-ChildItem -Path "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\ProfileList" |
         Where-Object {
             $path = (Get-ItemProperty $_.PSPath).ProfileImagePath
-            $path -and ($path -like "*\Users\*")
+            $path -and ($path -like '*\Users\*')
         }
 
     foreach ($p in $profiles) {
@@ -165,5 +165,5 @@ if ($AllUsers) {
 if ($RestartExplorer) {
     Restart-Explorer
 } else {
-    Write-Host "You may need to restart Explorer or log off and log back in for changes to take effect." -ForegroundColor Cyan
+    Write-Host "You may need to restart Explorer or log off/in for changes to take effect." -ForegroundColor Cyan
 }
