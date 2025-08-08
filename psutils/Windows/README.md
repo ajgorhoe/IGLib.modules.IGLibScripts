@@ -35,8 +35,7 @@ To verify what this specific value is, evaluate the following expression in Powe
   * [No taskbar on Windows](https://learn.microsoft.com/en-us/answers/questions/1040472/no-taskbar-on-window?orderBy=Newest), see the last answer from Sengupta; this may actually be about completely removing the taskbar (?).
   * Or: [this post](https://www.airdroid.com/uem/how-to-hide-taskbar/#part2-3), method 3 or method 4.
 * This **may be outdated** or serve a different purpose maybe, e.g. for removing the taskbar rather than auto-hiding it.
-  
-  
+
 A **different approach** (editing a different registry key):
 
 * [from this article](https://learn.microsoft.com/en-us/answers/questions/2355519/hide-or-unhide-widgets-on-taskbar-in-windows-11-in):
@@ -63,5 +62,7 @@ Patameters:
 
 ##### Add Open with VS Code
 
-See: [how to do it manually](https://learn.microsoft.com/en-gb/answers/questions/2006361/how-do-i-get-microsoft-code-to-come-up-in-my-right).
+See:
 
+* [How do I get Microsoft Code to come up in my right click menu?](https://learn.microsoft.com/en-gb/answers/questions/2006361/how-do-i-get-microsoft-code-to-come-up-in-my-right) (Microsoft)
+* [Visual Studio Code "Open With Code" does not appear after right-clicking a folder](https://stackoverflow.com/questions/37306672/visual-studio-code-open-with-code-does-not-appear-after-right-clicking-a-folde)
