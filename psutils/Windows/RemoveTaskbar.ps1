@@ -94,11 +94,11 @@ function Set-BinaryRegistryValue {
 }
 
 # Main setup
-$subKey          = "Software\Microsoft\Windows\CurrentVersion\Explorer\StuckRects3"
-$valueName       = "Settings"
-$enableAutoHide  = -not $Revert
+$subKey         = "Software\Microsoft\Windows\CurrentVersion\Explorer\StuckRects3"
+$valueName      = "Settings"
+$enableAutoHide = -not $Revert
 
-# Elevate if needed
+# Elevation for AllUsers (with 6s pause)
 if ($AllUsers -and -not (Test-IsAdministrator)) {
     Write-Host "Elevation required. Relaunching as administrator..." -ForegroundColor Cyan
 
@@ -107,17 +107,18 @@ if ($AllUsers -and -not (Test-IsAdministrator)) {
     if ($RestartExplorer) { $scriptArgs += "-RestartExplorer" }
     $scriptArgs += "-AllUsers"
 
-    $elevArgs = @(
+    $scriptPath = $MyInvocation.MyCommand.Path
+    $cmd = "& `"$scriptPath`" $($scriptArgs -join ' '); Start-Sleep -Seconds 6"
+
+    Start-Process powershell.exe -Verb RunAs -ArgumentList @(
         "-NoProfile",
         "-ExecutionPolicy", "Bypass",
-        "-File", $MyInvocation.MyCommand.Path
-    ) + $scriptArgs
-
-    Start-Process -FilePath "powershell.exe" -Verb RunAs -ArgumentList $elevArgs
+        "-Command", $cmd
+    )
     exit
 }
 
-# Apply to current or all users
+# Apply to current user or all users
 if ($AllUsers) {
     $profiles = Get-ChildItem "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\ProfileList" |
                 Where-Object { (Get-ItemProperty $_.PSPath).ProfileImagePath -notlike "*systemprofile*" }
@@ -125,7 +126,8 @@ if ($AllUsers) {
     foreach ($p in $profiles) {
         $sid  = $p.PSChildName
         $hive = "HKEY_USERS\$sid"
-        if (Test-Path "Registry::$hive\$subKey") {
+        $path = "Registry::$hive\$subKey"
+        if (Test-Path $path) {
             Set-BinaryRegistryValue -Hive $hive -SubKey $subKey -ValueName $valueName -EnableAutoHide:$enableAutoHide
         } else {
             Write-Warning "Hive not loaded for SID ${sid} - skipping"
@@ -139,5 +141,5 @@ if ($AllUsers) {
 if ($RestartExplorer) {
     Restart-Explorer
 } else {
-    Write-Host "You may need to restart Explorer or log off/in for changes to take effect." -ForegroundColor Cyan
+    Write-Host "You may need to restart Explorer or log off and log back in for changes to take effect." -ForegroundColor Cyan
 }
