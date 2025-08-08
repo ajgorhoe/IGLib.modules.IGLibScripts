@@ -50,6 +50,7 @@ function Set-AutoHideTaskbar {
         return
     }
 
+    # Try to create / set the registry value
     try {
         if (-not (Get-ItemProperty -Path $psPath -Name $valueName -ErrorAction SilentlyContinue)) {
             New-ItemProperty -Path $psPath -Name $valueName -PropertyType DWord -Value $desired -Force | Out-Null
@@ -78,13 +79,13 @@ $enable = -not $Revert
 if ($AllUsers -and -not (Test-IsAdministrator)) {
     Write-Host "Elevation required. Relaunching as administrator..." -ForegroundColor Cyan
     $script = $MyInvocation.MyCommand.Path
-    $args   = @()
-    if ($Revert)          { $args += "-Revert" }
-    if ($RestartExplorer) { $args += "-RestartExplorer" }
-    $args += "-AllUsers"
+    $argList   = @()
+    if ($Revert)          { $argList += "-Revert" }
+    if ($RestartExplorer) { $argList += "-RestartExplorer" }
+    $argList += "-AllUsers"
 
     # Build a single command string and append Start-Sleep
-    $cmd = "& `"$script`" $($args -join ' '); Start-Sleep -Seconds 6"
+    $cmd = "& `"$script`" $($argList -join ' '); Start-Sleep -Seconds 6"
 
     Start-Process powershell.exe -Verb RunAs -ArgumentList @(
         "-NoProfile",
