@@ -40,10 +40,10 @@ function Set-AutoHideTaskbar {
     $desired   = if ($Enable) { 1 } else { 0 }
 
     if ($Hive -match ':$') {
-        # Use PSDrive for HKCU: or HKLM:
+        # PSDrive hive (HKCU: or HKLM:)
         $psPath = "$Hive\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced"
     } else {
-        # Use Registry:: for literal HKEY_USERS\<sid>
+        # Literal HKEY_USERS\<sid>
         $psPath = "Registry::$Hive\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced"
     }
 
@@ -76,7 +76,7 @@ function Set-AutoHideTaskbar {
 # Determine desired state
 $enable = -not $Revert
 
-# Elevate if needed for AllUsers
+# Elevation for AllUsers
 if ($AllUsers -and -not (Test-IsAdministrator)) {
     Write-Host "Elevation required. Relaunching as administrator..."
     $script = $MyInvocation.MyCommand.Path
@@ -85,13 +85,18 @@ if ($AllUsers -and -not (Test-IsAdministrator)) {
     if ($RestartExplorer) { $args += "-RestartExplorer" }
     $args += "-AllUsers"
 
-    Start-Process powershell.exe -Verb RunAs -ArgumentList @(
-        "-NoProfile","-ExecutionPolicy","Bypass","-File","`"$script`""
+    # Build and invoke elevated process
+    $elevArgs = @(
+        "-NoProfile",
+        "-ExecutionPolicy", "Bypass",
+        "-File", $script
     ) + $args
+
+    Start-Process powershell.exe -Verb RunAs -ArgumentList $elevArgs
     exit
 }
 
-# Apply to either current user or all users
+# Apply change
 if ($AllUsers) {
     $profiles = Get-ChildItem "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\ProfileList" |
                 Where-Object { (Get-ItemProperty $_.PSPath).ProfileImagePath -notlike "*systemprofile*" }
@@ -99,8 +104,8 @@ if ($AllUsers) {
     foreach ($p in $profiles) {
         $sid  = $p.PSChildName
         $hive = "HKEY_USERS\$sid"
-        # Check if that hive has the Advanced key
-        if (Test-Path "Registry::$hive\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced") {
+        $keyPath = "Registry::$hive\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced"
+        if (Test-Path $keyPath) {
             Set-AutoHideTaskbar -Hive $hive -Enable $enable
         } else {
             Write-Warning "User hive not loaded for SID ${sid} - skipping"
