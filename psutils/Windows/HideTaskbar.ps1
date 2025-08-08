@@ -40,10 +40,8 @@ function Set-AutoHideTaskbar {
     $desired   = if ($Enable) { 1 } else { 0 }
 
     if ($Hive -match ':$') {
-        # PSDrive hive (HKCU: or HKLM:)
         $psPath = "$Hive\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced"
     } else {
-        # Literal HKEY_USERS\<sid>
         $psPath = "Registry::$Hive\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced"
     }
 
@@ -60,7 +58,6 @@ function Set-AutoHideTaskbar {
         }
         Write-Host "Set AutoHideTaskbar=$desired in $psPath"
 
-        # Verification
         $actual = (Get-ItemProperty -Path $psPath -Name $valueName).$valueName
         if ($actual -eq $desired) {
             Write-Host "Verification successful: AutoHideTaskbar = $actual" -ForegroundColor Green
@@ -76,27 +73,27 @@ function Set-AutoHideTaskbar {
 # Determine desired state
 $enable = -not $Revert
 
-# Elevation for AllUsers
+# Elevation for AllUsers, with 6s sleep
 if ($AllUsers -and -not (Test-IsAdministrator)) {
-    Write-Host "Elevation required. Relaunching as administrator..."
-    $script = $MyInvocation.MyCommand.Path
-    $args   = @()
-    if ($Revert)          { $args += "-Revert" }
-    if ($RestartExplorer) { $args += "-RestartExplorer" }
-    $args += "-AllUsers"
+    Write-Host "Elevation required. Relaunching as administrator..." -ForegroundColor Cyan
+    $script  = $MyInvocation.MyCommand.Path
+    $argList = @()
+    if ($Revert)          { $argList += "-Revert" }
+    if ($RestartExplorer) { $argList += "-RestartExplorer" }
+    $argList += "-AllUsers"
 
-    # Build and invoke elevated process
+    # Combine base args and user args
     $elevArgs = @(
         "-NoProfile",
         "-ExecutionPolicy", "Bypass",
         "-File", $script
-    ) + $args
+    ) + $argList
 
     Start-Process powershell.exe -Verb RunAs -ArgumentList $elevArgs
     exit
 }
 
-# Apply change
+# Apply to current or all users
 if ($AllUsers) {
     $profiles = Get-ChildItem "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\ProfileList" |
                 Where-Object { (Get-ItemProperty $_.PSPath).ProfileImagePath -notlike "*systemprofile*" }
@@ -104,8 +101,7 @@ if ($AllUsers) {
     foreach ($p in $profiles) {
         $sid  = $p.PSChildName
         $hive = "HKEY_USERS\$sid"
-        $keyPath = "Registry::$hive\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced"
-        if (Test-Path $keyPath) {
+        if (Test-Path "Registry::$hive\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced") {
             Set-AutoHideTaskbar -Hive $hive -Enable $enable
         } else {
             Write-Warning "User hive not loaded for SID ${sid} - skipping"
@@ -115,7 +111,7 @@ if ($AllUsers) {
     Set-AutoHideTaskbar -Hive "HKCU:" -Enable $enable
 }
 
-# Restart Explorer if requested
+# Restart Explorer or prompt
 if ($RestartExplorer) {
     Restart-Explorer
 } else {
