@@ -127,6 +127,7 @@ if ($AllUsers -and -not (Test-IsAdministrator)) {
 
 # Apply to all users by loading each user's hive
 if ($AllUsers) {
+    # Enumerate real user profiles
     $profiles = Get-ChildItem -Path "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\ProfileList" |
         Where-Object {
             $path = (Get-ItemProperty $_.PSPath).ProfileImagePath
@@ -134,7 +135,14 @@ if ($AllUsers) {
         }
 
     foreach ($p in $profiles) {
-        $sid         = $p.PSChildName
+        $sid = $p.PSChildName
+
+        # Skip the current interactive user; we'll update them via HKCU
+        if ($sid -eq $currentSid) {
+            Write-Host "Skipping current user SID $sid (using HKCU)..."
+            continue
+        }
+
         $profilePath = (Get-ItemProperty -Path $p.PSPath).ProfileImagePath
         $ntUserDat   = Join-Path $profilePath 'NTUSER.DAT'
         $tempHive    = "TempHive_$sid"
@@ -144,18 +152,29 @@ if ($AllUsers) {
             continue
         }
 
-        Write-Host "Loading hive for SID $sid..."
-        & reg.exe load "HKU\$tempHive" $ntUserDat
+        # Try loading the hive (will fail if in use)
+        try {
+            Write-Host "Loading hive for SID $sid..."
+            & reg.exe load "HKU\$tempHive" $ntUserDat 2>$null
+        } catch {
+            Write-Warning "Could not load hive for SID $sid; skipping"
+            continue
+        }
 
         try {
             Set-BinaryRegistryValue -Hive "HKEY_USERS\$tempHive" -SubKey $subKey `
                 -ValueName $valueName -EnableAutoHide:$enableAutoHide
         } finally {
             Write-Host "Unloading hive for SID $sid..."
-            & reg.exe unload "HKU\$tempHive"
+            & reg.exe unload "HKU\$tempHive" 2>$null
         }
     }
-} else {
+
+    # Finally, update the current user via HKCU
+    Set-BinaryRegistryValue -Hive "HKCU:" -SubKey $subKey `
+        -ValueName $valueName -EnableAutoHide:$enableAutoHide
+}
+else {
     # Single-user
     Set-BinaryRegistryValue -Hive "HKCU:" -SubKey $subKey `
         -ValueName $valueName -EnableAutoHide:$enableAutoHide
