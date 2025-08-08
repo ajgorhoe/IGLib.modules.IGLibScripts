@@ -74,22 +74,23 @@ function Set-AutoHideTaskbar {
 # Determine desired state
 $enable = -not $Revert
 
-# Elevation for AllUsers
+# Elevation for AllUsers (with 6s pause)
 if ($AllUsers -and -not (Test-IsAdministrator)) {
     Write-Host "Elevation required. Relaunching as administrator..." -ForegroundColor Cyan
-    $script  = $MyInvocation.MyCommand.Path
-    $argList = @()
-    if ($Revert)          { $argList += "-Revert" }
-    if ($RestartExplorer) { $argList += "-RestartExplorer" }
-    $argList += "-AllUsers"
+    $script = $MyInvocation.MyCommand.Path
+    $args   = @()
+    if ($Revert)          { $args += "-Revert" }
+    if ($RestartExplorer) { $args += "-RestartExplorer" }
+    $args += "-AllUsers"
 
-    $elevArgs = @(
+    # Build a single command string and append Start-Sleep
+    $cmd = "& `"$script`" $($args -join ' '); Start-Sleep -Seconds 6"
+
+    Start-Process powershell.exe -Verb RunAs -ArgumentList @(
         "-NoProfile",
         "-ExecutionPolicy", "Bypass",
-        "-File", $script
-    ) + $argList
-
-    Start-Process -FilePath "powershell.exe" -Verb RunAs -ArgumentList $elevArgs
+        "-Command", $cmd
+    )
     exit
 }
 
