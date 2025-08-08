@@ -126,6 +126,9 @@ if ($AllUsers -and -not (Test-IsAdministrator)) {
 }
 
 # Apply to all users by loading each user's hive
+# Get the current user’s SID so we can skip it
+$currentSid = [System.Security.Principal.WindowsIdentity]::GetCurrent().User.Value
+
 if ($AllUsers) {
     # Enumerate real user profiles
     $profiles = Get-ChildItem -Path "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\ProfileList" |
