@@ -33,9 +33,13 @@ To verify what this specific value is, evaluate the following expression in Powe
 
 * Basis: from [this Reddit](https://www.reddit.com/r/AutoHotkey/comments/1buwka6/script_to_change_automatically_hide_the_taskbar/), the last link:
   * [No taskbar on Windows](https://learn.microsoft.com/en-us/answers/questions/1040472/no-taskbar-on-window?orderBy=Newest), see the last answer from Sengupta; this may actually be about completely removing the taskbar (?).
-* Or: [this post](https://www.airdroid.com/uem/how-to-hide-taskbar/#part2-3), method 3 or method 4.
+  * Or: [this post](https://www.airdroid.com/uem/how-to-hide-taskbar/#part2-3), method 3 or method 4.
+* This **may be outdated** or serve a different purpose maybe, e.g. for removing the taskbar rather than auto-hiding it.
+  
+  
+A **different approach** (editing a different registry key):
 
-Another variant [from this article](https://learn.microsoft.com/en-us/answers/questions/2355519/hide-or-unhide-widgets-on-taskbar-in-windows-11-in):
+* [from this article](https://learn.microsoft.com/en-us/answers/questions/2355519/hide-or-unhide-widgets-on-taskbar-in-windows-11-in):
 
 In Registry Editor (Win-R, regedit), go to
 
