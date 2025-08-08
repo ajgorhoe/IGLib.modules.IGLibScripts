@@ -1,13 +1,13 @@
 <#
 .SYNOPSIS
-    Attempts to hide the Windows taskbar by patching the StuckRects3 binary registry key.
+    Toggles Windows taskbar auto-hide via the AutoHideTaskbar registry setting.
 
 .DESCRIPTION
-    Modifies the byte at index 8 of the "Settings" value in:
-      HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\StuckRects3
-    to set/clear the auto-hide flag. Verifies immediately afterwards.
+    Sets or clears the AutoHideTaskbar DWORD under:
+      HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced
+    to enable/disable the "Automatically hide the taskbar" feature.
     Supports:
-      -Revert         : clears the auto-hide bit
+      -Revert         : disables auto-hide
       -AllUsers       : applies to all user profiles (requires elevation)
       -RestartExplorer: restarts explorer.exe to apply immediately
 #>
@@ -30,100 +30,70 @@ function Restart-Explorer {
     Start-Process explorer.exe
 }
 
-function Set-BinaryRegistryValue {
+function Set-AutoHideTaskbar {
     param (
         [string]$Hive,
-        [string]$SubKey,
-        [string]$ValueName,
-        [bool]  $EnableAutoHide
+        [bool]  $Enable
     )
 
-    $psPath = "$Hive\$SubKey"
+    $valueName = "AutoHideTaskbar"
+    $desired   = if ($Enable) { 1 } else { 0 }
+
+    if ($Hive -match ':$') {
+        $psPath = "$Hive\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced"
+    } else {
+        $psPath = "Registry::$Hive\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced"
+    }
+
     if (-not (Test-Path $psPath)) {
-        Write-Warning "Registry path $psPath not found. Skipping..."
+        Write-Warning "Registry path not found: $psPath"
         return
     }
 
     try {
-        # Open the correct root key
-        if ($Hive -eq "HKCU:")    { $root = [Microsoft.Win32.Registry]::CurrentUser }
-        elseif ($Hive -eq "HKLM:") { $root = [Microsoft.Win32.Registry]::LocalMachine }
-        else {
-            # e.g. "HKEY_USERS\<sid>"
-            $sid  = $Hive.Substring(11)
-            $root = [Microsoft.Win32.RegistryKey]::OpenBaseKey(
-                        [Microsoft.Win32.RegistryHive]::Users,
-                        [Microsoft.Win32.RegistryView]::Default
-                    ).OpenSubKey($sid, $true)
-        }
-
-        $key = $root.OpenSubKey($SubKey, $true)
-        if (-not $key) {
-            Write-Warning "Could not open subkey $SubKey under $Hive"
-            return
-        }
-
-        $bytes = $key.GetValue($ValueName)
-        if (-not $bytes -or $bytes.Length -lt 9) {
-            Write-Warning "Unexpected Settings format at $psPath"
-            $key.Close(); return
-        }
-
-        # Toggle the auto-hide bit (bit 3)
-        if ($EnableAutoHide) {
-            $bytes[8] = $bytes[8] -bor 0x08
-            Write-Host "Enabled auto-hide bit: new byte[8] = $($bytes[8])"
+        if (-not (Get-ItemProperty -Path $psPath -Name $valueName -ErrorAction SilentlyContinue)) {
+            New-ItemProperty -Path $psPath -Name $valueName -PropertyType DWord -Value $desired -Force | Out-Null
         } else {
-            $bytes[8] = $bytes[8] -band 0xF7
-            Write-Host "Disabled auto-hide bit: new byte[8] = $($bytes[8])"
+            Set-ItemProperty -Path $psPath -Name $valueName -Value $desired
         }
-
-        $key.SetValue($ValueName, $bytes, [Microsoft.Win32.RegistryValueKind]::Binary)
-        $key.Close()
-        Write-Host "Updated $psPath\$ValueName successfully."
+        Write-Host "Set AutoHideTaskbar = $desired in $psPath"
 
         # Verification
-        $verified = (Get-ItemProperty -Path $psPath -Name $ValueName).$ValueName
-        $actual   = $verified[8]
-        if ($actual -eq $bytes[8]) {
-            Write-Host "Verification OK: byte[8] = $actual" -ForegroundColor Green
+        $actual = (Get-ItemProperty -Path $psPath -Name $valueName).$valueName
+        if ($actual -eq $desired) {
+            Write-Host "Verification successful: AutoHideTaskbar = $actual" -ForegroundColor Green
         } else {
-            Write-Warning "Verification FAILED: byte[8] = $actual (expected $($bytes[8]))"
+            Write-Warning "Verification failed: AutoHideTaskbar = $actual (expected $desired)"
         }
     }
     catch {
-        Write-Warning "Failed applying to ${Hive}: $_"
+        Write-Warning "Failed to set AutoHideTaskbar in ${Hive}: $_"
     }
 }
 
-# Main
-$subKey = "Software\Microsoft\Windows\CurrentVersion\Explorer\StuckRects3"
-$valueName = "Settings"
-$enableAutoHide = -not $Revert
+# Determine desired state
+$enable = -not $Revert
 
-# Elevate if needed
+# Elevation for AllUsers
 if ($AllUsers -and -not (Test-IsAdministrator)) {
     Write-Host "Elevation required. Relaunching as administrator..." -ForegroundColor Cyan
+    $script  = $MyInvocation.MyCommand.Path
+    $argList = @()
+    if ($Revert)          { $argList += "-Revert" }
+    if ($RestartExplorer) { $argList += "-RestartExplorer" }
+    $argList += "-AllUsers"
 
-    $script = $MyInvocation.MyCommand.Path
-    $args   = @()
-    if ($Revert)          { $args += "-Revert" }
-    if ($RestartExplorer) { $args += "-RestartExplorer" }
-    $args += "-AllUsers"
-
-    # Build one cohesive argument array
     $elevArgs = @(
         "-NoProfile",
         "-ExecutionPolicy", "Bypass",
         "-File", $script
-    ) + $args
+    ) + $argList
 
-    # Use -FilePath explicitly
     Start-Process -FilePath "powershell.exe" -Verb RunAs -ArgumentList $elevArgs
     exit
 }
 
-# Apply to all users or just current
+# Apply to current user or all users
 if ($AllUsers) {
     $profiles = Get-ChildItem "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\ProfileList" |
                 Where-Object { (Get-ItemProperty $_.PSPath).ProfileImagePath -notlike "*systemprofile*" }
@@ -131,19 +101,20 @@ if ($AllUsers) {
     foreach ($p in $profiles) {
         $sid  = $p.PSChildName
         $hive = "HKEY_USERS\$sid"
-        if (Test-Path "Registry::$hive\$subKey") {
-            Set-BinaryRegistryValue -Hive $hive -SubKey $subKey -ValueName $valueName -EnableAutoHide:$enableAutoHide
+        $path = "Registry::$hive\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced"
+        if (Test-Path $path) {
+            Set-AutoHideTaskbar -Hive $hive -Enable $enable
         } else {
-            Write-Warning "Hive not loaded for SID ${sid}—skipping"
+            Write-Warning "User hive not loaded for SID ${sid} - skipping"
         }
     }
 } else {
-    Set-BinaryRegistryValue -Hive "HKCU:" -SubKey $subKey -ValueName $valueName -EnableAutoHide:$enableAutoHide
+    Set-AutoHideTaskbar -Hive "HKCU:" -Enable $enable
 }
 
-# Restart Explorer
+# Restart Explorer or prompt
 if ($RestartExplorer) {
     Restart-Explorer
 } else {
-    Write-Host "You may need to restart Explorer or log off/in for changes to take effect." -ForegroundColor Cyan
+    Write-Host "You may need to restart Explorer or log off and log back in for changes to take effect." -ForegroundColor Cyan
 }
