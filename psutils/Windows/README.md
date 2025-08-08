@@ -3,6 +3,10 @@
 
 [This directory](https://github.com/ajgorhoe/IGLib.modules.IGLibScripts/tree/main/psutils/Windows) of [IGLibScripts](https://github.com/ajgorhoe/IGLib.modules.IGLibScripts/) contains some useful Windows Utility scripts.
 
+**Contents**:
+
+* [Notes](#notes)
+
 ## Notes
 
 Disabling Modern Standby (S0 mode) and enabling the Standard Sleep (S3 mode) would not work on many modern laptops (because many OEMs are disabling the S3 mode in firmware) and because of this, a PowerShell script to do this was not provided. Only the registry edit scripts were provided, the `EnableS3Standby_NormalSleep.reg` for enabling the normal sleep mode, and `DisableS0Standby_ModernStandby.reg` to disable the Modern Standby (which, if it works, may result in crashing computer when sleep mode is entered via UI or buttons / closing the lid of a laptop). Some links are in the first registry file. See also:
