@@ -1,3 +1,25 @@
+<#
+.SYNOPSIS
+    Demo wrapper that adds/removes "Open with VS Code" to Explorer context menu for files and folders.
+
+.DESCRIPTION
+    Calls AddContextMenuItem.ps1 with sane defaults for Visual Studio Code.
+    Detects VS Code path from typical locations:
+      - %LOCALAPPDATA%\Programs\Microsoft VS Code\Code.exe
+      - %ProgramFiles%\Microsoft VS Code\Code.exe
+      - %ProgramFiles(x86)%\Microsoft VS Code\Code.exe
+      - Or falls back to `code.exe` from PATH
+
+.PARAMETER Revert
+    Remove the menu entry instead of adding it.
+
+.PARAMETER AllUsers
+    Apply for all users (requires elevation).
+
+.PARAMETER RestartExplorer
+    Restart Explorer after the change.
+#>
+
 param(
     [switch]$Revert,
     [switch]$AllUsers,
