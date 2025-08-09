@@ -103,7 +103,7 @@ $menuTitle = 'Open with VS Code'
 Write-Host "`nIdentified path to VS Code: `n  $codePath"
 
 # For Files/Directories, pass "%1" quoted to handle spaces
-$argsTemplate = '`"%1`"'
+$argsTemplate = '"%1"'
 
 # Build parameter hashtable for the helper (splatting)
 $params = @{
