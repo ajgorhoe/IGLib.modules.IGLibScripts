@@ -3,13 +3,23 @@
     Attempts to hide the Windows taskbar by patching the StuckRects3 binary registry key.
 
 .DESCRIPTION
-    Modifies byte 8 of the "Settings" value in:
+    Modifies byte 8 of the "Settings" REG_BINARY in:
       HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\StuckRects3
-    to set or clear the taskbar auto-hide flag, then verifies.
-    Supports:
-      -Revert         : clears the auto-hide bit
-      -AllUsers       : loads each user's hive (requires elevation)
-      -RestartExplorer: restarts explorer.exe immediately
+    to set/clear the taskbar auto-hide bit, then verifies.
+    NOTE: Explorer may revert this on some builds; consider HideTaskbar.ps1 (AutoHideTaskbar DWORD) for reliable auto-hide.
+
+.PARAMETER Revert
+    Clears the auto-hide bit (disable attempt to hide taskbar).
+
+.PARAMETER AllUsers
+    Applies to all users:
+      - Pass 1: updates any *loaded* HKEY_USERS\<SID> hives (except current SID).
+      - Pass 2: loads offline C:\Users\<name>\NTUSER.DAT into HKU\TempHive_<SID>, updates, then unloads.
+    Current user is updated via HKCU at the end.
+
+.PARAMETER RestartExplorer
+    Restarts explorer.exe after changes.
+
 #>
 
 param (
@@ -17,6 +27,8 @@ param (
     [switch]$AllUsers,
     [switch]$RestartExplorer
 )
+
+# ---------------- Helpers ----------------
 
 function Test-IsAdministrator {
     $id = [System.Security.Principal.WindowsIdentity]::GetCurrent()
@@ -26,55 +38,60 @@ function Test-IsAdministrator {
 
 function Restart-Explorer {
     Write-Host "Restarting Windows Explorer..."
-    Stop-Process explorer -Force -ErrorAction SilentlyContinue
+    Stop-Process -Name explorer -Force -ErrorAction SilentlyContinue
     Start-Process explorer.exe
+}
+
+function Invoke-Reg {
+    param(
+        [Parameter(Mandatory)][ValidateSet('load','unload')] [string]$Verb,
+        [Parameter(Mandatory)][string[]]$Args
+    )
+    $p = Start-Process -FilePath reg.exe -ArgumentList @($Verb) + $Args -WindowStyle Hidden -Wait -PassThru
+    return $p.ExitCode
 }
 
 function Set-BinaryRegistryValue {
     param (
-        [string]$Hive,
-        [string]$SubKey,
-        [string]$ValueName,
-        [bool]  $EnableAutoHide
+        [Parameter(Mandatory)][string]$Hive,       # "HKCU:" or "HKEY_USERS\<sid or tempname>"
+        [Parameter(Mandatory)][string]$SubKey,     # e.g. Software\...\StuckRects3
+        [Parameter(Mandatory)][string]$ValueName,  # "Settings"
+        [Parameter(Mandatory)][bool]  $EnableAutoHide
     )
 
-    $psPath = if ($Hive -match ':$') { "$Hive\$SubKey" }
-              else { "Registry::$Hive\$SubKey" }
+    $psPath = if ($Hive -match ':$') { "$Hive\$SubKey" } else { "Registry::$Hive\$SubKey" }
 
     if (-not (Test-Path $psPath)) {
         Write-Warning "Registry path not found: $psPath"
-        return
+        return $false
     }
 
     try {
-        switch -regex ($Hive) {
-            '^HKCU:$'    { $root = [Microsoft.Win32.Registry]::CurrentUser }
-            '^HKLM:$'    { $root = [Microsoft.Win32.Registry]::LocalMachine }
+        # Open hive with .NET Reg API
+        $root = switch -regex ($Hive) {
+            '^HKCU:$'    { [Microsoft.Win32.Registry]::CurrentUser }
+            '^HKLM:$'    { [Microsoft.Win32.Registry]::LocalMachine }
             '^HKEY_USERS\\(.+)$' {
                 $sid = $Matches[1]
-                $root = [Microsoft.Win32.RegistryKey]::OpenBaseKey(
-                            [Microsoft.Win32.RegistryHive]::Users,
-                            [Microsoft.Win32.RegistryView]::Default
-                        ).OpenSubKey($sid, $true)
+                [Microsoft.Win32.RegistryKey]::OpenBaseKey(
+                    [Microsoft.Win32.RegistryHive]::Users,
+                    [Microsoft.Win32.RegistryView]::Default
+                ).OpenSubKey($sid, $true)
             }
-            default {
-                Write-Warning "Unsupported hive: $Hive"
-                return
-            }
+            default { $null }
         }
+        if (-not $root) { Write-Warning "Unsupported hive: ${Hive}"; return $false }
 
         $key = $root.OpenSubKey($SubKey, $true)
-        if (-not $key) {
-            Write-Warning "Cannot open subkey $SubKey under $Hive"
-            return
-        }
+        if (-not $key) { Write-Warning "Cannot open subkey $SubKey under ${Hive}"; return $false }
 
         $bytes = $key.GetValue($ValueName)
         if (-not $bytes -or $bytes.Length -lt 9) {
-            Write-Warning "Invalid data in $psPath"
-            $key.Close(); return
+            Write-Warning "Invalid or missing $psPath\$ValueName"
+            $key.Close(); return $false
         }
 
+        # Toggle bit 3 at index 8
         if ($EnableAutoHide) {
             $bytes[8] = $bytes[8] -bor 0x08
             Write-Host "Enabled auto-hide bit: byte[8] = $($bytes[8])"
@@ -87,105 +104,133 @@ function Set-BinaryRegistryValue {
         $key.Close()
         Write-Host "Updated $psPath\$ValueName successfully."
 
-        # Verification
+        # Verify
         $actual = (Get-ItemProperty -Path $psPath -Name $ValueName).$ValueName[8]
         if ($actual -eq $bytes[8]) {
             Write-Host "Verification OK: byte[8] = $actual" -ForegroundColor Green
+            return $true
         } else {
             Write-Warning "Verification FAILED: byte[8] = $actual (expected $($bytes[8]))"
+            return $false
         }
     }
     catch {
         Write-Warning "Error writing to ${Hive}: $_"
+        return $false
     }
 }
 
-# Configuration
+# ---------------- Config ----------------
+
 $subKey         = "Software\Microsoft\Windows\CurrentVersion\Explorer\StuckRects3"
 $valueName      = "Settings"
 $enableAutoHide = -not $Revert
 
-# Elevation for AllUsers (with 6s pause)
+# ---------------- Elevation (with 6s sleep) ----------------
+
 if ($AllUsers -and -not (Test-IsAdministrator)) {
     Write-Host "Elevation required. Relaunching as administrator..." -ForegroundColor Cyan
-
+    $scriptPath = $MyInvocation.MyCommand.Path
     $scriptArgs = @()
     if ($Revert)          { $scriptArgs += "-Revert" }
     if ($RestartExplorer) { $scriptArgs += "-RestartExplorer" }
     $scriptArgs += "-AllUsers"
 
-    $scriptPath = $MyInvocation.MyCommand.Path
-    $cmd        = "& `"$scriptPath`" $($scriptArgs -join ' '); Start-Sleep -Seconds 6"
-
+    $cmd = "& `"$scriptPath`" $($scriptArgs -join ' '); Start-Sleep -Seconds 6"
     Start-Process powershell.exe -Verb RunAs -ArgumentList @(
-        "-NoProfile",
-        "-ExecutionPolicy", "Bypass",
-        "-Command", $cmd
+        "-NoProfile","-ExecutionPolicy","Bypass","-Command",$cmd
     )
     exit
 }
 
-# Apply to all users by loading each user's hive
-# Get the current user’s SID so we can skip it
-$currentSid = [System.Security.Principal.WindowsIdentity]::GetCurrent().User.Value
+# ---------------- Apply ----------------
 
 if ($AllUsers) {
-    # Enumerate real user profiles
+    $currentSid = [System.Security.Principal.WindowsIdentity]::GetCurrent().User.Value
+
+    # Pass 1: Update any *loaded* HKEY_USERS\<SID> hives (skip current SID)
+    $loadedSids = ([Microsoft.Win32.RegistryKey]::OpenBaseKey(
+                        [Microsoft.Win32.RegistryHive]::Users,
+                        [Microsoft.Win32.RegistryView]::Default
+                    ).GetSubKeyNames()) |
+                  Where-Object { $_ -match '^S-1-5-' -and $_ -ne $currentSid }
+
+    if ($loadedSids.Count -gt 0) {
+        Write-Host "Pass 1: Updating loaded hives under HKEY_USERS ..." -ForegroundColor Cyan
+        foreach ($sid in $loadedSids) {
+            $hive = "HKEY_USERS\$sid"
+            $psPath = "Registry::$hive\$subKey"
+            if (Test-Path $psPath) {
+                $ok = Set-BinaryRegistryValue -Hive $hive -SubKey $subKey -ValueName $valueName -EnableAutoHide:$enableAutoHide
+                if (-not $ok) { Write-Warning "Failed or skipped for loaded SID ${sid}" }
+            } else {
+                Write-Warning "StuckRects3 path not found for loaded SID ${sid} - user may never have used Explorer."
+            }
+        }
+    } else {
+        Write-Host "No other loaded user hives found under HKEY_USERS." -ForegroundColor Yellow
+    }
+
+    # Pass 2: Load *offline* user hives from ProfileList (exclude current SID and any already-loaded)
     $profiles = Get-ChildItem -Path "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\ProfileList" |
         Where-Object {
-            $path = (Get-ItemProperty $_.PSPath).ProfileImagePath
-            $path -and ($path -like '*\Users\*')
+            $pi = Get-ItemProperty $_.PSPath
+            $pi.ProfileImagePath -and ($pi.ProfileImagePath -like '*\Users\*') -and (Test-Path $pi.ProfileImagePath)
         }
 
-    foreach ($p in $profiles) {
-        $sid = $p.PSChildName
+    $offlineProfiles = $profiles | Where-Object { $_.PSChildName -ne $currentSid -and ($loadedSids -notcontains $_.PSChildName) }
 
-        # Skip the current interactive user; we'll update them via HKCU
-        if ($sid -eq $currentSid) {
-            Write-Host "Skipping current user SID $sid (using HKCU)..."
-            continue
-        }
+    if ($offlineProfiles) {
+        Write-Host "Pass 2: Loading offline user hives from ProfileList ..." -ForegroundColor Cyan
+    } else {
+        Write-Host "No offline user profiles to update." -ForegroundColor Yellow
+    }
 
+    foreach ($p in $offlineProfiles) {
+        $sid         = $p.PSChildName
         $profilePath = (Get-ItemProperty -Path $p.PSPath).ProfileImagePath
         $ntUserDat   = Join-Path $profilePath 'NTUSER.DAT'
         $tempHive    = "TempHive_$sid"
 
         if (-not (Test-Path $ntUserDat)) {
-            Write-Warning "NTUSER.DAT not found for SID $sid; skipping"
+            Write-Warning "NTUSER.DAT not found for SID ${sid} at $ntUserDat - skipping"
             continue
         }
 
-        # Try loading the hive (will fail if in use)
-        try {
-            Write-Host "Loading hive for SID $sid..."
-            & reg.exe load "HKU\$tempHive" $ntUserDat 2>$null
-        } catch {
-            Write-Warning "Could not load hive for SID $sid; skipping"
+        Write-Host "Loading hive for SID ${sid} from $ntUserDat ..."
+        $ec = Invoke-Reg -Verb 'load' -Args @("HKU\$tempHive", $ntUserDat)
+        if ($ec -ne 0) {
+            Write-Warning "Could not load hive for SID ${sid} (ExitCode=$ec). Is the user logged in or file locked?"
             continue
         }
 
         try {
-            Set-BinaryRegistryValue -Hive "HKEY_USERS\$tempHive" -SubKey $subKey `
-                -ValueName $valueName -EnableAutoHide:$enableAutoHide
+            $ok = Set-BinaryRegistryValue -Hive "HKEY_USERS\$tempHive" -SubKey $subKey -ValueName $valueName -EnableAutoHide:$enableAutoHide
+            if (-not $ok) {
+                Write-Warning "Update failed under HKEY_USERS\$tempHive for SID ${sid}"
+            }
         } finally {
-            Write-Host "Unloading hive for SID $sid..."
-            & reg.exe unload "HKU\$tempHive" 2>$null
+            Write-Host "Unloading hive for SID ${sid} ..."
+            $ec2 = Invoke-Reg -Verb 'unload' -Args @("HKU\$tempHive")
+            if ($ec2 -ne 0) {
+                Write-Warning "Could not unload hive for SID ${sid} (ExitCode=$ec2). You may need to log off that user."
+            }
         }
     }
 
     # Finally, update the current user via HKCU
-    Set-BinaryRegistryValue -Hive "HKCU:" -SubKey $subKey `
-        -ValueName $valueName -EnableAutoHide:$enableAutoHide
+    Write-Host "Updating current user (HKCU)..." -ForegroundColor Cyan
+    Set-BinaryRegistryValue -Hive "HKCU:" -SubKey $subKey -ValueName $valueName -EnableAutoHide:$enableAutoHide
 }
 else {
     # Single-user
-    Set-BinaryRegistryValue -Hive "HKCU:" -SubKey $subKey `
-        -ValueName $valueName -EnableAutoHide:$enableAutoHide
+    Set-BinaryRegistryValue -Hive "HKCU:" -SubKey $subKey -ValueName $valueName -EnableAutoHide:$enableAutoHide
 }
 
-# Restart Explorer or prompt
+# ---------------- Finish ----------------
+
 if ($RestartExplorer) {
     Restart-Explorer
 } else {
-    Write-Host "You may need to restart Explorer or log off/in for changes to take effect." -ForegroundColor Cyan
+    Write-Host "You may need to restart Explorer or log off and log back in for changes to take effect." -ForegroundColor Cyan
 }
