@@ -162,7 +162,7 @@ foreach ($t in $Targets) {
         Write-Host "  Command = $cmdLine"
         if ($Icon) { Write-Host "  Icon    = $Icon" }
     } catch {
-        Write-Warning "Failed to create/update $t at $itemSubPath: $_"
+        Write-Warning "Failed to create/update $t at ${itemSubPath}: $_"
     }
 }
 
