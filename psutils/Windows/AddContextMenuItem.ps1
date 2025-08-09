@@ -3,14 +3,13 @@
     Adds or removes a custom Explorer context menu item for files, folders, and/or folder background.
 
 .DESCRIPTION
-    Creates registry entries under:
-      Per-user: HKCU:\Software\Classes\...\shell\<KeyName>
-      All-users: HKLM:\Software\Classes\...\shell\<KeyName>  (requires elevation)
-
+    Writes under:
+      Per-user: HKCU\Software\Classes\...\shell\<KeyName>
+      All-users: HKLM\Software\Classes\...\shell\<KeyName>  (requires elevation)
     Targets:
-      - Files       -> *\shell\<KeyName>\command (argument default: "%1")
-      - Directories -> Directory\shell\<KeyName>\command (argument default: "%1")
-      - Background  -> Directory\Background\shell\<KeyName>\command (argument default: "%V")
+      Files       -> *\shell\<KeyName>\command (arg default: "%1")
+      Directories -> Directory\shell\<KeyName>\command (arg default: "%1")
+      Background  -> Directory\Background\shell\<KeyName>\command (arg default: "%V")
 
 .PARAMETER Title
     Display text in the context menu (e.g., "Open with VS Code").
@@ -78,21 +77,15 @@ function Restart-Explorer {
 
 # Normalize and quote the command properly
 function Build-CommandLine {
-    param(
-        [Parameter(Mandatory)][string]$ExePath,
-        [Parameter(Mandatory)][string]$ArgTemplate
-    )
-    # Ensure exe path is quoted once
+    param([Parameter(Mandatory)][string]$ExePath,[Parameter(Mandatory)][string]$ArgTemplate)
     $exeQuoted = '"' + ($ExePath.Trim('"')) + '"'
     return ($exeQuoted + ' ' + $ArgTemplate)
 }
 
-# --- Elevation for HKLM ----------------------------------------------------
-
+# Elevate if writing HKLM
 if ($AllUsers -and -not (Test-IsAdministrator)) {
     Write-Host "Elevation required. Relaunching as administrator..." -ForegroundColor Cyan
     $script = $MyInvocation.MyCommand.Path
-    # Rebuild the argument list for elevation
     $passed = @()
     $passed += @('-Title', "`"$Title`"")
     $passed += @('-CommandPath', "`"$CommandPath`"")
@@ -104,23 +97,19 @@ if ($AllUsers -and -not (Test-IsAdministrator)) {
     if ($Revert)                        { $passed += '-Revert' }
     if ($RestartExplorer)               { $passed += '-RestartExplorer' }
     $passed += '-AllUsers'
-
     $cmd = "& `"$script`" $($passed -join ' '); Start-Sleep -Seconds 6"
-    Start-Process powershell.exe -Verb RunAs -ArgumentList @(
-        '-NoProfile','-ExecutionPolicy','Bypass','-Command', $cmd
-    )
+    Start-Process powershell.exe -Verb RunAs -ArgumentList @('-NoProfile','-ExecutionPolicy','Bypass','-Command',$cmd)
     exit
 }
 
-# --- Target map ------------------------------------------------------------
-
-$baseRoot = if ($AllUsers) { 'HKLM:\Software\Classes' } else { 'HKCU:\Software\Classes' }
-
-$targetMap = @{
-    Files       = @{ ShellPath = Join-Path $baseRoot '*\shell';                         ArgDefault = '%1' }
-    Directories = @{ ShellPath = Join-Path $baseRoot 'Directory\shell';                 ArgDefault = '%1' }
-    Background  = @{ ShellPath = Join-Path $baseRoot 'Directory\Background\shell';      ArgDefault = '%V' }
+# Decide root using .NET (no wildcard parsing issues)
+Add-Type -AssemblyName Microsoft.Win32
+$root = if ($AllUsers) {
+    [Microsoft.Win32.Registry]::LocalMachine.OpenSubKey('Software\Classes', $true)
+} else {
+    [Microsoft.Win32.Registry]::CurrentUser.OpenSubKey('Software\Classes', $true)
 }
+if (-not $root) { throw "Unable to open registry root." }
 
 # Compute a safe key name if not provided
 if (-not $KeyName) {
@@ -128,59 +117,59 @@ if (-not $KeyName) {
     if ([string]::IsNullOrWhiteSpace($KeyName)) { $KeyName = 'CustomMenuItem' }
 }
 
-# --- Core apply/remove -----------------------------------------------------
+# Map targets to literal subpaths (note the literal '*' key)
+$map = @{
+    Files       = "*\shell\$KeyName"
+    Directories = "Directory\shell\$KeyName"
+    Background  = "Directory\Background\shell\$KeyName"
+}
 
 foreach ($t in $Targets) {
-    if (-not $targetMap.ContainsKey($t)) { continue }
-    $shellPath = $targetMap[$t].ShellPath
-    $argTpl    = $targetMap[$t].ArgDefault
-
-    # Allow override for Files/Directories (Arguments) and Background (BackgroundArguments)
-    $argToUse = if ($t -eq 'Background') { $BackgroundArguments } else { $Arguments }
-    if (-not $argToUse) { $argToUse = $argTpl }
-
-    $itemKey      = Join-Path $shellPath $KeyName
-    $commandKey   = Join-Path $itemKey  'command'
+    if (-not $map.ContainsKey($t)) { continue }
+    $itemSubPath    = $map[$t]
+    $commandSubPath = "$itemSubPath\command"
 
     if ($Revert) {
-        if (Test-Path $itemKey) {
-            try {
-                Remove-Item -Path $itemKey -Recurse -Force
-                Write-Host "Removed $t context item at: $itemKey"
-            } catch {
-                Write-Warning "Failed to remove $t key at ${itemKey}: $_"
+        try {
+            if ($root.OpenSubKey($itemSubPath,$false)) {
+                $root.DeleteSubKeyTree($itemSubPath, $false)
+                Write-Host "Removed $t context item: $itemSubPath"
+            } else {
+                Write-Host "Nothing to remove for $t at: $itemSubPath"
             }
-        } else {
-            Write-Host "Nothing to remove for $t at: $itemKey"
+        } catch {
+            Write-Warning "Failed to remove $t at $itemSubPath: $_"
         }
         continue
     }
 
-    # Create/Update
     try {
-        if (-not (Test-Path $itemKey))     { New-Item -Path $itemKey     -Force | Out-Null }
-        if (-not (Test-Path $commandKey))  { New-Item -Path $commandKey  -Force | Out-Null }
+        # Create keys
+        $itemKey    = $root.CreateSubKey($itemSubPath, $true)
+        $commandKey = $root.CreateSubKey($commandSubPath, $true)
+        if (-not $itemKey -or -not $commandKey) { throw "CreateSubKey failed." }
 
-        # Visible label
-        New-ItemProperty -Path $itemKey -Name 'MUIVerb' -Value $Title -Force | Out-Null
+        # Properties
+        $itemKey.SetValue('MUIVerb', $Title, [Microsoft.Win32.RegistryValueKind]::String)
+        if ($Icon) { $itemKey.SetValue('Icon', $Icon, [Microsoft.Win32.RegistryValueKind]::String) }
 
-        # Optional icon
-        if ($Icon) {
-            New-ItemProperty -Path $itemKey -Name 'Icon' -Value $Icon -Force | Out-Null
-        }
+        $argTpl = if ($t -eq 'Background') { if ($BackgroundArguments) { $BackgroundArguments } else { '%V' } }
+                  else { if ($Arguments) { $Arguments } else { '%1' } }
 
-        # Command line
-        $cmdLine = Build-CommandLine -ExePath $CommandPath -ArgTemplate $argToUse
-        New-ItemProperty -Path $commandKey -Name '(Default)' -Value $cmdLine -Force | Out-Null
+        $cmdLine = Build-CommandLine -ExePath $CommandPath -ArgTemplate $argTpl
+        # Set default value (unnamed) correctly:
+        $commandKey.SetValue('', $cmdLine, [Microsoft.Win32.RegistryValueKind]::String)
 
-        Write-Host "Added/Updated $t context item at: $itemKey"
+        $itemKey.Close(); $commandKey.Close()
+        Write-Host "Added/Updated $t context item: $itemSubPath"
         Write-Host "  Command = $cmdLine"
         if ($Icon) { Write-Host "  Icon    = $Icon" }
-
     } catch {
-        Write-Warning "Failed to create/update $t key at ${itemKey}: $_"
+        Write-Warning "Failed to create/update $t at $itemSubPath: $_"
     }
 }
+
+$root.Close()
 
 if ($RestartExplorer) {
     Restart-Explorer
