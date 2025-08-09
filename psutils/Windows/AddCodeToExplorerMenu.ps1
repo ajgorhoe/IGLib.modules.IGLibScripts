@@ -26,10 +26,52 @@ param(
     [switch]$RestartExplorer
 )
 
+function Write-HashTable {
+    param(
+        [hashtable]$Table
+    )
+    if ($null -eq $Table) {
+        Write-Host "  NULL hashtable"
+        return
+    }
+    if ($Table.Count -eq 0) {
+        Write-Host "  EMPTY hashtable"
+        return
+    }
+    foreach ($key in $Table.Keys) {
+        Write-Host "  ${key}: $($Table[$key])"
+    }
+}
+
+function Write-Array {
+    param(
+        [object[]]$Array
+    )
+    if ($null -eq $Array) {
+        Write-Host "  NULL"
+        return
+    }
+    if ($Array.Count -eq 0) {
+        Write-Host "  EMPTY"
+        return
+    }
+    for ($i = 0; $i -lt $Array.Count; $i++) {
+        Write-Host "  ${i}: $($Array[$i])"
+    }
+}
+
+$calledScript = "AddContextMenuItem.ps1"
+# Inform of the task, output script parameters:
+Write-Host "`n`nRunning AddCodeToExplorerMenu.ps1..."
+Write-Host "`nScript parameters:"
+Write-HashTable $PSBoundParameters
+Write-Host "  Positional:"
+Write-Array $args
+
 # Locate AddContextMenuItem.ps1 (assumed next to this script)
-$helper = Join-Path $PSScriptRoot 'AddContextMenuItem.ps1'
+$helper = Join-Path $PSScriptRoot $calledScript
 if (-not (Test-Path $helper)) {
-    Write-Error "AddContextMenuItem.ps1 not found at: $helper"
+    Write-Error "$calledScript not found at: $helper"
     exit 1
 }
 
@@ -54,6 +96,8 @@ if (-not $pathsToCheck -or $pathsToCheck.Count -eq 0) {
 $codePath  = $pathsToCheck | Select-Object -First 1
 $menuTitle = 'Open with VS Code'
 
+Write-Host "`nIdentified path to VS Code: `n  $codePath"
+
 # For Files/Directories, pass "%1" quoted to handle spaces
 $argsTemplate = '`"%1`"'
 
@@ -70,5 +114,12 @@ if ($Revert)          { $params.Revert = $true }
 if ($AllUsers)        { $params.AllUsers = $true }
 if ($RestartExplorer) { $params.RestartExplorer = $true }
 
+Write-Host "`nThe following script will be run:`n  $helper"
+
+Write-Host "`nParameters to be passed to ${calledScript}:"
+Write-HashTable $params
+
 # Call helper in this PowerShell process
-& $helper @params
+# & $helper @params
+
+Write-Host "`n  ... adding VS Code to Explorer's context menu completed.`n"
