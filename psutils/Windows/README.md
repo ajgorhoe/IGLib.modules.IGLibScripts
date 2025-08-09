@@ -66,3 +66,9 @@ See:
 
 * [How do I get Microsoft Code to come up in my right click menu?](https://learn.microsoft.com/en-gb/answers/questions/2006361/how-do-i-get-microsoft-code-to-come-up-in-my-right) (Microsoft)
 * [Visual Studio Code "Open With Code" does not appear after right-clicking a folder](https://stackoverflow.com/questions/37306672/visual-studio-code-open-with-code-does-not-appear-after-right-clicking-a-folde)
+
+## Remarks on RemoveTaskbar.ps1
+
+In the newer versions of Windows 11  (24H2 or higher), control over removing the taskbar via registry has changed or this possibility was removed (as well as the ability to change icon size in taskbar). Th basis for the script is given in [this article](https://www.airdroid.com/uem/how-to-hide-taskbar/#part2-3) or in [this post](https://learn.microsoft.com/en-us/answers/questions/1040472/no-taskbar-on-window?orderBy=Newest).
+
+Beside that, there are some differences between RemoveTaskbar.ps1 and HideTaskbar.ps1 when iterating over user profile (SIDs - security identifiers).
