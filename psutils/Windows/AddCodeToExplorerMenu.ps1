@@ -104,14 +104,16 @@ Write-Host "`nIdentified path to VS Code: `n  $codePath"
 
 # For Files/Directories, pass "%1" quoted to handle spaces
 $argsTemplate = '"%1"'
+$bgargsTemplate = '"%V"'
 
 # Build parameter hashtable for the helper (splatting)
 $params = @{
     Title       = $menuTitle
     CommandPath = $codePath
     Arguments   = $argsTemplate
+    BackgroundArguments = $bgargsTemplate
     Icon        = $codePath
-    Targets     = @('Files','Directories')  # IMPORTANT: array, not comma-separated string
+    Targets     = @('Files','Directories','Background')  # IMPORTANT: array, not comma-separated string
 }
 
 if ($Revert)          { $params.Revert = $true }
