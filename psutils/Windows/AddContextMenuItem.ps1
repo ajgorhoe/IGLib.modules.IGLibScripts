@@ -135,7 +135,7 @@ foreach ($t in $Targets) {
                 Write-Host "Nothing to remove for $t at: $itemSubPath"
             }
         } catch {
-            Write-Warning "Failed to remove $t at $itemSubPath: $_"
+            Write-Warning "Failed to remove $t at ${itemSubPath}: $_"
         }
         continue
     }
