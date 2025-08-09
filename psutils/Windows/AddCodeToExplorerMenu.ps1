@@ -35,9 +35,9 @@ if (-not (Test-Path $helper)) {
 
 # Candidate VS Code locations
 $pathsToCheck = @(
-    (Join-Path $env:LOCALAPPDATA            'Programs\Microsoft VS Code\Code.exe'),
-    (Join-Path ${env:ProgramFiles}          'Microsoft VS Code\Code.exe'),
-    (Join-Path ${env:ProgramFiles(x86)}     'Microsoft VS Code\Code.exe')
+    (Join-Path $env:LOCALAPPDATA        'Programs\Microsoft VS Code\Code.exe'),
+    (Join-Path ${env:ProgramFiles}      'Microsoft VS Code\Code.exe'),
+    (Join-Path ${env:ProgramFiles(x86)} 'Microsoft VS Code\Code.exe')
 ) | Where-Object { $_ -and (Test-Path $_) }
 
 # Fallback: code from PATH
@@ -53,23 +53,22 @@ if (-not $pathsToCheck -or $pathsToCheck.Count -eq 0) {
 
 $codePath  = $pathsToCheck | Select-Object -First 1
 $menuTitle = 'Open with VS Code'
-$iconPath  = $codePath
 
 # For Files/Directories, pass "%1" quoted to handle spaces
 $argsTemplate = '`"%1`"'
 
-# Build argument list for the helper script
-$base = @(
-    '-Title',        $menuTitle,
-    '-CommandPath',  $codePath,
-    '-Arguments',    $argsTemplate,
-    '-Icon',         $iconPath,
-    '-Targets',      'Files,Directories'
-)
+# Build parameter hashtable for the helper (splatting)
+$params = @{
+    Title       = $menuTitle
+    CommandPath = $codePath
+    Arguments   = $argsTemplate
+    Icon        = $codePath
+    Targets     = @('Files','Directories')  # IMPORTANT: array, not comma-separated string
+}
 
-if ($Revert)          { $base += '-Revert' }
-if ($AllUsers)        { $base += '-AllUsers' }
-if ($RestartExplorer) { $base += '-RestartExplorer' }
+if ($Revert)          { $params.Revert = $true }
+if ($AllUsers)        { $params.AllUsers = $true }
+if ($RestartExplorer) { $params.RestartExplorer = $true }
 
 # Call helper in this PowerShell process
-& $helper @base
+& $helper @params
