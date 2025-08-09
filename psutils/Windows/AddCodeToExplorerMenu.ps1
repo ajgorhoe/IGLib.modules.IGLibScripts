@@ -60,18 +60,22 @@ function Write-Array {
     }
 }
 
-$calledScript = "AddContextMenuItem.ps1"
-# Inform of the task, output script parameters:
-Write-Host "`n`nRunning AddCodeToExplorerMenu.ps1..."
+# Define fixed parameters
+$calledScriptName = "AddContextMenuItem.ps1"
+$verificationScriptName = "AddCode_Verify.ps1"
+$indent = "  "
+
+# Inform user of the task to be performed, output script parameters:
+Write-Host "`n`nAdding VS Code to Explorer's context menu ($($MyInvocation.MyCommand.Name))..." -ForegroundColor Green
 Write-Host "`nScript parameters:"
 Write-HashTable $PSBoundParameters
 Write-Host "  Positional:"
 Write-Array $args
 
 # Locate AddContextMenuItem.ps1 (assumed next to this script)
-$helper = Join-Path $PSScriptRoot $calledScript
-if (-not (Test-Path $helper)) {
-    Write-Error "$calledScript not found at: $helper"
+$calledScriptPath = Join-Path $PSScriptRoot $calledScriptName
+if (-not (Test-Path $calledScriptPath)) {
+    Write-Error "$calledScriptName not found at: $calledScriptPath"
     exit 1
 }
 
@@ -114,12 +118,23 @@ if ($Revert)          { $params.Revert = $true }
 if ($AllUsers)        { $params.AllUsers = $true }
 if ($RestartExplorer) { $params.RestartExplorer = $true }
 
-Write-Host "`nThe following script will be run:`n  $helper"
-
-Write-Host "`nParameters to be passed to ${calledScript}:"
+# Write-Host "`nThe following script will be run:`n  $calledScriptPath"
+Write-Host "`nParameters to be passed to ${calledScriptName}:"
 Write-HashTable $params
 
-# Call helper in this PowerShell process
-# & $helper @params
+# Call the script in this PowerShell process:
+Write-Host "`nCalling the main script, $calledScriptName ..." -ForegroundColor Green
+& $calledScriptPath @params
+Write-Host "  ... $calledScriptName completed." -ForegroundColor Green
 
-Write-Host "`n  ... adding VS Code to Explorer's context menu completed.`n"
+# Call the verification scrip:
+Write-Host "`nVerifying the registry entries (this may take a while!) ..." -ForegroundColor Green
+$verificationScriptPath = Join-Path $PSScriptRoot $verificationScriptName
+if (-not (Test-Path $verificationScriptPath)) {
+    Write-Warning "$verificationScriptName not found at:$(${indent} + $verificationScriptPath) `n  ... verification skipped."
+} else {
+    & $verificationScriptPath
+    Write-Host "  ... verification completed." -ForegroundColor Green
+}
+
+Write-Host "`n  ... adding VS Code to Explorer's context menu completed.`n" -ForegroundColor Green
