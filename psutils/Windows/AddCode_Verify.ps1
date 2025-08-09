@@ -1,30 +1,27 @@
-# --- Verify "Open with VS Code" context menu entries ---
-
+# Verify entries for "Open with VS Code"
 $Title   = 'Open with VS Code'
-# Generate the same KeyName the helper script uses (sanitize Title)
-$KeyName = [regex]::Replace($Title, '[^A-Za-z0-9_-]+', '_')
-if ([string]::IsNullOrWhiteSpace($KeyName)) { $KeyName = 'CustomMenuItem' }
+$KeyName = [regex]::Replace($Title, '[^A-Za-z0-9_-]+', '_'); if ([string]::IsNullOrWhiteSpace($KeyName)) { $KeyName = 'CustomMenuItem' }
 
-$roots   = @("HKCU:\Software\Classes","HKLM:\Software\Classes")
+$roots = @("HKCU:\Software\Classes","HKLM:\Software\Classes")
+
 $targets = @(
-    @{ Name = "Files";       Path = "*\shell" },
-    @{ Name = "Directories"; Path = "Directory\shell" },
-    @{ Name = "Background";  Path = "Directory\Background\shell" }
+    @{ Name='Files';       Item="*\shell\$KeyName";             Command="*\shell\$KeyName\command" },
+    @{ Name='Directories'; Item="Directory\shell\$KeyName";     Command="Directory\shell\$KeyName\command" },
+    @{ Name='Background';  Item="Directory\Background\shell\$KeyName"; Command="Directory\Background\shell\$KeyName\command" }
 )
-
-function Get-DefaultValue([string]$regPath) {
-    try { (Get-Item -Path $regPath).GetValue('') } catch { $null }
-}
 
 foreach ($root in $roots) {
     foreach ($t in $targets) {
-        $itemKey    = Join-Path -Path (Join-Path $root $t.Path) -ChildPath $KeyName
-        $commandKey = Join-Path -Path $itemKey -ChildPath 'command'
+        $itemKey    = "$root\" + $t.Item
+        $commandKey = "$root\" + $t.Command
 
-        if (Test-Path $itemKey) {
-            $muiVerb = (Get-ItemProperty -Path $itemKey -ErrorAction SilentlyContinue).MUIVerb
-            $icon    = (Get-ItemProperty -Path $itemKey -ErrorAction SilentlyContinue).Icon
-            $cmd     = if (Test-Path $commandKey) { Get-DefaultValue $commandKey } else { $null }
+        if (Test-Path -LiteralPath $itemKey) {
+            $muiVerb = (Get-ItemProperty -LiteralPath $itemKey -ErrorAction SilentlyContinue).MUIVerb
+            $icon    = (Get-ItemProperty -LiteralPath $itemKey -ErrorAction SilentlyContinue).Icon
+            $cmd     = $null
+            if (Test-Path -LiteralPath $commandKey) {
+                $cmd = (Get-Item -LiteralPath $commandKey).GetValue('')
+            }
 
             Write-Host "FOUND ($($t.Name)) at: $itemKey" -ForegroundColor Green
             Write-Host "  Title  : $muiVerb"
