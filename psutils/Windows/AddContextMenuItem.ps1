@@ -146,24 +146,34 @@ foreach ($t in $Targets) {
         $commandKey = $root.CreateSubKey($commandSubPath, $true)
         if (-not $itemKey -or -not $commandKey) { throw "CreateSubKey failed." }
 
-        # Properties
+        # Menu text: set both default value and MUIVerb for compatibility
+        $itemKey.SetValue('', $Title, [Microsoft.Win32.RegistryValueKind]::String)
         $itemKey.SetValue('MUIVerb', $Title, [Microsoft.Win32.RegistryValueKind]::String)
+
+        # Optional icon
         if ($Icon) { $itemKey.SetValue('Icon', $Icon, [Microsoft.Win32.RegistryValueKind]::String) }
 
-        $argTpl = if ($t -eq 'Background') { if ($BackgroundArguments) { $BackgroundArguments } else { '%V' } }
-                  else { if ($Arguments) { $Arguments } else { '%1' } }
+        # Arguments template
+        $argTpl = if ($t -eq 'Background') {
+            if ($BackgroundArguments) { $BackgroundArguments } else { '%V' }
+        } else {
+            if ($Arguments) { $Arguments } else { '%1' }
+        }
 
+        # Build command line with proper quoting around the EXE
         $cmdLine = Build-CommandLine -ExePath $CommandPath -ArgTemplate $argTpl
-        # Set unnamed default value:
+
+        # Set unnamed default value for the command
         $commandKey.SetValue('', $cmdLine, [Microsoft.Win32.RegistryValueKind]::String)
 
         $itemKey.Close(); $commandKey.Close()
-        Write-Host "Added/Updated $t context item: $itemSubPath"
+        Write-Host "Added/Updated $t context item: ${itemSubPath}"
         Write-Host "  Command = $cmdLine"
         if ($Icon) { Write-Host "  Icon    = $Icon" }
     } catch {
         Write-Warning "Failed to create/update $t at ${itemSubPath}: $_"
-    }
+}
+    
 }
 
 $root.Close()
