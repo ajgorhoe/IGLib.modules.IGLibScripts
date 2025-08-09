@@ -3,19 +3,20 @@
     Adds or removes a custom Explorer context menu item for files, folders, and/or folder background.
 
 .DESCRIPTION
-    Writes under:
+    Creates registry entries under:
       Per-user: HKCU\Software\Classes\...\shell\<KeyName>
       All-users: HKLM\Software\Classes\...\shell\<KeyName>  (requires elevation)
+
     Targets:
-      Files       -> *\shell\<KeyName>\command (arg default: "%1")
-      Directories -> Directory\shell\<KeyName>\command (arg default: "%1")
-      Background  -> Directory\Background\shell\<KeyName>\command (arg default: "%V")
+      Files       -> *\shell\<KeyName>\command (argument default: "%1")
+      Directories -> Directory\shell\<KeyName>\command (argument default: "%1")
+      Background  -> Directory\Background\shell\<KeyName>\command (argument default: "%V")
 
 .PARAMETER Title
-    Display text in the context menu (e.g., "Open with VS Code").
+    Display text (e.g., "Open with VS Code").
 
 .PARAMETER CommandPath
-    Full path to the executable (e.g., "C:\Users\Me\AppData\Local\Programs\Microsoft VS Code\Code.exe").
+    Full path to the executable (e.g., "C:\...\Code.exe").
 
 .PARAMETER Arguments
     Optional arguments template for Files/Directories (default "%1"). Example: "-n -g `"%1`""
@@ -24,19 +25,19 @@
     Optional arguments template for folder background (default "%V").
 
 .PARAMETER Icon
-    Optional icon path (e.g., same as CommandPath). You may add ",0" to pick an icon index.
+    Optional icon path (you can use the EXE; add ",0" for icon index if desired).
 
 .PARAMETER KeyName
-    Optional registry key name to use. If omitted, a safe key name is generated from Title.
+    Optional registry key name. If omitted, a safe key name is generated from Title.
 
 .PARAMETER Targets
     One or more of: Files, Directories, Background. Default: Files, Directories.
 
 .PARAMETER Revert
-    Remove the registry keys for the specified Targets (instead of adding).
+    Remove the item(s) instead of adding.
 
 .PARAMETER AllUsers
-    Apply under HKLM:\Software\Classes (requires elevation). Without it, use HKCU:\Software\Classes.
+    Apply under HKLM:\Software\Classes (requires elevation). Otherwise HKCU:\Software\Classes.
 
 .PARAMETER RestartExplorer
     Restart Explorer after changes.
@@ -61,28 +62,23 @@ param(
     [switch]$RestartExplorer
 )
 
-# --- Helpers ---------------------------------------------------------------
-
 function Test-IsAdministrator {
     $id = [Security.Principal.WindowsIdentity]::GetCurrent()
     $pr = New-Object Security.Principal.WindowsPrincipal($id)
     return $pr.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
 }
-
 function Restart-Explorer {
     Write-Host "Restarting Windows Explorer..."
     Stop-Process -Name explorer -Force -ErrorAction SilentlyContinue
     Start-Process explorer.exe
 }
-
-# Normalize and quote the command properly
 function Build-CommandLine {
     param([Parameter(Mandatory)][string]$ExePath,[Parameter(Mandatory)][string]$ArgTemplate)
     $exeQuoted = '"' + ($ExePath.Trim('"')) + '"'
     return ($exeQuoted + ' ' + $ArgTemplate)
 }
 
-# Elevate if writing HKLM
+# --- Elevation for HKLM ----------------------------------------------------
 if ($AllUsers -and -not (Test-IsAdministrator)) {
     Write-Host "Elevation required. Relaunching as administrator..." -ForegroundColor Cyan
     $script = $MyInvocation.MyCommand.Path
@@ -93,23 +89,24 @@ if ($AllUsers -and -not (Test-IsAdministrator)) {
     if ($BackgroundArguments -ne $null) { $passed += @('-BackgroundArguments', "`"$BackgroundArguments`"") }
     if ($Icon)                          { $passed += @('-Icon', "`"$Icon`"") }
     if ($KeyName)                       { $passed += @('-KeyName', "`"$KeyName`"") }
-    if ($Targets)                       { $passed += @('-Targets', ($Targets -join ',')) }
+    if ($Targets -and $Targets.Count)   { $passed += '-Targets'; $passed += $Targets }  # << pass each element
     if ($Revert)                        { $passed += '-Revert' }
     if ($RestartExplorer)               { $passed += '-RestartExplorer' }
     $passed += '-AllUsers'
+
     $cmd = "& `"$script`" $($passed -join ' '); Start-Sleep -Seconds 6"
     Start-Process powershell.exe -Verb RunAs -ArgumentList @('-NoProfile','-ExecutionPolicy','Bypass','-Command',$cmd)
     exit
 }
 
-# Decide root using .NET (no wildcard parsing issues)
-Add-Type -AssemblyName Microsoft.Win32
+# --- Root via .NET Registry API (no wildcard issues) -----------------------
+# (No Add-Type needed; Microsoft.Win32.Registry is already available.)
 $root = if ($AllUsers) {
     [Microsoft.Win32.Registry]::LocalMachine.OpenSubKey('Software\Classes', $true)
 } else {
     [Microsoft.Win32.Registry]::CurrentUser.OpenSubKey('Software\Classes', $true)
 }
-if (-not $root) { throw "Unable to open registry root." }
+if (-not $root) { throw "Unable to open registry root (Classes) for write." }
 
 # Compute a safe key name if not provided
 if (-not $KeyName) {
@@ -138,7 +135,7 @@ foreach ($t in $Targets) {
                 Write-Host "Nothing to remove for $t at: $itemSubPath"
             }
         } catch {
-            Write-Warning "Failed to remove $t at ${itemSubPath}: $_"
+            Write-Warning "Failed to remove $t at $itemSubPath: $_"
         }
         continue
     }
@@ -157,7 +154,7 @@ foreach ($t in $Targets) {
                   else { if ($Arguments) { $Arguments } else { '%1' } }
 
         $cmdLine = Build-CommandLine -ExePath $CommandPath -ArgTemplate $argTpl
-        # Set default value (unnamed) correctly:
+        # Set unnamed default value:
         $commandKey.SetValue('', $cmdLine, [Microsoft.Win32.RegistryValueKind]::String)
 
         $itemKey.Close(); $commandKey.Close()
@@ -165,7 +162,7 @@ foreach ($t in $Targets) {
         Write-Host "  Command = $cmdLine"
         if ($Icon) { Write-Host "  Icon    = $Icon" }
     } catch {
-        Write-Warning "Failed to create/update $t at ${itemSubPath}: $_"
+        Write-Warning "Failed to create/update $t at $itemSubPath: $_"
     }
 }
 
