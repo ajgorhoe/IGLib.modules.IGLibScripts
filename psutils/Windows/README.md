@@ -24,14 +24,16 @@ Beside that, there are some differences between RemoveTaskbar.ps1 and HideTaskba
 
 ### Additional Tips for Use
 
-A few optional polish ideas for later:
+The script `AddCodeToExplorerMenu.ps1` **uses** `AddContextMenuItem.ps1`, and can therefore be consulted to see how the script is used. It can also be used as template for creating s**scripts for adding specific items** to Windows Explorer's context menu.
+
+A few optional ideas (maybe included in `AddCodeToExplorerMenu.ps1` later):
 
 * **Show only on Shift-right-click:** add the `Extended` flag (so it appears only in the “extended”/Shift menu).
 * **Limit to certain file types:** use `-AppliesTo` (e.g., only show for `.txt` or for directories).
 * **Open a new VS Code window:** add `-n` to the args.
 * **Add a background-only “Open VS Code here”:** use `%V` for the folder path (you already did).
 
-Some quick copy-paste examples using the AddContextMenuItem.ps1:
+Some quick copy-paste examples using the AddContextMenuItem.ps1, including how to achieve some of the above possibilities:
 
 ~~~powershell
 # 1) Make the entry appear only on Shift-right-click (Files + Directories)
