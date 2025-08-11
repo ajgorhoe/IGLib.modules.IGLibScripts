@@ -1,5 +1,9 @@
 Windows Registry Editor Version 5.00
 
+; REMARK: This Registry script file (.reg) works when name of the current
+; user is "Uporabnik". In your case, replace "Uporabnik" with your user name.
+
+
 ; ------------------------------------------------------------------------
 ; Add "Open with VS Code" for FILES (right-click a file)
 ; Key location: HKCU\Software\Classes\*\shell\Open_with_VS_Code
