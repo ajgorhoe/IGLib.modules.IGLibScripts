@@ -8,7 +8,7 @@ Windows Registry Editor Version 5.00
 ;     in the copied file with your user name
 ; or
 ;   * Run the template expansion script over this file (in powershell):
-;     ./ExpandTemplate.ps1 -Template ./AddCode_ExampleHardcoded.reg ./Example_CurrentUser.reg
+;     ./ExpandTemplate.ps1 -Template ./AddCode_ExampleHardcoded.reg -Output ./AddCode_Example.reg
 ; Inthis way, you will obtain the file Example_CurrentUser.reg, which you can
 ; run by double-clicking the file in File Explorer.
 ; WARNING: always check Registry script files before running them. It is 
