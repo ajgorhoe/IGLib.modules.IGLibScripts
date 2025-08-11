@@ -1,7 +1,20 @@
 Windows Registry Editor Version 5.00
 
-; REMARK: This Registry script file (.reg) works when name of the current
-; user is "Uporabnik". In your case, replace "Uporabnik" with your user name.
+; REMARK: This Registry script file (.reg) has the instances of the current
+; name indicated by placeholders - env:USERNAME enclosed in double curly
+; brackets, or, in escaped notation, \{\{env:USERNAME\}\}
+; In order to adapt the file for your use, either:
+;   * Copy this file to Example_CurrentUser.reg and replace all placeholders
+;     in the copied file with your user name
+; or
+;   * Run the template expansion script over this file (in powershell):
+;     ./ExpandTemplate.ps1 -Template ./AddCode_ExampleHardcoded.reg ./Example_CurrentUser.reg
+; Inthis way, you will obtain the file Example_CurrentUser.reg, which you can
+; run by double-clicking the file in File Explorer.
+; WARNING: always check Registry script files before running them. It is 
+; also recommended to create a restore point or a copy of the registry before
+; running scripts that modfy the Registry. Inproper Registry edits can affect
+; system stability.
 
 
 ; ------------------------------------------------------------------------
@@ -14,10 +27,10 @@ Windows Registry Editor Version 5.00
 [HKEY_CURRENT_USER\Software\Classes\*\shell\Open_with_VS_Code]
 @="Open with VS Code"
 "MUIVerb"="Open with VS Code"
-"Icon"="C:\\Users\\Uporabnik\\AppData\\Local\\Programs\\Microsoft VS Code\\Code.exe"
+"Icon"="C:\\Users\\{{env:USERNAME}}\\AppData\\Local\\Programs\\Microsoft VS Code\\Code.exe"
 
 [HKEY_CURRENT_USER\Software\Classes\*\shell\Open_with_VS_Code\command]
-@="\"C:\\Users\\Uporabnik\\AppData\\Local\\Programs\\Microsoft VS Code\\Code.exe\" \"%1\""
+@="\"C:\\Users\\{{env:USERNAME}}\\AppData\\Local\\Programs\\Microsoft VS Code\\Code.exe\" \"%1\""
 
 
 ; ------------------------------------------------------------------------
@@ -28,10 +41,10 @@ Windows Registry Editor Version 5.00
 [HKEY_CURRENT_USER\Software\Classes\Directory\shell\Open_with_VS_Code]
 @="Open with VS Code"
 "MUIVerb"="Open with VS Code"
-"Icon"="C:\\Users\\Uporabnik\\AppData\\Local\\Programs\\Microsoft VS Code\\Code.exe"
+"Icon"="C:\\Users\\{{env:USERNAME}}\\AppData\\Local\\Programs\\Microsoft VS Code\\Code.exe"
 
 [HKEY_CURRENT_USER\Software\Classes\Directory\shell\Open_with_VS_Code\command]
-@="\"C:\\Users\\Uporabnik\\AppData\\Local\\Programs\\Microsoft VS Code\\Code.exe\" \"%1\""
+@="\"C:\\Users\\{{env:USERNAME}}\\AppData\\Local\\Programs\\Microsoft VS Code\\Code.exe\" \"%1\""
 
 
 ; ------------------------------------------------------------------------
@@ -43,10 +56,10 @@ Windows Registry Editor Version 5.00
 [HKEY_CURRENT_USER\Software\Classes\Directory\Background\shell\Open_with_VS_Code]
 @="Open with VS Code"
 "MUIVerb"="Open with VS Code"
-"Icon"="C:\\Users\\Uporabnik\\AppData\\Local\\Programs\\Microsoft VS Code\\Code.exe"
+"Icon"="C:\\Users\\{{env:USERNAME}}\\AppData\\Local\\Programs\\Microsoft VS Code\\Code.exe"
 
 [HKEY_CURRENT_USER\Software\Classes\Directory\Background\shell\Open_with_VS_Code\command]
-@="\"C:\\Users\\Uporabnik\\AppData\\Local\\Programs\\Microsoft VS Code\\Code.exe\" \"%V\""
+@="\"C:\\Users\\{{env:USERNAME}}\\AppData\\Local\\Programs\\Microsoft VS Code\\Code.exe\" \"%V\""
 
 
 ; ------------------------------------------------------------------------
