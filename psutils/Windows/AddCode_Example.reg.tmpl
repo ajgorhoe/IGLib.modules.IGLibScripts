@@ -1,22 +1,24 @@
 Windows Registry Editor Version 5.00
 
-; ------------------------------------------------------------------------
-; Add "Open with VS Code" for FILES (right-click a file)
-; Key location: HKCU\Software\Classes\*\shell\Open_with_VS_Code
-; - The item key’s default value (@) and MUIVerb both set the label.
-; - Icon sets the menu icon.
-; - The command’s default value runs Code.exe with the selected file ("%1").
-; ------------------------------------------------------------------------
+; Example template for adding "Open with VS Code" (current user)
+; Uses %LOCALAPPDATA% so paths are per-user; encoded as REG_EXPAND_SZ via {{ ... | expandsz }}
+
+; Optional variables (uncomment and provide via -Variables / -Var / -VarsFile):
+; Title defaults to "Open with VS Code" if you replace below, e.g.:
+; [HKEY_CURRENT_USER\Software\Classes\*\shell\Open_with_VS_Code]
+; @="{{ var.Title | regq }}"
+; "MUIVerb"="{{ var.Title | regq }}"
+
+; ---------------- FILES ----------------
 [HKEY_CURRENT_USER\Software\Classes\*\shell\Open_with_VS_Code]
 @="Open with VS Code"
 "MUIVerb"="Open with VS Code"
-"Icon"="C:\\Users\\@{{MyUserName}}\\AppData\\Local\\Programs\\Microsoft VS Code\\Code.exe"
+"Icon"={{ env.LOCALAPPDATA | pathappend:"\Programs\Microsoft VS Code\Code.exe" | expandsz }}
 
 [HKEY_CURRENT_USER\Software\Classes\*\shell\Open_with_VS_Code\command]
-@="\"@.escaped{{VsCodeLocation}}\\Code.exe\" \"%1\""
+@={{ env.LOCALAPPDATA | pathappend:"\Programs\Microsoft VS Code\Code.exe" | quote | addarg:"%1" | expandsz }}
 
-
-; ------------------------------------------------------------------------
+; ----------------------------DIRECTORIES---------------------------------
 ; Add "Open with VS Code" for DIRECTORIES (right-click a folder item)
 ; Key location: HKCU\Software\Classes\Directory\shell\Open_with_VS_Code
 ; - Uses the selected folder path ("%1").
@@ -24,13 +26,12 @@ Windows Registry Editor Version 5.00
 [HKEY_CURRENT_USER\Software\Classes\Directory\shell\Open_with_VS_Code]
 @="Open with VS Code"
 "MUIVerb"="Open with VS Code"
-"Icon"="C:\\Users\\@.env{{USERNAME}}\\AppData\\Local\\Programs\\Microsoft VS Code\\Code.exe"
+"Icon"={{ env.LOCALAPPDATA | pathappend:"\Programs\Microsoft VS Code\Code.exe" | expandsz }}
 
 [HKEY_CURRENT_USER\Software\Classes\Directory\shell\Open_with_VS_Code\command]
-@="\"@envescaped{{LOCALAPPDATA}}\\Programs\\Microsoft VS Code\\Code.exe\" \"%1\""
+@={{ env.LOCALAPPDATA | pathappend:"\Programs\Microsoft VS Code\Code.exe" | quote | addarg:"%1" | expandsz }}
 
-
-; ------------------------------------------------------------------------
+; ----------------------------FOLDER BACKGROUND---------------------------
 ; Add "Open with VS Code" for FOLDER BACKGROUND
 ; (right-click empty space inside a folder)
 ; Key location: HKCU\Software\Classes\Directory\Background\shell\Open_with_VS_Code
@@ -39,11 +40,10 @@ Windows Registry Editor Version 5.00
 [HKEY_CURRENT_USER\Software\Classes\Directory\Background\shell\Open_with_VS_Code]
 @="Open with VS Code"
 "MUIVerb"="Open with VS Code"
-"Icon"="C:\\Users\\@{{MyUserName}}\\AppData\\Local\\Programs\\Microsoft VS Code\\Code.exe"
+"Icon"={{ env.LOCALAPPDATA | pathappend:"\Programs\Microsoft VS Code\Code.exe" | expandsz }}
 
 [HKEY_CURRENT_USER\Software\Classes\Directory\Background\shell\Open_with_VS_Code\command]
-@="\"C:\\Users\\@{{MyUserName}}\\AppData\\Local\\Programs\\Microsoft VS Code\\Code.exe\" \"%V\""
-
+@={{ env.LOCALAPPDATA | pathappend:"\Programs\Microsoft VS Code\Code.exe" | quote | addarg:"%V" | expandsz }}
 
 ; ------------------------------------------------------------------------
 ; Note: On Windows 11, classic "shell" items appear under "Show more options".
