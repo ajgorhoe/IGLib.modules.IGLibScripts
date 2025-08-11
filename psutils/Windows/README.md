@@ -5,9 +5,77 @@
 
 **Contents**:
 
-* [Notes](#notes)
+* [Miscellaneous Remarks](#miscellaneous-remarks) - various helpful remarks for users and developers
+  * [Remarks on RemoveTaskbar.ps1](#remarks-on-removetaskbarps1)
+  * [Remarks on AddContextMenuItem.ps1](#remarks-on-addcontextmenuitemps1) - some tips for using it
+* [Notes for Developers](#notes-for-developers) - contains dev. notes on possible further feature, behavior, Windows development, etc.
+  * [Notes - Hiding the Taskbar](#notes---hiding-the-taskbar) - what is known about using Windows Registry and newer development in Windows that affect hiding the taskbar
+  * [To Do](#notes---todo) - things that might be done in the future
 
-## Notes
+## Miscellaneous Remarks
+
+## Remarks on RemoveTaskbar.ps1
+
+In the newer versions of Windows 11  (24H2 or higher), control over removing the taskbar via registry has changed or this possibility was removed (as well as the ability to change icon size in taskbar). The basis for the script is given in [this article](https://www.airdroid.com/uem/how-to-hide-taskbar/#part2-3) or in [this post](https://learn.microsoft.com/en-us/answers/questions/1040472/no-taskbar-on-window?orderBy=Newest).
+
+Beside that, there are some differences between RemoveTaskbar.ps1 and HideTaskbar.ps1 when iterating over user profile (SIDs - security identifiers).
+
+## Remarks on AddContextMenuItem.ps1
+
+### Additional Tips for Use
+
+A few optional polish ideas for later:
+
+* **Show only on Shift-right-click:** add the `Extended` flag (so it appears only in the “extended”/Shift menu).
+* **Limit to certain file types:** use `-AppliesTo` (e.g., only show for `.txt` or for directories).
+* **Open a new VS Code window:** add `-n` to the args.
+* **Add a background-only “Open VS Code here”:** use `%V` for the folder path (you already did).
+
+Some quick copy-paste examples using the AddContextMenuItem.ps1:
+
+~~~powershell
+# 1) Make the entry appear only on Shift-right-click (Files + Directories)
+.\AddContextMenuItem.ps1 `
+  -Title "Open with VS Code" `
+  -CommandPath "$env:LOCALAPPDATA\Programs\Microsoft VS Code\Code.exe" `
+  -Arguments '"%1"' `
+  -Icon "$env:LOCALAPPDATA\Programs\Microsoft VS Code\Code.exe" `
+  -Targets Files,Directories `
+  -RestartExplorer
+# Add the Extended flag
+New-ItemProperty -Path "HKCU:\Software\Classes\*\shell\Open_with_VS_Code" -Name Extended -Value "" -Force | Out-Null
+New-ItemProperty -Path "HKCU:\Software\Classes\Directory\shell\Open_with_VS_Code" -Name Extended -Value "" -Force | Out-Null
+~~~
+
+~~~powershell
+# 2) Background-only “Open VS Code here” (no file/folder selection), new window
+.\AddContextMenuItem.ps1 `
+  -Title "Open VS Code here" `
+  -CommandPath "$env:LOCALAPPDATA\Programs\Microsoft VS Code\Code.exe" `
+  -BackgroundArguments '-n "%V"' `
+  -Icon "$env:LOCALAPPDATA\Programs\Microsoft VS Code\Code.exe" `
+  -Targets Background `
+  -RestartExplorer
+~~~
+
+~~~powershell
+# 3) Only show for certain types (e.g., .ps1 files)
+# Add the menu:
+.\AddContextMenuItem.ps1 `
+  -Title "Open PS1 in VS Code" `
+  -CommandPath "$env:LOCALAPPDATA\Programs\Microsoft VS Code\Code.exe" `
+  -Arguments '"%1"' `
+  -Icon "$env:LOCALAPPDATA\Programs\Microsoft VS Code\Code.exe" `
+  -Targets Files `
+  -RestartExplorer
+
+# Then scope it with AppliesTo (PowerShell-only files)
+New-ItemProperty -Path "HKCU:\Software\Classes\*\shell\Open_PS1_in_VS_Code" -Name "AppliesTo" -Value "System.ItemType:='.ps1'" -Force | Out-Null
+~~~
+
+If one needs this to also appear in the **new** Windows 11 condensed menu (not just “Show more options”), the Explorer needs to be wired up with Command Handler registration.
+
+## Notes for Developers
 
 Disabling Modern Standby (S0 mode) and enabling the Standard Sleep (S3 mode) would not work on many modern laptops (because many OEMs are disabling the S3 mode in firmware) and because of this, a PowerShell script to do this was not provided. Only the registry edit scripts were provided, the `EnableS3Standby_NormalSleep.reg` for enabling the normal sleep mode, and `DisableS0Standby_ModernStandby.reg` to disable the Modern Standby (which, if it works, may result in crashing computer when sleep mode is entered via UI or buttons / closing the lid of a laptop). Some links are in the first registry file. See also:
 
@@ -66,63 +134,3 @@ See:
 
 * [How do I get Microsoft Code to come up in my right click menu?](https://learn.microsoft.com/en-gb/answers/questions/2006361/how-do-i-get-microsoft-code-to-come-up-in-my-right) (Microsoft)
 * [Visual Studio Code "Open With Code" does not appear after right-clicking a folder](https://stackoverflow.com/questions/37306672/visual-studio-code-open-with-code-does-not-appear-after-right-clicking-a-folde)
-
-## Remarks on RemoveTaskbar.ps1
-
-In the newer versions of Windows 11  (24H2 or higher), control over removing the taskbar via registry has changed or this possibility was removed (as well as the ability to change icon size in taskbar). Th basis for the script is given in [this article](https://www.airdroid.com/uem/how-to-hide-taskbar/#part2-3) or in [this post](https://learn.microsoft.com/en-us/answers/questions/1040472/no-taskbar-on-window?orderBy=Newest).
-
-Beside that, there are some differences between RemoveTaskbar.ps1 and HideTaskbar.ps1 when iterating over user profile (SIDs - security identifiers).
-
-
-## Remarks on AddContextMenuItem.ps1
-
-A few optional polish ideas for later:
-
-* **Show only on Shift-right-click:** add the `Extended` flag (so it appears only in the “extended”/Shift menu).
-* **Limit to certain file types:** use `-AppliesTo` (e.g., only show for `.txt` or for directories).
-* **Open a new VS Code window:** add `-n` to the args.
-* **Add a background-only “Open VS Code here”:** use `%V` for the folder path (you already did).
-
-Quick copy-paste examples using the AddContextMenuItem.ps1:
-
-~~~powershell
-# 1) Make the entry appear only on Shift-right-click (Files + Directories)
-.\AddContextMenuItem.ps1 `
-  -Title "Open with VS Code" `
-  -CommandPath "$env:LOCALAPPDATA\Programs\Microsoft VS Code\Code.exe" `
-  -Arguments '"%1"' `
-  -Icon "$env:LOCALAPPDATA\Programs\Microsoft VS Code\Code.exe" `
-  -Targets Files,Directories `
-  -RestartExplorer
-# Add the Extended flag
-New-ItemProperty -Path "HKCU:\Software\Classes\*\shell\Open_with_VS_Code" -Name Extended -Value "" -Force | Out-Null
-New-ItemProperty -Path "HKCU:\Software\Classes\Directory\shell\Open_with_VS_Code" -Name Extended -Value "" -Force | Out-Null
-~~~
-
-~~~powershell
-# 2) Background-only “Open VS Code here” (no file/folder selection), new window
-.\AddContextMenuItem.ps1 `
-  -Title "Open VS Code here" `
-  -CommandPath "$env:LOCALAPPDATA\Programs\Microsoft VS Code\Code.exe" `
-  -BackgroundArguments '-n "%V"' `
-  -Icon "$env:LOCALAPPDATA\Programs\Microsoft VS Code\Code.exe" `
-  -Targets Background `
-  -RestartExplorer
-~~~
-
-~~~powershell
-# 3) Only show for certain types (e.g., .ps1 files)
-# Add the menu:
-.\AddContextMenuItem.ps1 `
-  -Title "Open PS1 in VS Code" `
-  -CommandPath "$env:LOCALAPPDATA\Programs\Microsoft VS Code\Code.exe" `
-  -Arguments '"%1"' `
-  -Icon "$env:LOCALAPPDATA\Programs\Microsoft VS Code\Code.exe" `
-  -Targets Files `
-  -RestartExplorer
-
-# Then scope it with AppliesTo (PowerShell-only files)
-New-ItemProperty -Path "HKCU:\Software\Classes\*\shell\Open_PS1_in_VS_Code" -Name "AppliesTo" -Value "System.ItemType:='.ps1'" -Force | Out-Null
-~~~
-
-If one needs this to also appear in the **new** Windows 11 condensed menu (not just “Show more options”), the Explorer needs to be wired up with Command Handler registration.
