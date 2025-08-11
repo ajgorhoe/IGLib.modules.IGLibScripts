@@ -17,7 +17,26 @@ function Resolve-PathSmart {
         (Join-Path (Get-Location) $Path)
     )
     foreach ($p in $candidates) { if (Test-Path -LiteralPath $p) { return (Resolve-Path -LiteralPath $p).Path } }
-    throw "Template/output path not found: $Path"
+    throw "Template/output path not found: ${Path}"
+}
+
+function ConvertTo-Hashtable {
+    param($Object)
+    if ($Object -is [hashtable]) { return $Object }
+    if ($null -eq $Object) { return @{} }
+    if ($Object -is [System.Collections.IEnumerable] -and -not ($Object -is [string])) {
+        $arr = @()
+        foreach ($item in $Object) { $arr += (ConvertTo-Hashtable $item) }
+        return $arr
+    }
+    if ($Object.PSObject -and $Object.PSObject.Properties) {
+        $ht = @{}
+        foreach ($p in $Object.PSObject.Properties) {
+            $ht[$p.Name] = ConvertTo-Hashtable $p.Value
+        }
+        return $ht
+    }
+    return $Object
 }
 
 function Load-VarsFile {
@@ -26,9 +45,18 @@ function Load-VarsFile {
     $full = Resolve-PathSmart $Path
     $ext  = [System.IO.Path]::GetExtension($full).ToLowerInvariant()
     switch ($ext) {
-        '.json' { try { return Get-Content -LiteralPath $full -Raw | ConvertFrom-Json -AsHashtable } catch { throw "Failed to parse JSON vars file '$full': $_" } }
-        '.psd1' { try { return Import-PowerShellDataFile -LiteralPath $full } catch { throw "Failed to parse PSD1 vars file '$full': $_" } }
-        default { throw "Unsupported vars file extension '$ext'. Use .json or .psd1." }
+        '.json' {
+            try {
+                $raw = Get-Content -LiteralPath $full -Raw
+                $obj = $raw | ConvertFrom-Json
+                return ConvertTo-Hashtable $obj
+            } catch { throw "Failed to parse JSON vars file '${full}': $($_.Exception.Message)" }
+        }
+        '.psd1' {
+            try { return Import-PowerShellDataFile -LiteralPath $full }
+            catch { throw "Failed to parse PSD1 vars file '${full}': $($_.Exception.Message)" }
+        }
+        default { throw "Unsupported vars file extension '${ext}'. Use .json or .psd1." }
     }
 }
 
@@ -44,9 +72,7 @@ function Parse-VarPairs {
     param([string[]]$Pairs)
     $ht = @{}
     foreach ($p in ($Pairs | Where-Object { $_ -ne $null })) {
-        if ($p -notmatch '^\s*([^=]+)\s*=\s*(.*)\s*$') {
-            throw "Invalid -Var entry '$p'. Use Name=Value."
-        }
+        if ($p -notmatch '^\s*([^=]+)\s*=\s*(.*)\s*$') { throw "Invalid -Var entry '${p}'. Use Name=Value." }
         $name = $Matches[1].Trim()
         $val  = $Matches[2]
         $ht[$name] = $val
@@ -70,9 +96,9 @@ function Apply-Filters {
             'lower'      { $Value = $Value.ToLower() }
             'regq'       { $Value = $Value -replace '"', '\"' }
             'quote'      { $Value = '"' + $Value + '"' }
-            'append'     { $Value = $Value + ($arg ?? '') }
-            'pathappend' { $Value = $Value + ($arg ?? '') } # verbatim append
-            'addarg'     { $Value = $Value + ' "' + ($arg ?? '') + '"' }
+            'append'     { $Value = $Value + ($(if ($null -ne $arg) { $arg } else { '' })) }
+            'pathappend' { $Value = $Value + ($(if ($null -ne $arg) { $arg } else { '' })) } # verbatim append
+            'addarg'     { $Value = $Value + ' "' + ($(if ($null -ne $arg) { $arg } else { '' })) + '"' }
 
             'expandsz' {
                 # Encode $Value as REG_EXPAND_SZ (UTF-16LE with terminating null), return "hex(2):aa,bb,..."
@@ -81,7 +107,7 @@ function Apply-Filters {
                 $Value = 'hex(2):' + $hex
             }
 
-            default { throw "Unknown filter '$name'." }
+            default { throw "Unknown filter '${name}'." }
         }
     }
     return $Value
@@ -89,14 +115,14 @@ function Apply-Filters {
 
 function Parse-Placeholder {
     param([string]$ExprText)
-    # Expected:  var.NAME | filter[:arg] | filter ...
+    # Expected:  var.NAME | filter[: "arg"] | ...
     #         or env.NAME | ...
     $parts = $ExprText -split '\|'
     if ($parts.Count -lt 1) { throw "Empty expression in placeholder." }
 
     $head = $parts[0].Trim()
     if ($head -notmatch '^(?<ns>var|env)\.(?<name>[A-Za-z_][A-Za-z0-9_\.]*)$') {
-        throw "Invalid placeholder head '$head'. Use 'var.Name' or 'env.NAME'."
+        throw "Invalid placeholder head '${head}'. Use 'var.Name' or 'env.NAME'."
     }
     $ns   = $Matches['ns']
     $name = $Matches['name']
@@ -106,18 +132,19 @@ function Parse-Placeholder {
     for ($i=1; $i -lt $parts.Count; $i++) {
         $seg = $parts[$i].Trim()
         if (-not $seg) { continue }
+
         $fname = $seg
         $farg  = $null
-        # allow filter: "arg"   (double-quoted arg only)
+
+        # filter:"arg"  (arg may contain \" escapes)
         if ($seg -match '^(?<fn>[A-Za-z_][A-Za-z0-9_]*)\s*:\s*"(?<arg>(?:[^"\\]|\\.)*)"\s*$') {
             $fname = $Matches['fn']
-            # unescape \"
             $farg  = $Matches['arg'] -replace '\\\"','"'
         } elseif ($seg -match '^(?<fn>[A-Za-z_][A-Za-z0-9_]*)\s*$') {
             $fname = $Matches['fn']
             $farg  = $null
         } else {
-            throw "Invalid filter segment '$seg'. Use filter or filter:""arg""."
+            throw "Invalid filter segment '${seg}'. Use filter or filter:""arg""."
         }
         $filters += @{ name = $fname; arg = $farg }
     }
@@ -131,8 +158,8 @@ function Get-InitialValue {
     switch ($Ns) {
         'var' {
             if (-not $Vars.ContainsKey($Name)) {
-                $msg = "Undefined user variable '$Name' ({{ var.$Name }})."
-                if ($Strict) { throw $msg } else { throw $msg } # enforce error as requested
+                $msg = "Undefined user variable '${Name}' ({{ var.${Name} }})."
+                throw $msg
             }
             return [string]$Vars[$Name]
         }
@@ -141,8 +168,8 @@ function Get-InitialValue {
             if (-not $val) { $val = [System.Environment]::GetEnvironmentVariable($Name, 'User') }
             if (-not $val) { $val = [System.Environment]::GetEnvironmentVariable($Name, 'Machine') }
             if (-not $val) {
-                $msg = "Environment variable '$Name' not defined ({{ env.$Name }})."
-                if ($Strict) { throw $msg } else { throw $msg }
+                $msg = "Environment variable '${Name}' not defined ({{ env.${Name} }})."
+                throw $msg
             }
             return [string]$val
         }
@@ -154,7 +181,7 @@ function Get-InitialValue {
 $tplPath = Resolve-PathSmart $Template
 $tplText = Get-Content -LiteralPath $tplPath -Raw
 
-# Compose variables with precedence
+# Compose variables with precedence: VarsFile < Variables < Var
 $varsFromFile = Load-VarsFile $VarsFile
 $varsMerged   = Merge-Variables $varsFromFile $Variables
 $varsCli      = Parse-VarPairs $Var
@@ -174,7 +201,9 @@ if (-not $Output) {
     if ($base -eq $fn) { $base = $fn + '.out' }
     $Output = Join-Path $dir $base
 } else {
-    $Output = if ([System.IO.Path]::IsPathRooted($Output)) { $Output } else { Join-Path $PSScriptRoot $Output }
+    if (-not [System.IO.Path]::IsPathRooted($Output)) {
+        $Output = Join-Path $PSScriptRoot $Output
+    }
 }
 
 # -------- Expand template --------------------------------------------------
@@ -194,7 +223,7 @@ $expanded = [System.Text.RegularExpressions.Regex]::Replace(
             $out  = Apply-Filters -Value $val0 -Pipeline $ph.filters
             return $out
         } catch {
-            $errors.Add("Error in placeholder '{{ $expr }}': $($_.Exception.Message)")
+            $errors.Add("Error in placeholder '{{ ${expr} }}': $($_.Exception.Message)")
             return "<ERROR:$expr>"
         }
     }
@@ -208,4 +237,4 @@ if ($errors.Count -gt 0) {
 
 # Write as UTF-16LE (what regedit expects for Unicode .reg files)
 Set-Content -LiteralPath $Output -Value $expanded -Encoding Unicode
-Write-Host "Template expanded to: $Output"
+Write-Host "Template expanded to: ${Output}"
