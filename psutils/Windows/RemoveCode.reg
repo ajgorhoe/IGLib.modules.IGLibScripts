@@ -1,0 +1,14 @@
+Windows Registry Editor Version 5.00
+
+; ------------------------------------------------------------------------
+; Remove "Open with VS Code" Windows Explorer's context menu item for 
+; FILES, DIRECTORIES, and BACKGROUND.
+; Deleting the item key removes its "command" subkey too.
+; ------------------------------------------------------------------------
+
+[-HKEY_CURRENT_USER\Software\Classes\*\shell\Open_with_VS_Code]
+
+[-HKEY_CURRENT_USER\Software\Classes\Directory\shell\Open_with_VS_Code]
+
+[-HKEY_CURRENT_USER\Software\Classes\Directory\Background\shell\Open_with_VS_Code]
+
