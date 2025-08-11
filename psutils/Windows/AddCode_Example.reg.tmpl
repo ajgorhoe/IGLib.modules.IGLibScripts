@@ -18,11 +18,7 @@ Windows Registry Editor Version 5.00
 [HKEY_CURRENT_USER\Software\Classes\*\shell\Open_with_VS_Code\command]
 @={{ env.LOCALAPPDATA | pathappend:"\Programs\Microsoft VS Code\Code.exe" | quote | addarg:"%1" | expandsz }}
 
-; ----------------------------DIRECTORIES---------------------------------
-; Add "Open with VS Code" for DIRECTORIES (right-click a folder item)
-; Key location: HKCU\Software\Classes\Directory\shell\Open_with_VS_Code
-; - Uses the selected folder path ("%1").
-; ------------------------------------------------------------------------
+; --------------- DIRECTORIES -----------
 [HKEY_CURRENT_USER\Software\Classes\Directory\shell\Open_with_VS_Code]
 @="Open with VS Code"
 "MUIVerb"="Open with VS Code"
@@ -31,12 +27,7 @@ Windows Registry Editor Version 5.00
 [HKEY_CURRENT_USER\Software\Classes\Directory\shell\Open_with_VS_Code\command]
 @={{ env.LOCALAPPDATA | pathappend:"\Programs\Microsoft VS Code\Code.exe" | quote | addarg:"%1" | expandsz }}
 
-; ----------------------------FOLDER BACKGROUND---------------------------
-; Add "Open with VS Code" for FOLDER BACKGROUND
-; (right-click empty space inside a folder)
-; Key location: HKCU\Software\Classes\Directory\Background\shell\Open_with_VS_Code
-; - Uses the current folder path ("%V").
-; ------------------------------------------------------------------------
+; ------------- BACKGROUND --------------
 [HKEY_CURRENT_USER\Software\Classes\Directory\Background\shell\Open_with_VS_Code]
 @="Open with VS Code"
 "MUIVerb"="Open with VS Code"
@@ -45,9 +36,5 @@ Windows Registry Editor Version 5.00
 [HKEY_CURRENT_USER\Software\Classes\Directory\Background\shell\Open_with_VS_Code\command]
 @={{ env.LOCALAPPDATA | pathappend:"\Programs\Microsoft VS Code\Code.exe" | quote | addarg:"%V" | expandsz }}
 
-; ------------------------------------------------------------------------
-; Note: On Windows 11, classic "shell" items appear under "Show more options".
-; To see the item directly in the condensed menu requires a different
-; registration model (Explorer Command Handler / COM). This .reg targets
-; the classic menu for maximum compatibility.
-; ------------------------------------------------------------------------
+; Note: Classic menu (Win10/11 "Show more options").
+; For the new Win11 condensed menu, use an Explorer command handler registration instead.
