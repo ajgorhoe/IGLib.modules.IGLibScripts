@@ -1,40 +1,34 @@
 Windows Registry Editor Version 5.00
 
-; Example template for adding "Open with VS Code" (current user)
-; Uses %LOCALAPPDATA% so paths are per-user; encoded as REG_EXPAND_SZ via \{\{ ... | expandsz \}\}
+; Adds "Open with VS Code" for files, directories, and folder background
+; Uses the current user's profile folder to build an absolute Code.exe path.
+; Title is parameterized via {{ var.Title | regq }}.
 
-; Optional variables (uncomment and provide via -Variables / -Var / -VarsFile):
-; Title defaults to "Open with VS Code" if you replace below, e.g.:
-; [HKEY_CURRENT_USER\Software\Classes\*\shell\Open_with_VS_Code]
-; @="{{ var.Title | regq }}"
-; "MUIVerb"="{{ var.Title | regq }}"
-
-; ---------------- FILES ----------------
+; -------- FILES --------
 [HKEY_CURRENT_USER\Software\Classes\*\shell\Open_with_VS_Code]
-@="Open with VS Code"
-"MUIVerb"="Open with VS Code"
-"Icon"={{ env.LOCALAPPDATA | pathappend:"\Programs\Microsoft VS Code\Code.exe" | expandsz }}
+@="{{ var.Title | regq }}"
+"MUIVerb"="{{ var.Title | regq }}"
+"Icon"="{{ env.USERPROFILE | pathappend:"\AppData\Local\Programs\Microsoft VS Code\Code.exe" | regq }}"
 
 [HKEY_CURRENT_USER\Software\Classes\*\shell\Open_with_VS_Code\command]
-@={{ env.LOCALAPPDATA | pathappend:"\Programs\Microsoft VS Code\Code.exe" | quote | addarg:"%1" | expandsz }}
+@="\"{{ env.USERPROFILE | pathappend:"\AppData\Local\Programs\Microsoft VS Code\Code.exe" | regq }}\" \"%1\""
 
-; --------------- DIRECTORIES -----------
+
+; -------- DIRECTORIES --------
 [HKEY_CURRENT_USER\Software\Classes\Directory\shell\Open_with_VS_Code]
-@="Open with VS Code"
-"MUIVerb"="Open with VS Code"
-"Icon"={{ env.LOCALAPPDATA | pathappend:"\Programs\Microsoft VS Code\Code.exe" | expandsz }}
+@="{{ var.Title | regq }}"
+"MUIVerb"="{{ var.Title | regq }}"
+"Icon"="{{ env.USERPROFILE | pathappend:"\AppData\Local\Programs\Microsoft VS Code\Code.exe" | regq }}"
 
 [HKEY_CURRENT_USER\Software\Classes\Directory\shell\Open_with_VS_Code\command]
-@={{ env.LOCALAPPDATA | pathappend:"\Programs\Microsoft VS Code\Code.exe" | quote | addarg:"%1" | expandsz }}
+@="\"{{ env.USERPROFILE | pathappend:"\AppData\Local\Programs\Microsoft VS Code\Code.exe" | regq }}\" \"%1\""
 
-; ------------- BACKGROUND --------------
+
+; -------- BACKGROUND (empty space inside a folder) --------
 [HKEY_CURRENT_USER\Software\Classes\Directory\Background\shell\Open_with_VS_Code]
-@="Open with VS Code"
-"MUIVerb"="Open with VS Code"
-"Icon"={{ env.LOCALAPPDATA | pathappend:"\Programs\Microsoft VS Code\Code.exe" | expandsz }}
+@="{{ var.Title | regq }}"
+"MUIVerb"="{{ var.Title | regq }}"
+"Icon"="{{ env.USERPROFILE | pathappend:"\AppData\Local\Programs\Microsoft VS Code\Code.exe" | regq }}"
 
 [HKEY_CURRENT_USER\Software\Classes\Directory\Background\shell\Open_with_VS_Code\command]
-@={{ env.LOCALAPPDATA | pathappend:"\Programs\Microsoft VS Code\Code.exe" | quote | addarg:"%V" | expandsz }}
-
-; Note: Classic menu (Win10/11 "Show more options").
-; For the new Win11 condensed menu, use an Explorer command handler registration instead.
+@="\"{{ env.USERPROFILE | pathappend:"\AppData\Local\Programs\Microsoft VS Code\Code.exe" | regq }}\" \"%V\""
