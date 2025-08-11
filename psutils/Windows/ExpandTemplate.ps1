@@ -20,6 +20,110 @@ function Resolve-PathSmart {
     throw "Template/output path not found: $Path"
 }
 
+function Load-VarsFile {
+    param([string]$Path)
+    if (-not $Path) { return @{} }
+    $full = Resolve-PathSmart $Path
+    $ext  = [System.IO.Path]::GetExtension($full).ToLowerInvariant()
+    switch ($ext) {
+        '.json' { try { return Get-Content -LiteralPath $full -Raw | ConvertFrom-Json -AsHashtable } catch { throw "Failed to parse JSON vars file '$full': $_" } }
+        '.psd1' { try { return Import-PowerShellDataFile -LiteralPath $full } catch { throw "Failed to parse PSD1 vars file '$full': $_" } }
+        default { throw "Unsupported vars file extension '$ext'. Use .json or .psd1." }
+    }
+}
+
+function Merge-Variables {
+    param([hashtable]$Base, [hashtable]$Overlay)
+    $dest = @{}
+    if ($Base)    { foreach ($k in $Base.Keys)    { $dest[$k] = $Base[$k] } }
+    if ($Overlay) { foreach ($k in $Overlay.Keys) { $dest[$k] = $Overlay[$k] } }
+    return $dest
+}
+
+function Parse-VarPairs {
+    param([string[]]$Pairs)
+    $ht = @{}
+    foreach ($p in ($Pairs | Where-Object { $_ -ne $null })) {
+        if ($p -notmatch '^\s*([^=]+)\s*=\s*(.*)\s*$') {
+            throw "Invalid -Var entry '$p'. Use Name=Value."
+        }
+        $name = $Matches[1].Trim()
+        $val  = $Matches[2]
+        $ht[$name] = $val
+    }
+    return $ht
+}
+
+function Apply-Filters {
+    param(
+        [string] $Value,
+        [object[]] $Pipeline  # @(@{name='filter'; arg='...'}, ...)
+    )
+
+    foreach ($f in $Pipeline) {
+        $name = $f.name.ToLowerInvariant()
+        $arg  = $f.arg
+
+        switch ($name) {
+            'trim'       { $Value = $Value.Trim() }
+            'upper'      { $Value = $Value.ToUpper() }
+            'lower'      { $Value = $Value.ToLower() }
+            'regq'       { $Value = $Value -replace '"', '\"' }
+            'quote'      { $Value = '"' + $Value + '"' }
+            'append'     { $Value = $Value + ($arg ?? '') }
+            'pathappend' { $Value = $Value + ($arg ?? '') } # verbatim append
+            'addarg'     { $Value = $Value + ' "' + ($arg ?? '') + '"' }
+
+            'expandsz' {
+                # Encode $Value as REG_EXPAND_SZ (UTF-16LE with terminating null), return "hex(2):aa,bb,..."
+                $bytes = [System.Text.Encoding]::Unicode.GetBytes($Value + [char]0)
+                $hex   = ($bytes | ForEach-Object { $_.ToString('x2') }) -join ','
+                $Value = 'hex(2):' + $hex
+            }
+
+            default { throw "Unknown filter '$name'." }
+        }
+    }
+    return $Value
+}
+
+function Parse-Placeholder {
+    param([string]$ExprText)
+    # Expected:  var.NAME | filter[:arg] | filter ...
+    #         or env.NAME | ...
+    $parts = $ExprText -split '\|'
+    if ($parts.Count -lt 1) { throw "Empty expression in placeholder." }
+
+    $head = $parts[0].Trim()
+    if ($head -notmatch '^(?<ns>var|env)\.(?<name>[A-Za-z_][A-Za-z0-9_\.]*)$') {
+        throw "Invalid placeholder head '$head'. Use 'var.Name' or 'env.NAME'."
+    }
+    $ns   = $Matches['ns']
+    $name = $Matches['name']
+
+    # parse filter segments
+    $filters = @()
+    for ($i=1; $i -lt $parts.Count; $i++) {
+        $seg = $parts[$i].Trim()
+        if (-not $seg) { continue }
+        $fname = $seg
+        $farg  = $null
+        # allow filter: "arg"   (double-quoted arg only)
+        if ($seg -match '^(?<fn>[A-Za-z_][A-Za-z0-9_]*)\s*:\s*"(?<arg>(?:[^"\\]|\\.)*)"\s*$') {
+            $fname = $Matches['fn']
+            # unescape \"
+            $farg  = $Matches['arg'] -replace '\\\"','"'
+        } elseif ($seg -match '^(?<fn>[A-Za-z_][A-Za-z0-9_]*)\s*$') {
+            $fname = $Matches['fn']
+            $farg  = $null
+        } else {
+            throw "Invalid filter segment '$seg'. Use filter or filter:""arg""."
+        }
+        $filters += @{ name = $fname; arg = $farg }
+    }
+
+    return @{ ns = $ns; name = $name; filters = $filters }
+}
 
 function Get-InitialValue {
     param([hashtable]$Vars, [string]$Ns, [string]$Name, [switch]$Strict)
