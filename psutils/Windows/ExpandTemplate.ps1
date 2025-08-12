@@ -26,9 +26,18 @@
     • expandsz    — Encode the current string as REG_EXPAND_SZ in .reg syntax:
                      hex(2):aa,bb,... (UTF-16LE bytes with terminating 00 00)
 
+  Multi-line placeholders:
+    Placeholders can span multiple lines and contain pipes on separate lines. Whitespace
+    around tokens is ignored. Example:
+
+      {{ 
+        env.USERPROFILE |
+        pathappend:"\Programs\App\app.exe" | regq
+      }}
+
   Undefined variables and environment variables:
     If a placeholder references an unknown var/env, the script prints an
-    informative error and aborts (non-zero exit code), as requested.
+    informative error and aborts.
 
   Paths:
     -Template and -Output accept absolute or relative paths.
@@ -39,7 +48,9 @@
     (If no known suffix is found, ".out" is appended.)
 
   Encoding:
-    Output is written as UTF-16LE (Unicode) to suit .reg files.
+    Output encoding depends on the target extension:
+      • .reg  → UTF-16LE (Unicode)
+      • other → UTF-8
 
 .PARAMETER Template
   Path to the template file (*.tmpl recommended). Absolute or relative.
@@ -335,6 +346,8 @@ function Parse-Placeholder {
     #>
     param([string]$ExprText)
 
+    # Allow expressions to contain newlines and arbitrary whitespace.
+    # We'll split on '|' and trim each segment afterwards.
     $parts = $ExprText -split '\|'
     if ($parts.Count -lt 1) { throw "Empty expression in placeholder." }
 
@@ -448,8 +461,9 @@ if (-not $Output) {
 }
 
 # ========================= Expand template =====================
-
-$pattern = '\{\{\s*(.+?)\s*\}\}'
+# NOTE: The regex now matches across lines (multi-line placeholders):
+#       [\s\S] means "any char including newlines". The lazy quantifier (.+?) preserved via (.+?) -> ([\s\S]+?)
+$pattern = '\{\{\s*([\s\S]+?)\s*\}\}'
 $errors  = New-Object System.Collections.Generic.List[string]
 
 $expanded = [System.Text.RegularExpressions.Regex]::Replace(
@@ -476,6 +490,10 @@ if ($errors.Count -gt 0) {
     exit 1
 }
 
-# Write as UTF-16LE (Unicode) — ideal for .reg files
-Set-Content -LiteralPath $Output -Value $expanded -Encoding Unicode
-Write-Host "Template expanded to: ${Output}"
+# ========================= Write output ========================
+
+$ext = [System.IO.Path]::GetExtension($Output).ToLowerInvariant()
+$encoding = if ($ext -eq '.reg') { 'Unicode' } else { 'UTF8' }
+
+Set-Content -LiteralPath $Output -Value $expanded -Encoding $encoding
+Write-Host "Template expanded to: ${Output} (encoding: ${encoding})"
