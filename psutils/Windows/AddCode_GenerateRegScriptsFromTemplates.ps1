@@ -24,7 +24,8 @@
 # Generate AddCode_Example.reg.tmpl from AddCode_Example_Generated.reg.
 # Title is parameterized via Title variable via {{ var.Title | regq }} and 
 # must be provided via arguments. Other values to be expanded are provided 
-# via environment variables: {{ env.USERPROFILE | pathappend:... | regq }}. 
+# via environment variables: {{ env.USERPROFILE | pathappend:... | regq }}.
+# Various forms of spaces and newline within template markup are tested.
 ./ExpandTemplate.ps1 -Template ./AddCode_Example.reg.tmpl  `
   -Output ./AddCode_Example_Generated.reg  `
   -Var 'Title=Open with VS Code'

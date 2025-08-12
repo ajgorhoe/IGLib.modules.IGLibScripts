@@ -31,7 +31,9 @@ Windows Registry Editor Version 5.00
 "Icon"="C:\\Users\\{{env.USERNAME}}\\AppData\\Local\\Programs\\Microsoft VS Code\\Code.exe"
 
 [HKEY_CURRENT_USER\Software\Classes\*\shell\Open_with_VS_Code\command]
-@="\"C:\\Users\\{{ env.USERNAME }}\\AppData\\Local\\Programs\\Microsoft VS Code\\Code.exe\" \"%1\""
+@="\"C:\\Users\\{{ 
+    env.USERNAME 
+    }}\\AppData\\Local\\Programs\\Microsoft VS Code\\Code.exe\" \"%1\""
 
 
 ; ------------------------------------------------------------------------
@@ -45,7 +47,7 @@ Windows Registry Editor Version 5.00
 "Icon"="C:\\Users\\{{ env.USERNAME}}\\AppData\\Local\\Programs\\Microsoft VS Code\\Code.exe"
 
 [HKEY_CURRENT_USER\Software\Classes\Directory\shell\Open_with_VS_Code\command]
-@="\"C:\\Users\\{{env.USERNAME}}\\AppData\\Local\\Programs\\Microsoft VS Code\\Code.exe\" \"%1\""
+@="\"C:\\Users\\{{env.USERNAME }}\\AppData\\Local\\Programs\\Microsoft VS Code\\Code.exe\" \"%1\""
 
 
 ; ------------------------------------------------------------------------
