@@ -17,7 +17,7 @@
 
 .\ExpandTemplate.ps1 `
   -Template .\AddCode_Example_WithPlaceholders.reg `
-  -Output   .\AddCode_Example.reg `
+  -Output   .\AddCode_Example_Generated.reg `
   -Variables @{ Title = 'Open with VS Code' }
 
 
