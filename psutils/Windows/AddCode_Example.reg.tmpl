@@ -1,8 +1,14 @@
 Windows Registry Editor Version 5.00
 
+; Templated registry file, needs to be passed through template engine.
 ; Adds "Open with VS Code" for files, directories, and folder background
 ; Uses the current user's profile folder to build an absolute Code.exe path.
-; Title is parameterized via {{ var.Title | regq }}.
+; Title is parameterized via \{\{ var.Title | regq \}\} and must be passed.
+; Passing through template engine:
+; Run the template expansion script over this file (in powershell):
+;   ./ExpandTemplate.ps1 -Template ./AddCode_Example.reg.tmpl  `
+;     -Output ./AddCode_Example_Generated.reg  
+;     -Var 'Title=Open with VS Code'
 
 ; -------- FILES --------
 [HKEY_CURRENT_USER\Software\Classes\*\shell\Open_with_VS_Code]

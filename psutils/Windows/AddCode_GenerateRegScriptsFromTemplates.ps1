@@ -9,16 +9,25 @@
 # located.
 
 # Generate AddCode_Example.reg from AddCode_Example_WithPlaceholders.reg.
-# This can simply be done by copying the file and mannually replacing the
+# This can simply be done by copying the file and manually replacing the
 # placeholders {{env:USERNAME}} with the current user's login name.
 # These placeholders also represent the markup for replacement of the
 # current user's login name by the template engine, and we can use the
 # ExpandTemplate.ps1 to do the job:
-
 .\ExpandTemplate.ps1 `
   -Template .\AddCode_Example_WithPlaceholders.reg `
   -Output   .\AddCode_Example_Generated.reg `
   -Variables @{ Title = 'Open with VS Code' }
+
+
+
+# Generate AddCode_Example.reg.tmpl from AddCode_Example_Generated.reg.
+# Title is parameterized via Title variable via {{ var.Title | regq }} and 
+# must be provided via arguments. Other values to be expanded are provided 
+# via environment variables: {{ env.USERPROFILE | pathappend:... | regq }}. 
+./ExpandTemplate.ps1 -Template ./AddCode_Example.reg.tmpl  `
+  -Output ./AddCode_Example_Generated.reg  `
+  -Var 'Title=Open with VS Code'
 
 
 
