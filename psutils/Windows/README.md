@@ -226,7 +226,7 @@ $exe = Join-Path $env:LOCALAPPDATA 'Programs\Microsoft VS Code\Code.exe'
   * `$vars` (your merged hashtable), `$env` (standard env), maybe a small **whitelist** of helper functions.
 * **Sanitize `expr:`.** For Tier 1, reject tokens that enable commands/pipelines:
 
-  * Disallow `| ; & > < \`n`etc., and cmdlets/keywords like`Get-`, `Invoke-`, `New-`, `Set-`, `ForEach-Object`, `Start-Process`, `;`, `|\`.
+  * Disallow `| ; & > < \`n`etc., and cmdlets/keywords like `Get-`, `Invoke-`, `New-`, `Set-`, `ForEach-Object`, `Start-Process`, `;`, `|\`.
   * Allow only literals, `()`, `[]`, `.ToString()`, static .NET calls (`[math]::Round(...)`), operators.
 * **Error messages.** Keep them precise: show the offending placeholder snippet and why it was rejected (e.g., “`expr:` does not allow pipelines; found `|`”).
 * **Block output capture.** For `{% ps %}`: join the pipeline output with `"`n"\` (Windows newlines are fine in .reg comments and many value types).
