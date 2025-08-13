@@ -18,15 +18,17 @@ Windows Registry Editor Version 5.00
 
 [HKEY_CURRENT_USER\Software\Classes\*\shell\Open_with_VS_Code\command]
 @="\"{{ 
-    env.USERPROFILE | 
-    pathappend:"\AppData\Local\Programs\Microsoft VS Code\Code.exe" | regq }}\" \"%1\""
+    env.USERPROFILE | pathappend:"\AppData\Local\Programs\Microsoft VS Code\Code.exe" | regq }}\" \"%1\""
 
 
 ; -------- DIRECTORIES --------
 [HKEY_CURRENT_USER\Software\Classes\Directory\shell\Open_with_VS_Code]
 @="{{ var.Title | regq }}"
 "MUIVerb"="{{ var.Title | regq }}"
-"Icon"="{{ env.USERPROFILE | pathappend:"\AppData\Local\Programs\Microsoft VS Code\Code.exe" | regq }}"
+"Icon"="{{env.USERPROFILE 
+    | pathappend:"\AppData\Local\Programs\Microsoft VS Code\Code.exe" 
+    | regq 
+    }}"
 
 [HKEY_CURRENT_USER\Software\Classes\Directory\shell\Open_with_VS_Code\command]
 @="\"{{ env.USERPROFILE | pathappend:"\AppData\Local\Programs\Microsoft VS Code\Code.exe" | regq }}\" \"%1\""

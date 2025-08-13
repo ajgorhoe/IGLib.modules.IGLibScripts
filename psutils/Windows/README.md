@@ -11,6 +11,7 @@
 * [Notes for Developers](#notes-for-developers) - contains dev. notes on possible further feature, behavior, Windows development, etc.
   * [Notes - Hiding the Taskbar](#notes---hiding-the-taskbar) - what is known about using Windows Registry and newer development in Windows that affect hiding the taskbar
   * [To Do](#notes---todo) - things that might be done in the future
+  * [Possible Scripting Extensions of ExpandTemplate (the Scripting Engine)](#notes---possible-scripting-extensions-of-the-expandtemplateps1-the-template-engine)
 
 ## Miscellaneous Remarks
 
@@ -136,3 +137,7 @@ See:
 
 * [How do I get Microsoft Code to come up in my right click menu?](https://learn.microsoft.com/en-gb/answers/questions/2006361/how-do-i-get-microsoft-code-to-come-up-in-my-right) (Microsoft)
 * [Visual Studio Code "Open With Code" does not appear after right-clicking a folder](https://stackoverflow.com/questions/37306672/visual-studio-code-open-with-code-does-not-appear-after-right-clicking-a-folde)
+
+### Notes - Possible Scripting Extensions of the ExpandTemplate.ps1 (the Template Engine)
+
+
