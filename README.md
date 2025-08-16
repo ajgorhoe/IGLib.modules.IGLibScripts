@@ -7,7 +7,10 @@
 * [Introduction](#introduction)
 * [Documentaton for part of batch scripts](#documentation-for-part-of-batch-scripts)
 * Other documents:
-  * [PostScript Utilities (psutils/)](./psutils/README.md)
+  * [PowerShell Utilities (psutils/)](./psutils/README.md)
+    * [Repository Management Scripts](./psutils/Dev_RepositoryManagement/README.md) (PowerShell)
+    * [Directory Backup Script](./psutils/Dev_DirectoryBackup/BackupDir.ps1)
+    * [Windows Utility Scripts](./psutils/Windows/README.md)
 
 **Important notice**: the ***main* branch** has changed **from *master* to *main***. The *master* branch has been removed from the [main repository](https://github.com/ajgorhoe/IGLib.modules.IGLibScripts/).
 
