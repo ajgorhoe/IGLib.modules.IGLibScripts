@@ -9,7 +9,7 @@
 * Other documents:
   * [PowerShell Utilities (psutils/)](./psutils/README.md)
     * [Repository Management Scripts](./psutils/Dev_RepositoryManagement/README.md) (PowerShell)
-    * [Directory Backup Script](./psutils/Dev_DirectoryBackup/BackupDir.ps1)
+    * [Directory Backup Script](./psutils/Dev_DirectoryBackup/README.md)
     * [Windows Utility Scripts](./psutils/Windows/README.md)
 
 **Important notice**: the ***main* branch** has changed **from *master* to *main***. The *master* branch has been removed from the [main repository](https://github.com/ajgorhoe/IGLib.modules.IGLibScripts/).
