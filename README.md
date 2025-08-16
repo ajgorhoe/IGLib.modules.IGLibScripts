@@ -1,27 +1,17 @@
 
 # IGLibScripts
 
-Copyright (c) Igor Grešovnik
-See LICENSE.md at https://github.com/ajgorhoe/IGLib.modules.IGLibScripts/
-
 [IGLibScripts repository](https://github.com/ajgorhoe/IGLib.modules.IGLibScripts/) / [README.md](./README.md)
 
 **Contents**:
 * [Introduction](#introduction)
 * [Documentaton for part of batch scripts](#documentation-for-part-of-batch-scripts)
-* [](#)
 * Other documents:
   * [PostScript Utilities (psutils/)](./psutils/README.md)
 
-**Important notice**: ***main* branch** is being changed **from *master* to *main***. For some time, both branches will be **kept in sync** because there are many dependencies on this repository. Expect that since **June '24** only the *main* branch may be kept, and *master* branch may be removed from the main repository.
+**Important notice**: the ***main* branch** has changed **from *master* to *main***. The *master* branch has been removed from the [main repository](https://github.com/ajgorhoe/IGLib.modules.IGLibScripts/).
 
-This repository is part of the Investigative Generic Library (*IGLib*). It contains some utility scripts that are used in IGLib and wider - batch, PowerShell, and C# scripts.
-
-Main branch of the IGLibScript repository: *main*
-
-Main branch of the IGLibScriptPS repository: *mainPS*
-
-See [LICENSE.md](./LICENSE.md) for terms of use.
+This repository is part of the *[Investigative Generic Library (IGLib)](https://github.com/ajgorhoe/IGLib.modules.IGLibCore)*. It contains some general utility scripts - batch scripts, PowerShell, and C# scripts. Examples include a versatile [backup script](./psutils/Dev_DirectoryBackup/BackupDir.ps1), a [script for cloning and updating repositories](./psutils/Dev_RepositoryManagement/README.md), various Windows utility script (e.g. for adding *Hibernate* to *Powerr menu*, changing size of desktop icons, hiding the taskbar, forcing full context menu in Windows Explorer and other file managers, or adding a new item (such as "Open with VS Code") to the context menu).
 
 ## Documentation for Part of Batch Scripts
 
@@ -40,7 +30,7 @@ This section contains documentation for some of the scripts. For more extensive 
   * [SetScriptReferences.bat](#setscriptreferencesbat)
   * [PrintScriptReferences.bat](#printscriptreferencesbat)  
 
-## Introduction
+## Introduction to IGLibScripts
 
 The IGLibScripts is an ***IGLib*** (**Investigation Generic Library**) module that contains some useful batch scripts and shell scripts used by the library (e.g. for managing repository cloning and updates).
 Mainly these utilities are generally useful and their use is not limited to IGLib.
@@ -181,8 +171,6 @@ The following environment variables are defined by the script:
 > _**SetScriptReferences**_ is set to the absolute path of the _SetScriptReferences.bat_ script.  
 > _**PrintScriptReferences**_ is set to the absolute path of the _PrintScriptReferences.bat_ script.  
 
-  
-
 ### PrintScriptReferences.bat  
 
 Prints values of environment variables that are set by _SetScriptReferences.bat_.  
@@ -197,3 +185,8 @@ Prints values of environment variables that are set by _SetScriptReferences.bat_
 > 
 > > Beside printing the variables as described above, this also executes the command _EmbeddedCommand_, passing it the optional command-line arguments when defined (the optional arguments _arg1_, _arg2_, etc.). The command is executed before printing of variables is performed. This can be used e.g. to run the _SetScriptReferences_ script, which sets the variables, before they are printed. Execution of the _EmbeddedCommand_ is performed within the _**setlocal**_ / _**endlocal**_ block, such that changes such as environment variables defined or changed by the command are not propagated to the calling environment. This is particularly useful for testing.
 
+## License
+
+© Copyright Igor Grešovnik.
+
+See [LICENSE.md](https://github.com/ajgorhoe/IGLib.modules.IGLibScripts/blob/main/LICENSE.md) ([local version](./LICENSE.md)) for license information.
