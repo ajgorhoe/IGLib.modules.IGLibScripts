@@ -190,6 +190,6 @@ Prints values of environment variables that are set by _SetScriptReferences.bat_
 
 ## License
 
-© Copyright Igor Grešovnik.
+Copyright © Igor Grešovnik.
 
 See [LICENSE.md](https://github.com/ajgorhoe/IGLib.modules.IGLibScripts/blob/main/LICENSE.md) ([local version](./LICENSE.md)) for license information.
