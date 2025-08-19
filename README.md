@@ -193,3 +193,6 @@ Prints values of environment variables that are set by _SetScriptReferences.bat_
 Copyright © Igor Grešovnik.
 
 See [LICENSE.md](https://github.com/ajgorhoe/IGLib.modules.IGLibScripts/blob/main/LICENSE.md) ([local version](./LICENSE.md)) for license information.
+
+Disclaimer:  
+The repository owner reserves the right to change the license to one of the permissive open source licenses, such as the Apache-2 or MIT license.
