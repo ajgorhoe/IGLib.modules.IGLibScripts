@@ -8,6 +8,9 @@
 # Execute the snippets in PowerShell in the directory where this file is 
 # located.
 
+# AddCode_Example_WithPlaceholders.reg has simple placeholders only for user
+# name, also expandable by ExpandTemplate.ps1:
+
 # Generate AddCode_Example.reg from AddCode_Example_WithPlaceholders.reg.
 # This can simply be done by copying the file and manually replacing the
 # placeholders {{env:USERNAME}} with the current user's login name.
@@ -19,7 +22,12 @@
   -Output   .\AddCode_Example_Generated.reg `
   -Variables @{ Title = 'Open with VS Code' }
 
-# Generate AddCode_Example.reg.tmpl from AddCode_Example_Generated.reg.
+# AddCode_Example1.reg.tmpl uses a single variable substitute (Title) and one
+# environment variable substitute (USERPROFILE). The placeholders are written
+# in different ways, including additional spaces and newlines, to test the
+# template engine's ability to handle them.
+
+# Generate AddCode_Example_Generated1.reg from AddCode_Example1.reg.tmpl.
 # Title is parameterized via Title variable via {{ var.Title | regq }} and 
 # must be provided via arguments. Other values to be expanded are provided 
 # via environment variables: {{ env.USERPROFILE | pathappend:... | regq }}.
