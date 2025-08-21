@@ -31,28 +31,45 @@
 # Title is parameterized via Title variable via {{ var.Title | regq }} and 
 # must be provided via arguments. Other values to be expanded are provided 
 # via environment variables: {{ env.USERPROFILE | pathappend:... | regq }}.
-# Various forms of spaces and newline within template markup are tested.
+# Various forms of spaces and newline within template markup are tested:
 ./ExpandTemplate.ps1 -Template ./AddCode_Example1.reg.tmpl  `
   -Output ./AddCode_Example_Generated1.reg  `
   -Var 'Title=Open with VS Code'
 
 
 # AddCode_Example1.reg.tmpl uses several variable substitutes (Title, 
-MyUserName) 
-# and several environment variable substitutes.
-# environment variable substitute (USERPROFILE). The placeholders are written
-# in different ways, including additional spaces and newlines, to test the
-# template engine's ability to handle them.
+# MyUserName, VsCodeLocation) and environment variable substitute (USERNAME,
+# LOCALAPPDATA). It is used to demonstrate that passing several variables
+# to the template engine works as expected.
 
 # Generate AddCode_Example_Generated2.reg from AddCode_Example2.reg.tmpl.
+# Variables are passed via -Var array parameter, and environment variables
+# are used in the template markup:
 $MyUserName = $env:USERNAME
 $VsCodeLocation = $env:LOCALAPPDATA + '\Programs\Microsoft VS Code\'
 ./ExpandTemplate.ps1 -Template AddCode_Example2.reg.tmpl  `
   -Output AddCode_Example_Generated2.reg  `
-  -Var "MyUserName=$MyUserName","VsCodeLocation=$VsCodeLocation",
-  'Title=Open with VS Code'
+  -Var "MyUserName=$MyUserName", "VsCodeLocation=$VsCodeLocation", 
+    'Title=Open with VS Code'
 
+# The same as above, except the array parameter -Var is specified with 
+# parentheses:
+$MyUserName = $env:USERNAME
+$VsCodeLocation = $env:LOCALAPPDATA + '\Programs\Microsoft VS Code\'
+./ExpandTemplate.ps1 -Template AddCode_Example2.reg.tmpl  `
+  -Output AddCode_Example_Generated2.reg  `
+  -Var @( "MyUserName=$MyUserName", "VsCodeLocation=$VsCodeLocation", 
+    'Title=Open with VS Code' )
 
-
+  
+# Generate AddCode_Example_Generated2.reg from AddCode_Example2.reg.tmpl.
+# Similar as above, except variables are passed via -Variables hashtable
+# parameter:
+$MyUserName = $env:USERNAME
+$VsCodeLocation = $env:LOCALAPPDATA + '\Programs\Microsoft VS Code\'
+./ExpandTemplate.ps1 -Template AddCode_Example2.reg.tmpl  `
+  -Output AddCode_Example_Generated2.reg  `
+  -Variables @{ MyUserName=$MyUserName ; 
+    VsCodeLocation=$VsCodeLocation ; Title='Open with VS Code' }
 
 
