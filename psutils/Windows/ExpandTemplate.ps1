@@ -18,7 +18,8 @@
     • trim        — String.Trim()
     • upper       — Uppercase
     • lower       — Lowercase
-    • regq        — Escape " as \" for .reg REG_SZ lines
+    • regq        — Escape " as \" (e.g. for .reg REG_SZ lines)
+    • regesc      — Escape " as \" and \ as \\ (e.g. for paths in .reg REG_SZ lines)
     • quote       — Wrap the whole value in double quotes
     • append:"x"  — Append literal text x
     • pathappend:"\suffix" — Append a path suffix verbatim (no separator logic)
@@ -32,7 +33,7 @@
 
       {{ 
         env.USERPROFILE |
-        pathappend:"\Programs\App\app.exe" | regq
+        pathappend:"\Programs\App\app.exe" | regesc
       }}
 
   Undefined variables and environment variables:
@@ -98,8 +99,10 @@
   • To render literal “{{ … }}” in the template, escape braces like:
       \{\{ … \}\}
     (or split the braces across lines). A raw-block feature can be added later.
-  • For .reg REG_SZ lines you usually only need to escape quotes (filter: regq).
-    Backslashes do NOT need doubling in .reg files.
+  • For .reg REG_SZ lines, sometimes you need to escape quotes (filter: regq).
+    Backslashes do NOT need doubling in .reg files. But when backslashes
+    also need escaping, use the regesc filter, e.g.:
+      {{ env.USERPROFILE | pathappend:"\App\app.exe" | regesc }}
 #>
 
 param(
@@ -310,6 +313,7 @@ function Apply-Filters {
             'upper'      { $Value = $Value.ToUpper() }
             'lower'      { $Value = $Value.ToLower() }
             'regq'       { $Value = $Value -replace '"', '\"' }
+            'regesc'     { $Value = $Value -replace '\\', '\\' -replace '"', '\"' }
             'quote'      { $Value = '"' + $Value + '"' }
             'append'     { $Value = $Value + ($(if ($null -ne $arg) { $arg } else { '' })) }
             'pathappend' { $Value = $Value + ($(if ($null -ne $arg) { $arg } else { '' })) }
