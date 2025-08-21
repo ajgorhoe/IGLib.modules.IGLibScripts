@@ -114,6 +114,41 @@ param(
     [switch] $Strict
 )
 
+function Write-HashTable {
+    param(
+        [hashtable]$Table
+    )
+    if ($null -eq $Table) {
+        Write-Host "  NULL hashtable"
+        return
+    }
+    if ($Table.Count -eq 0) {
+        Write-Host "  EMPTY hashtable"
+        return
+    }
+    foreach ($key in $Table.Keys) {
+        Write-Host "  ${key}: $($Table[$key])"
+    }
+}
+
+function Write-Array {
+    param(
+        [object[]]$Array
+    )
+    if ($null -eq $Array) {
+        Write-Host "  NULL"
+        return
+    }
+    if ($Array.Count -eq 0) {
+        Write-Host "  EMPTY"
+        return
+    }
+    for ($i = 0; $i -lt $Array.Count; $i++) {
+        Write-Host "  ${i}: $($Array[$i])"
+    }
+}
+
+
 # ---------------------------------------------------------------------------
 # Helper: Resolve-PathSmart
 # Resolves a path. If relative, tries relative to script folder, then CWD.
@@ -439,6 +474,14 @@ function Get-InitialValue {
 $tplPath = Resolve-PathSmart $Template
 $tplText = Get-Content -LiteralPath $tplPath -Raw
 
+Write-Host "`nExpanding a template file by $($MyInvocation.MyCommand.Name)..." -ForegroundColor Green
+Write-Host "`nScript parameters:"
+Write-HashTable $PSBoundParameters
+Write-Host "  Positional:"
+Write-Array $args
+Write-Host "`nTemplate path: `n  ${tplPath}"
+Write-Host ""
+
 # Compose variables with precedence: VarsFile < Variables < Var
 $varsFromFile = Load-VarsFile $VarsFile
 $varsMerged   = Merge-Variables $varsFromFile $Variables
@@ -476,10 +519,13 @@ $expanded = [System.Text.RegularExpressions.Regex]::Replace(
     {
         param($m)
         $expr = $m.Groups[1].Value
+        Write-Host "Processing placeholder:`n  {{ $($expr.Trim() -replace '\r?\n', ' ') }}"
         try {
             $ph   = Parse-Placeholder $expr
             $val0 = Get-InitialValue -Vars $VARS -Ns $ph.ns -Name $ph.name -Strict:$Strict
+            Write-Host "  Unfiltered value:`n  $val0"
             $out  = Apply-Filters -Value $val0 -Pipeline $ph.filters
+            Write-Host "  Final value:`n  $out"
             return $out
         } catch {
             $errors.Add("Error in placeholder '{{ ${expr} }}': $($_.Exception.Message)")
@@ -500,4 +546,6 @@ $ext = [System.IO.Path]::GetExtension($Output).ToLowerInvariant()
 $encoding = if ($ext -eq '.reg') { 'Unicode' } else { 'UTF8' }
 
 Set-Content -LiteralPath $Output -Value $expanded -Encoding $encoding
-Write-Host "Template expanded to: ${Output} (encoding: ${encoding})"
+Write-Host "`nTemplate expanded to:`n  ${Output}`n    (encoding: ${encoding})"
+
+Write-Host "`n  ... template expansion completed.`n" -ForegroundColor Green
