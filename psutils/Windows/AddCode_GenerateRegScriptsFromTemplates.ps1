@@ -73,3 +73,13 @@ $VsCodeLocation = $env:LOCALAPPDATA + '\Programs\Microsoft VS Code\'
     VsCodeLocation=$VsCodeLocation ; Title='Open with VS Code' }
 
 
+# Similar as above, but using mixed approach to define variables (array form
+# via -Var and hashtable form via -Variables); there is even an overlap
+# between the two, which is allowed:
+$MyUserName = $env:USERNAME
+$VsCodeLocation = $env:LOCALAPPDATA + '\Programs\Microsoft VS Code\'
+./ExpandTemplate.ps1 -Template AddCode_Example2.reg.tmpl  `
+  -Output AddCode_Example_Generated2.reg  `
+  -Var @( "MyUserName=$MyUserName", "VsCodeLocation=$VsCodeLocation" )  `
+  -Variables @{ VsCodeLocation=$VsCodeLocation ; 
+    Title='Open with VS Code' }
