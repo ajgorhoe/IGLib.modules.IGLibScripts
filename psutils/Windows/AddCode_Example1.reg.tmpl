@@ -3,7 +3,7 @@ Windows Registry Editor Version 5.00
 ; Templated registry file, needs to be passed through template engine.
 ; Adds "Open with VS Code" for files, directories, and folder background
 ; Uses the current user's profile folder to build an absolute Code.exe path.
-; Title is parameterized via \{\{ var.Title | regq \}\} and must be passed.
+; Title is parameterized via \{\{ var.Title | regesc \}\} and must be passed.
 ; Passing through template engine:
 ; Run the template expansion script over this file (in powershell):
 ;   ./ExpandTemplate.ps1 -Template ./AddCode_Example.reg.tmpl  `
@@ -12,36 +12,36 @@ Windows Registry Editor Version 5.00
 
 ; -------- FILES --------
 [HKEY_CURRENT_USER\Software\Classes\*\shell\Open_with_VS_Code]
-@="{{ var.Title | regq }}"
-"MUIVerb"="{{ var.Title | regq }}"
-"Icon"="{{ env.USERPROFILE | pathappend:"\AppData\Local\Programs\Microsoft VS Code\Code.exe" | regq }}"
+@="{{ var.Title | regesc }}"
+"MUIVerb"="{{ var.Title | regesc }}"
+"Icon"="{{ env.USERPROFILE | pathappend:"\AppData\Local\Programs\Microsoft VS Code\Code.exe" | regesc }}"
 
 [HKEY_CURRENT_USER\Software\Classes\*\shell\Open_with_VS_Code\command]
 @="\"{{ 
-    env.USERPROFILE | pathappend:"\AppData\Local\Programs\Microsoft VS Code\Code.exe" | regq }}\" \"%1\""
+    env.USERPROFILE | pathappend:"\AppData\Local\Programs\Microsoft VS Code\Code.exe" | regesc }}\" \"%1\""
 
 
 ; -------- DIRECTORIES --------
 [HKEY_CURRENT_USER\Software\Classes\Directory\shell\Open_with_VS_Code]
-@="{{ var.Title | regq }}"
-"MUIVerb"="{{ var.Title | regq }}"
+@="{{ var.Title | regesc }}"
+"MUIVerb"="{{ var.Title | regesc }}"
 "Icon"="{{env.USERPROFILE 
     | pathappend:"\AppData\Local\Programs\Microsoft VS Code\Code.exe" 
 
 
-    | regq 
-    
+    | regesc 
+
     }}"
 
 [HKEY_CURRENT_USER\Software\Classes\Directory\shell\Open_with_VS_Code\command]
-@="\"{{env.USERPROFILE | pathappend:"\AppData\Local\Programs\Microsoft VS Code\Code.exe" | regq}}\" \"%1\""
+@="\"{{env.USERPROFILE | pathappend:"\AppData\Local\Programs\Microsoft VS Code\Code.exe" | regesc}}\" \"%1\""
 
 
 ; -------- BACKGROUND (empty space inside a folder) --------
 [HKEY_CURRENT_USER\Software\Classes\Directory\Background\shell\Open_with_VS_Code]
-@="{{ var.Title | regq }}"
-"MUIVerb"="{{ var.Title | regq }}"
-"Icon"="{{    env.USERPROFILE | pathappend:"\AppData\Local\Programs\Microsoft VS Code\Code.exe" | regq     }}"
+@="{{ var.Title | regesc }}"
+"MUIVerb"="{{ var.Title | regesc }}"
+"Icon"="{{    env.USERPROFILE | pathappend:"\AppData\Local\Programs\Microsoft VS Code\Code.exe" | regesc     }}"
 
 [HKEY_CURRENT_USER\Software\Classes\Directory\Background\shell\Open_with_VS_Code\command]
-@="\"{{ env.USERPROFILE | pathappend:"\AppData\Local\Programs\Microsoft VS Code\Code.exe" | regq }}\" \"%V\""
+@="\"{{ env.USERPROFILE | pathappend:"\AppData\Local\Programs\Microsoft VS Code\Code.exe" | regesc }}\" \"%V\""
