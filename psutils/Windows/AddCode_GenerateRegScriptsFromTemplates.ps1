@@ -37,5 +37,22 @@
   -Var 'Title=Open with VS Code'
 
 
+# AddCode_Example1.reg.tmpl uses several variable substitutes (Title, 
+MyUserName) 
+# and several environment variable substitutes.
+# environment variable substitute (USERPROFILE). The placeholders are written
+# in different ways, including additional spaces and newlines, to test the
+# template engine's ability to handle them.
+
+# Generate AddCode_Example_Generated2.reg from AddCode_Example2.reg.tmpl.
+$MyUserName = $env:USERNAME
+$VsCodeLocation = $env:LOCALAPPDATA + '\Programs\Microsoft VS Code\'
+./ExpandTemplate.ps1 -Template AddCode_Example2.reg.tmpl  `
+  -Output AddCode_Example_Generated2.reg  `
+  -Var "MyUserName=$MyUserName","VsCodeLocation=$VsCodeLocation",
+  'Title=Open with VS Code'
+
+
+
 
 
