@@ -1,44 +1,53 @@
 Windows Registry Editor Version 5.00
 
-; Example template for adding "Open with VS Code" (current user)
-; Uses %LOCALAPPDATA% so paths are per-user; encoded as REG_EXPAND_SZ via 
-;   \{\{ ... | expandsz \}\}
-; REMARK: this produces values as hexadecimal code (specifically UTF-16LE), 
-; which is less readable. Use AddCode_Example.reg.tmpl and 
-; AddCode_Example.reg.tmpl to generate easily readable .reg files.
-
-; Optional variables (uncomment and provide via -Variables / -Var / -VarsFile):
-; Title defaults to "Open with VS Code" if you replace below, e.g.:
-; [HKEY_CURRENT_USER\Software\Classes\*\shell\Open_with_VS_Code]
-; @="{{ var.Title | regq }}"
-; "MUIVerb"="{{ var.Title | regq }}"
-
-; ---------------- FILES ----------------
+; ------------------------------------------------------------------------
+; Add "Open with VS Code" for FILES (right-click a file)
+; Key location: HKCU\Software\Classes\*\shell\Open_with_VS_Code
+; - The item key’s default value (@) and MUIVerb both set the label.
+; - Icon sets the menu icon.
+; - The command’s default value runs Code.exe with the selected file ("%1").
+; ------------------------------------------------------------------------
 [HKEY_CURRENT_USER\Software\Classes\*\shell\Open_with_VS_Code]
 @="Open with VS Code"
 "MUIVerb"="Open with VS Code"
-"Icon"={{ env.LOCALAPPDATA | pathappend:"\Programs\Microsoft VS Code\Code.exe" | expandsz }}
+"Icon"="C:\\Users\\@{{MyUserName}}\\AppData\\Local\\Programs\\Microsoft VS Code\\Code.exe"
 
 [HKEY_CURRENT_USER\Software\Classes\*\shell\Open_with_VS_Code\command]
-@={{ env.LOCALAPPDATA | pathappend:"\Programs\Microsoft VS Code\Code.exe" | quote | addarg:"%1" | expandsz }}
+@="\"@.escaped{{VsCodeLocation}}\\Code.exe\" \"%1\""
 
-; --------------- DIRECTORIES -----------
+
+; ------------------------------------------------------------------------
+; Add "Open with VS Code" for DIRECTORIES (right-click a folder item)
+; Key location: HKCU\Software\Classes\Directory\shell\Open_with_VS_Code
+; - Uses the selected folder path ("%1").
+; ------------------------------------------------------------------------
 [HKEY_CURRENT_USER\Software\Classes\Directory\shell\Open_with_VS_Code]
 @="Open with VS Code"
 "MUIVerb"="Open with VS Code"
-"Icon"={{ env.LOCALAPPDATA | pathappend:"\Programs\Microsoft VS Code\Code.exe" | expandsz }}
+"Icon"="C:\\Users\\@.env{{USERNAME}}\\AppData\\Local\\Programs\\Microsoft VS Code\\Code.exe"
 
 [HKEY_CURRENT_USER\Software\Classes\Directory\shell\Open_with_VS_Code\command]
-@={{ env.LOCALAPPDATA | pathappend:"\Programs\Microsoft VS Code\Code.exe" | quote | addarg:"%1" | expandsz }}
+@="\"@envescaped{{LOCALAPPDATA}}\\Programs\\Microsoft VS Code\\Code.exe\" \"%1\""
 
-; ------------- BACKGROUND --------------
+
+; ------------------------------------------------------------------------
+; Add "Open with VS Code" for FOLDER BACKGROUND
+; (right-click empty space inside a folder)
+; Key location: HKCU\Software\Classes\Directory\Background\shell\Open_with_VS_Code
+; - Uses the current folder path ("%V").
+; ------------------------------------------------------------------------
 [HKEY_CURRENT_USER\Software\Classes\Directory\Background\shell\Open_with_VS_Code]
 @="Open with VS Code"
 "MUIVerb"="Open with VS Code"
-"Icon"={{ env.LOCALAPPDATA | pathappend:"\Programs\Microsoft VS Code\Code.exe" | expandsz }}
+"Icon"="C:\\Users\\@{{MyUserName}}\\AppData\\Local\\Programs\\Microsoft VS Code\\Code.exe"
 
 [HKEY_CURRENT_USER\Software\Classes\Directory\Background\shell\Open_with_VS_Code\command]
-@={{ env.LOCALAPPDATA | pathappend:"\Programs\Microsoft VS Code\Code.exe" | quote | addarg:"%V" | expandsz }}
+@="\"C:\\Users\\@{{MyUserName}}\\AppData\\Local\\Programs\\Microsoft VS Code\\Code.exe\" \"%V\""
 
-; Note: Classic menu (Win10/11 "Show more options").
-; For the new Win11 condensed menu, use an Explorer command handler registration instead.
+
+; ------------------------------------------------------------------------
+; Note: On Windows 11, classic "shell" items appear under "Show more options".
+; To see the item directly in the condensed menu requires a different
+; registration model (Explorer Command Handler / COM). This .reg targets
+; the classic menu for maximum compatibility.
+; ------------------------------------------------------------------------
