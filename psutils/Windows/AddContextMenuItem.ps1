@@ -125,24 +125,32 @@ function Write-HKLMReport {
     }
 }
 
-# ------------- Elevation for -AllUsers (FIXED Targets passing) -------------
+# Helper: single-quote and escape for -Command string
+function SQ { param([string]$s) if ($null -eq $s) { "''" } else { "'" + ($s -replace "'", "''") + "'" } }
+
+# ------------- Elevation for -AllUsers (robust quoting) -------------
 
 if ($AllUsers -and -not (Test-IsAdmin)) {
     Write-Host "Elevation required. Relaunching as administrator..."
-    $script = '"' + $PSCommandPath + '"'
-    $args   = @()
-    $args += ('-Title ' + ('"'+$Title+'"'))
-    $args += ('-CommandPath ' + ('"'+$CommandPath+'"'))
-    if ($Arguments)           { $args += ('-Arguments ' + ('"'+$Arguments+'"')) }
-    if ($BackgroundArguments) { $args += ('-BackgroundArguments ' + ('"'+$BackgroundArguments+'"')) }
-    if ($Icon)                { $args += ('-Icon ' + ('"'+$Icon+'"')) }
-    if ($KeyName)             { $args += ('-KeyName ' + ('"'+$KeyName+'"')) }
-    if ($Targets)             { $args += ('-Targets ' + ($Targets -join ',')) }   # <-- pass once, comma-separated
+
+    $scriptSingleQuoted = SQ $PSCommandPath
+
+    $args = @()
+    $args += ('-Title ' + (SQ $Title))
+    $args += ('-CommandPath ' + (SQ $CommandPath))
+    if ($Arguments)           { $args += ('-Arguments ' + (SQ $Arguments)) }
+    if ($BackgroundArguments) { $args += ('-BackgroundArguments ' + (SQ $BackgroundArguments)) }
+    if ($Icon)                { $args += ('-Icon ' + (SQ $Icon)) }
+    if ($KeyName)             { $args += ('-KeyName ' + (SQ $KeyName)) }
+    if ($Targets)             { $args += ('-Targets ' + (SQ ($Targets -join ','))) }  # pass once, comma-separated, quoted
     if ($Revert)              { $args += '-Revert' }
     if ($AllUsers)            { $args += '-AllUsers' }
     if ($RestartExplorer)     { $args += '-RestartExplorer' }
+
     $joined = $args -join ' '
-    $full   = "& $script $joined; Start-Sleep -Seconds 6"
+    # Build a -Command that runs our script with the args, then sleeps 6s so output stays visible
+    $full   = "& $scriptSingleQuoted $joined; Start-Sleep -Seconds 6"
+
     Start-Process powershell.exe -Verb RunAs -ArgumentList "-NoProfile -ExecutionPolicy Bypass -Command $full"
     exit
 }
