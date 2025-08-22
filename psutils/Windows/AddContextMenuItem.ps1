@@ -173,6 +173,9 @@ Write-Host "`nScript parameters:"
 Write-HashTable $PSBoundParameters
 Write-Host "  Positional:"
 Write-Array $args
+Write-Host "Targets parameter:"
+Write-Array $Targets
+Write-Host
 
 # # Below debug code causes an error, commented for now:
 # # DEBUG: show bound parameters once
