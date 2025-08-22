@@ -34,8 +34,7 @@
   One or more of: Files, Directories, Background. Default: Files,Directories.
 
 .PARAMETER KeyName
-  Optional registry key name under \shell\. If omitted, derived from Title
-  by replacing non-alphanumerics with underscores.
+  Optional registry key name under \shell\. If omitted, derived from Title.
 
 .PARAMETER Revert
   Remove the item for the selected targets instead of creating it.
@@ -99,7 +98,6 @@ function Get-ItemSubPath {
 
 function Build-CommandLine {
     param([string]$ExePath, [string]$ArgTemplate)
-    # Always quote the exe; args may already contain quotes around %1 / %V.
     $quotedExe = '"' + $ExePath + '"'
     if ([string]::IsNullOrWhiteSpace($ArgTemplate)) { return $quotedExe }
     return "$quotedExe $ArgTemplate"
@@ -110,6 +108,13 @@ function Get-SafeKeyNameFromTitle {
     $k = ($Title -replace '[^A-Za-z0-9]+','_').Trim('_')
     if ([string]::IsNullOrWhiteSpace($k)) { $k = 'Custom_Command' }
     return $k
+}
+
+# Escape wildcards for -Path (so literal '*' works under \Software\Classes\*\...)
+function Escape-RegistryPath {
+    param([string]$Path)
+    # escape * and ? for the wildcard-aware -Path parameters
+    return ($Path -replace '\*','`*' -replace '\?','`?')
 }
 
 # --- Summary helpers for AddContextMenuItem (HKLM path) --------------------
@@ -135,7 +140,6 @@ function Write-HKLMReport {
 
 if ($AllUsers -and -not (Test-IsAdmin)) {
     Write-Host "Elevation required. Relaunching as administrator..."
-    # Re-launch self with same params, plus a brief sleep so the window stays visible
     $script = '"' + $PSCommandPath + '"'
     $args   = @()
     $args += ('-Title ' + ('"'+$Title+'"'))
@@ -144,7 +148,7 @@ if ($AllUsers -and -not (Test-IsAdmin)) {
     if ($BackgroundArguments) { $args += ('-BackgroundArguments ' + ('"'+$BackgroundArguments+'"')) }
     if ($Icon)                { $args += ('-Icon ' + ('"'+$Icon+'"')) }
     if ($KeyName)             { $args += ('-KeyName ' + ('"'+$KeyName+'"')) }
-    if ($Targets)             { $args += ($Targets | ForEach-Object { '-Targets ' + $_ }) }  # pass each target explicitly
+    if ($Targets)             { $args += ($Targets | ForEach-Object { '-Targets ' + $_ }) }
     if ($Revert)              { $args += '-Revert' }
     if ($AllUsers)            { $args += '-AllUsers' }
     if ($RestartExplorer)     { $args += '-RestartExplorer' }
@@ -157,7 +161,6 @@ if ($AllUsers -and -not (Test-IsAdmin)) {
 # ---------------- Main logic ----------------
 
 $root = Get-RootHive -Machine:$AllUsers
-
 if (-not $KeyName) { $KeyName = Get-SafeKeyNameFromTitle -Title $Title }
 
 # Per-target defaults
@@ -174,10 +177,14 @@ foreach ($t in $Targets) {
     $commandSubPath = Join-Path $itemSubPath 'command'
     $commandKeyPath = Join-Path $root $commandSubPath
 
+    # Escape paths for wildcard-safe -Path usage
+    $itemKeyPathEsc    = Escape-RegistryPath $itemKeyPath
+    $commandKeyPathEsc = Escape-RegistryPath $commandKeyPath
+
     if ($Revert) {
         try {
-            if (Test-Path -LiteralPath $itemKeyPath) {
-                Remove-Item -LiteralPath $itemKeyPath -Recurse -Force
+            if (Test-Path -Path $itemKeyPathEsc) {
+                Remove-Item -Path $itemKeyPathEsc -Recurse -Force
                 Write-Host "Removed $t context item at: ${itemSubPath}"
                 if ($Report) { $Report.Succeeded += $t }
             } else {
@@ -197,26 +204,26 @@ foreach ($t in $Targets) {
     # Create/Update
     try {
         # Ensure keys exist
-        $null = New-Item -LiteralPath $itemKeyPath -Force -ErrorAction Stop
-        $null = New-Item -LiteralPath $commandKeyPath -Force -ErrorAction Stop
+        $null = New-Item -Path $itemKeyPathEsc -Force
+        $null = New-Item -Path $commandKeyPathEsc -Force
 
-        # Menu text: default value and MUIVerb
-        # Set default value (unnamed)
-        Set-ItemProperty -LiteralPath $itemKeyPath -Name '(default)' -Value $Title -ErrorAction SilentlyContinue
+        # Default menu text (unnamed value) and MUIVerb
+        # Default value:
+        Set-ItemProperty -Path $itemKeyPathEsc -Name '(default)' -Value $Title -ErrorAction SilentlyContinue
         # Also set MUIVerb explicitly
-        New-ItemProperty -LiteralPath $itemKeyPath -Name 'MUIVerb' -Value $Title -PropertyType String -Force | Out-Null
+        New-ItemProperty -Path $itemKeyPathEsc -Name 'MUIVerb' -Value $Title -PropertyType String -Force | Out-Null
 
         # Optional icon
         if ($Icon) {
-            New-ItemProperty -LiteralPath $itemKeyPath -Name 'Icon' -Value $Icon -PropertyType String -Force | Out-Null
+            New-ItemProperty -Path $itemKeyPathEsc -Name 'Icon' -Value $Icon -PropertyType String -Force | Out-Null
         }
 
         # Build command line
         $argTpl = if ($t -eq 'Background') { $BackgroundArguments } else { $Arguments }
         $cmd    = Build-CommandLine -ExePath $CommandPath -ArgTemplate $argTpl
 
-        # Set command
-        New-ItemProperty -LiteralPath $commandKeyPath -Name '(default)' -Value $cmd -PropertyType String -Force | Out-Null
+        # Set command default value
+        New-ItemProperty -Path $commandKeyPathEsc -Name '(default)' -Value $cmd -PropertyType String -Force | Out-Null
 
         Write-Host "Added/Updated $t context item: ${itemSubPath}"
         Write-Host "  Command = $cmd"
