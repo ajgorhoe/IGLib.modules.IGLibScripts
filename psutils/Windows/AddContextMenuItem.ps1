@@ -4,16 +4,15 @@
 
 .DESCRIPTION
   Creates (or removes with -Revert) the registry keys for a classic shell verb under:
-    • Current user: HKCU:\Software\Classes\...
-    • All users   : HKLM:\Software\Classes\...  (requires elevation)
+    • Current user: HKCU\Software\Classes\...
+    • All users   : HKLM\Software\Classes\...  (requires elevation)
 
   Targets:
     - Files       → *\shell\<KeyName>\command      (argument default: "%1")
     - Directories → Directory\shell\<KeyName>\command
     - Background  → Directory\Background\shell\<KeyName>\command (argument default: "%V")
 
-  The item key's default value and "MUIVerb" are both set to the Title for compatibility.
-  The command's default value is the quoted CommandPath plus the chosen argument placeholder.
+  Uses the Microsoft.Win32.Registry .NET API to avoid wildcard issues with the registry provider.
 
 .PARAMETER Title
   Menu caption to show (e.g., "Open with VS Code").
@@ -40,7 +39,7 @@
   Remove the item for the selected targets instead of creating it.
 
 .PARAMETER AllUsers
-  Write under HKLM:\Software\Classes for all users (requires elevation).
+  Write under HKLM\Software\Classes for all users (requires elevation).
   Prints a concise summary at the end.
 
 .PARAMETER RestartExplorer
@@ -82,9 +81,13 @@ function Restart-Explorer {
     }
 }
 
-function Get-RootHive {
+function Get-ClassesRootKey {
     param([switch]$Machine)
-    if ($Machine) { return 'HKLM:\Software\Classes' } else { return 'HKCU:\Software\Classes' }
+    if ($Machine) {
+        return [Microsoft.Win32.Registry]::LocalMachine.OpenSubKey('Software\Classes', $true)
+    } else {
+        return [Microsoft.Win32.Registry]::CurrentUser.OpenSubKey('Software\Classes', $true)
+    }
 }
 
 function Get-ItemSubPath {
@@ -110,17 +113,10 @@ function Get-SafeKeyNameFromTitle {
     return $k
 }
 
-# Escape wildcards for -Path (so literal '*' works under \Software\Classes\*\...)
-function Escape-RegistryPath {
-    param([string]$Path)
-    # escape * and ? for the wildcard-aware -Path parameters
-    return ($Path -replace '\*','`*' -replace '\?','`?')
-}
-
 # --- Summary helpers for AddContextMenuItem (HKLM path) --------------------
 function New-HKLMReport {
     [ordered]@{
-        RootHive      = 'HKLM:\Software\Classes'
+        RootHive      = 'HKLM\Software\Classes'
         Succeeded     = @()
         Failed        = @()
         FailedDetails = @()
@@ -140,6 +136,7 @@ function Write-HKLMReport {
 
 if ($AllUsers -and -not (Test-IsAdmin)) {
     Write-Host "Elevation required. Relaunching as administrator..."
+    # Re-launch self with same params, plus a brief sleep so the window stays visible
     $script = '"' + $PSCommandPath + '"'
     $args   = @()
     $args += ('-Title ' + ('"'+$Title+'"'))
@@ -158,72 +155,72 @@ if ($AllUsers -and -not (Test-IsAdmin)) {
     exit
 }
 
-# ---------------- Main logic ----------------
+# ---------------- Main logic (using Microsoft.Win32.Registry) ----------------
 
-$root = Get-RootHive -Machine:$AllUsers
 if (-not $KeyName) { $KeyName = Get-SafeKeyNameFromTitle -Title $Title }
-
-# Per-target defaults
 if (-not $Arguments)           { $Arguments = '"%1"' }
 if (-not $BackgroundArguments) { $BackgroundArguments = '"%V"' }
 
-# Initialize HKLM summary if needed
-$Report = $null
-if ($AllUsers) { $Report = New-HKLMReport }
+$rootKey = Get-ClassesRootKey -Machine:$AllUsers
+if (-not $rootKey) {
+    Write-Error "Failed to open $(if ($AllUsers) { 'HKLM' } else { 'HKCU' })\Software\Classes for write."
+    exit 1
+}
+
+$Report = if ($AllUsers) { New-HKLMReport } else { $null }
 
 foreach ($t in $Targets) {
-    $itemSubPath    = Get-ItemSubPath -Target $t -KeyName $KeyName
-    $itemKeyPath    = Join-Path $root $itemSubPath
-    $commandSubPath = Join-Path $itemSubPath 'command'
-    $commandKeyPath = Join-Path $root $commandSubPath
-
-    # Escape paths for wildcard-safe -Path usage
-    $itemKeyPathEsc    = Escape-RegistryPath $itemKeyPath
-    $commandKeyPathEsc = Escape-RegistryPath $commandKeyPath
+    $itemSubPath    = Get-ItemSubPath -Target $t -KeyName $KeyName     # e.g. "*\shell\Open_with_VS_Code"
+    $commandSubPath = "$itemSubPath\command"
 
     if ($Revert) {
         try {
-            if (Test-Path -Path $itemKeyPathEsc) {
-                Remove-Item -Path $itemKeyPathEsc -Recurse -Force
-                Write-Host "Removed $t context item at: ${itemSubPath}"
-                if ($Report) { $Report.Succeeded += $t }
+            $rootKey.DeleteSubKeyTree($itemSubPath, $false)
+            Write-Host "Removed $t context item at: ${itemSubPath}"
+            if ($Report) { $Report.Succeeded += $t }
+        } catch {
+            # If it doesn't exist, treat as success; otherwise record failure
+            if ($_.Exception -and ($_.Exception.Message -notmatch 'cannot find the subkey')) {
+                Write-Warning "Failed to remove $t at ${itemSubPath}: $($_.Exception.Message)"
+                if ($Report) {
+                    $Report.Failed        += $t
+                    $Report.FailedDetails += "${t}: $($_.Exception.Message)"
+                }
             } else {
                 Write-Host "Nothing to remove for $t at: ${itemSubPath}"
                 if ($Report) { $Report.Succeeded += $t }
-            }
-        } catch {
-            Write-Warning "Failed to remove $t at ${itemSubPath}: $($_.Exception.Message)"
-            if ($Report) {
-                $Report.Failed        += $t
-                $Report.FailedDetails += "${t}: $($_.Exception.Message)"
             }
         }
         continue
     }
 
-    # Create/Update
+    # Create or open the item and command keys
     try {
-        # Ensure keys exist
-        $null = New-Item -Path $itemKeyPathEsc -Force
-        $null = New-Item -Path $commandKeyPathEsc -Force
+        $itemKey    = $rootKey.CreateSubKey($itemSubPath)    # returns a writable RegistryKey
+        $commandKey = $rootKey.CreateSubKey($commandSubPath)
 
-        # Default menu text (unnamed value) and MUIVerb
-        # Default value:
-        Set-ItemProperty -Path $itemKeyPathEsc -Name '(default)' -Value $Title -ErrorAction SilentlyContinue
-        # Also set MUIVerb explicitly
-        New-ItemProperty -Path $itemKeyPathEsc -Name 'MUIVerb' -Value $Title -PropertyType String -Force | Out-Null
+        if (-not $itemKey -or -not $commandKey) {
+            throw "CreateSubKey returned null for '${itemSubPath}' or '${commandSubPath}'."
+        }
+
+        # Set menu text (default value and MUIVerb)
+        $itemKey.SetValue('', $Title, [Microsoft.Win32.RegistryValueKind]::String)
+        $itemKey.SetValue('MUIVerb', $Title, [Microsoft.Win32.RegistryValueKind]::String)
 
         # Optional icon
         if ($Icon) {
-            New-ItemProperty -Path $itemKeyPathEsc -Name 'Icon' -Value $Icon -PropertyType String -Force | Out-Null
+            $itemKey.SetValue('Icon', $Icon, [Microsoft.Win32.RegistryValueKind]::String)
         }
 
-        # Build command line
+        # Build and set command line
         $argTpl = if ($t -eq 'Background') { $BackgroundArguments } else { $Arguments }
         $cmd    = Build-CommandLine -ExePath $CommandPath -ArgTemplate $argTpl
 
-        # Set command default value
-        New-ItemProperty -Path $commandKeyPathEsc -Name '(default)' -Value $cmd -PropertyType String -Force | Out-Null
+        $commandKey.SetValue('', $cmd, [Microsoft.Win32.RegistryValueKind]::String)
+
+        # Close handles
+        $commandKey.Close()
+        $itemKey.Close()
 
         Write-Host "Added/Updated $t context item: ${itemSubPath}"
         Write-Host "  Command = $cmd"
@@ -239,6 +236,9 @@ foreach ($t in $Targets) {
     }
 }
 
-if ($AllUsers -and $Report) { Write-HKLMReport -Report $Report }
+# Print summary for HKLM (AllUsers)
+if ($Report) { Write-HKLMReport -Report $Report }
 
+# Cleanup and optional Explorer restart
+$rootKey.Close()
 if ($RestartExplorer) { Restart-Explorer }
