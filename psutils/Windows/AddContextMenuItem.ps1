@@ -144,7 +144,7 @@ if ($AllUsers -and -not (Test-IsAdmin)) {
     if ($BackgroundArguments) { $args += ('-BackgroundArguments ' + ('"'+$BackgroundArguments+'"')) }
     if ($Icon)                { $args += ('-Icon ' + ('"'+$Icon+'"')) }
     if ($KeyName)             { $args += ('-KeyName ' + ('"'+$KeyName+'"')) }
-    if ($Targets)             { $args += ('-Targets ' + ($Targets -join ',')) }
+    if ($Targets)             { $args += ($Targets | ForEach-Object { '-Targets ' + $_ }) }  # pass each target explicitly
     if ($Revert)              { $args += '-Revert' }
     if ($AllUsers)            { $args += '-AllUsers' }
     if ($RestartExplorer)     { $args += '-RestartExplorer' }
@@ -188,7 +188,7 @@ foreach ($t in $Targets) {
             Write-Warning "Failed to remove $t at ${itemSubPath}: $($_.Exception.Message)"
             if ($Report) {
                 $Report.Failed        += $t
-                $Report.FailedDetails += "$t: $($_.Exception.Message)"
+                $Report.FailedDetails += "${t}: $($_.Exception.Message)"
             }
         }
         continue
@@ -201,8 +201,9 @@ foreach ($t in $Targets) {
         $null = New-Item -LiteralPath $commandKeyPath -Force -ErrorAction Stop
 
         # Menu text: default value and MUIVerb
-        New-ItemProperty -LiteralPath $itemKeyPath -Name '(default)' -Value $Title -Force -ErrorAction SilentlyContinue | Out-Null
+        # Set default value (unnamed)
         Set-ItemProperty -LiteralPath $itemKeyPath -Name '(default)' -Value $Title -ErrorAction SilentlyContinue
+        # Also set MUIVerb explicitly
         New-ItemProperty -LiteralPath $itemKeyPath -Name 'MUIVerb' -Value $Title -PropertyType String -Force | Out-Null
 
         # Optional icon
@@ -226,7 +227,7 @@ foreach ($t in $Targets) {
         Write-Warning "Failed to create/update $t at ${itemSubPath}: $($_.Exception.Message)"
         if ($Report) {
             $Report.Failed        += $t
-            $Report.FailedDetails += "$t: $($_.Exception.Message)"
+            $Report.FailedDetails += "${t}: $($_.Exception.Message)"
         }
     }
 }
