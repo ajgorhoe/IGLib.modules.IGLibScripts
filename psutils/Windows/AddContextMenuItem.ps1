@@ -128,32 +128,6 @@ function Write-HKLMReport {
 # Helper: single-quote and escape for -Command string
 function SQ { param([string]$s) if ($null -eq $s) { "''" } else { "'" + ($s -replace "'", "''") + "'" } }
 
-# ------------- Elevation for -AllUsers (robust quoting; Targets as array literal) -------------
-
-if ($AllUsers -and -not (Test-IsAdmin)) {
-    Write-Host "Elevation required. Relaunching as administrator..."
-
-    $scriptSingleQuoted = SQ $PSCommandPath
-
-    $args = @()
-    $args += ('-Title ' + (SQ $Title))
-    $args += ('-CommandPath ' + (SQ $CommandPath))
-    if ($Arguments)           { $args += ('-Arguments ' + (SQ $Arguments)) }
-    if ($BackgroundArguments) { $args += ('-BackgroundArguments ' + (SQ $BackgroundArguments)) }
-    if ($Icon)                { $args += ('-Icon ' + (SQ $Icon)) }
-    if ($KeyName)             { $args += ('-KeyName ' + (SQ $KeyName)) }
-    if ($Targets)             { $args += ('-Targets ' + ($Targets -join ',')) }  # NOTE: unquoted, comma-separated
-    if ($Revert)              { $args += '-Revert' }
-    if ($AllUsers)            { $args += '-AllUsers' }
-    if ($RestartExplorer)     { $args += '-RestartExplorer' }
-
-    # Build final -Command string. Ensure the Targets token remains unquoted.
-    $joined = ($args -join ' ')
-    $full   = "& $scriptSingleQuoted $joined; Start-Sleep -Seconds 6"
-
-    Start-Process powershell.exe -Verb RunAs -ArgumentList "-NoProfile -ExecutionPolicy Bypass -Command $full"
-    exit
-}
 
 # ------------- Auxiliary functions for printing passed parameters: -------------
 
@@ -191,23 +165,51 @@ function Write-Array {
     }
 }
 
-# ---------------- Main logic (using Microsoft.Win32.Registry) ----------------
+# ------------------- Start of main script logic -------------------
 
+# Output of intro and parameters passed to the script:
 Write-Host "`nAdding or removing Explorer menu item ($($MyInvocation.MyCommand.Name))..." -ForegroundColor Green
 Write-Host "`nScript parameters:"
 Write-HashTable $PSBoundParameters
 Write-Host "  Positional:"
 Write-Array $args
 
-
-
-# Below debug code causes an error, commented for now:
+# # Below debug code causes an error, commented for now:
 # # DEBUG: show bound parameters once
 # if ($PSBoundParameters.Count) {
 #   Write-Host ("`n[DEBUG] Bound params: " + ($PSBoundParameters.Keys | Sort-Object | ForEach-Object {
 #     "$_=$($PSBoundParameters[$_]-join ',')"
 #   } | Join-String -Separator '  '))
 # }
+
+# ------------- Elevation for -AllUsers (robust quoting; Targets as array literal) -------------
+
+if ($AllUsers -and -not (Test-IsAdmin)) {
+    Write-Host "Elevation required. Relaunching as administrator..."
+
+    $scriptSingleQuoted = SQ $PSCommandPath
+
+    $args = @()
+    $args += ('-Title ' + (SQ $Title))
+    $args += ('-CommandPath ' + (SQ $CommandPath))
+    if ($Arguments)           { $args += ('-Arguments ' + (SQ $Arguments)) }
+    if ($BackgroundArguments) { $args += ('-BackgroundArguments ' + (SQ $BackgroundArguments)) }
+    if ($Icon)                { $args += ('-Icon ' + (SQ $Icon)) }
+    if ($KeyName)             { $args += ('-KeyName ' + (SQ $KeyName)) }
+    if ($Targets)             { $args += ('-Targets ' + ($Targets -join ',')) }  # NOTE: unquoted, comma-separated
+    if ($Revert)              { $args += '-Revert' }
+    if ($AllUsers)            { $args += '-AllUsers' }
+    if ($RestartExplorer)     { $args += '-RestartExplorer' }
+
+    # Build final -Command string. Ensure the Targets token remains unquoted.
+    $joined = ($args -join ' ')
+    $full   = "& $scriptSingleQuoted $joined; Start-Sleep -Seconds 6"
+
+    Start-Process powershell.exe -Verb RunAs -ArgumentList "-NoProfile -ExecutionPolicy Bypass -Command $full"
+    exit
+}
+
+# ---------------- Main logic (using Microsoft.Win32.Registry) ----------------
 
 if (-not $KeyName) { $KeyName = Get-SafeKeyNameFromTitle -Title $Title }
 if (-not $Arguments)           { $Arguments = '"%1"' }
