@@ -9,7 +9,7 @@
 
   Targets:
     - Files       → *\shell\<KeyName>\command      (argument default: "%1")
-    - Directories → Directory\shell\<KeyName>\command
+    - Directories → Directory\shell\<KeyName}\command
     - Background  → Directory\Background\shell\<KeyName>\command (argument default: "%V")
 
   Uses the Microsoft.Win32.Registry .NET API to avoid wildcard issues with the registry provider.
@@ -128,7 +128,7 @@ function Write-HKLMReport {
 # Helper: single-quote and escape for -Command string
 function SQ { param([string]$s) if ($null -eq $s) { "''" } else { "'" + ($s -replace "'", "''") + "'" } }
 
-# ------------- Elevation for -AllUsers (robust quoting) -------------
+# ------------- Elevation for -AllUsers (robust quoting; Targets as array literal) -------------
 
 if ($AllUsers -and -not (Test-IsAdmin)) {
     Write-Host "Elevation required. Relaunching as administrator..."
@@ -142,13 +142,13 @@ if ($AllUsers -and -not (Test-IsAdmin)) {
     if ($BackgroundArguments) { $args += ('-BackgroundArguments ' + (SQ $BackgroundArguments)) }
     if ($Icon)                { $args += ('-Icon ' + (SQ $Icon)) }
     if ($KeyName)             { $args += ('-KeyName ' + (SQ $KeyName)) }
-    if ($Targets)             { $args += ('-Targets ' + (SQ ($Targets -join ','))) }  # pass once, comma-separated, quoted
+    if ($Targets)             { $args += ('-Targets ' + ($Targets -join ',')) }  # NOTE: unquoted, comma-separated
     if ($Revert)              { $args += '-Revert' }
     if ($AllUsers)            { $args += '-AllUsers' }
     if ($RestartExplorer)     { $args += '-RestartExplorer' }
 
-    $joined = $args -join ' '
-    # Build a -Command that runs our script with the args, then sleeps 6s so output stays visible
+    # Build final -Command string. Ensure the Targets token remains unquoted.
+    $joined = ($args -join ' ')
     $full   = "& $scriptSingleQuoted $joined; Start-Sleep -Seconds 6"
 
     Start-Process powershell.exe -Verb RunAs -ArgumentList "-NoProfile -ExecutionPolicy Bypass -Command $full"
