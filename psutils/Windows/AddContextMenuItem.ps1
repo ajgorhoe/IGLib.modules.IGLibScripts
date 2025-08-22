@@ -61,8 +61,6 @@ param(
     [switch]$RestartExplorer
 )
 
-# ---------------- Utilities ----------------
-
 function Test-IsAdmin {
     try {
         $id  = [Security.Principal.WindowsIdentity]::GetCurrent()
@@ -70,7 +68,6 @@ function Test-IsAdmin {
         return $pr.IsInRole([Security.Principal.WindowsBuiltinRole]::Administrator)
     } catch { return $false }
 }
-
 function Restart-Explorer {
     Write-Host "Restarting Windows Explorer..."
     try {
@@ -80,7 +77,6 @@ function Restart-Explorer {
         Write-Warning "Failed to restart Explorer: $($_.Exception.Message)"
     }
 }
-
 function Get-ClassesRootKey {
     param([switch]$Machine)
     if ($Machine) {
@@ -89,7 +85,6 @@ function Get-ClassesRootKey {
         return [Microsoft.Win32.Registry]::CurrentUser.OpenSubKey('Software\Classes', $true)
     }
 }
-
 function Get-ItemSubPath {
     param([ValidateSet('Files','Directories','Background')] [string]$Target, [string]$KeyName)
     switch ($Target) {
@@ -98,14 +93,12 @@ function Get-ItemSubPath {
         'Background'  { return "Directory\Background\shell\$KeyName" }
     }
 }
-
 function Build-CommandLine {
     param([string]$ExePath, [string]$ArgTemplate)
     $quotedExe = '"' + $ExePath + '"'
     if ([string]::IsNullOrWhiteSpace($ArgTemplate)) { return $quotedExe }
     return "$quotedExe $ArgTemplate"
 }
-
 function Get-SafeKeyNameFromTitle {
     param([string]$Title)
     $k = ($Title -replace '[^A-Za-z0-9]+','_').Trim('_')
@@ -132,11 +125,10 @@ function Write-HKLMReport {
     }
 }
 
-# ------------- Elevation for -AllUsers -------------
+# ------------- Elevation for -AllUsers (FIXED Targets passing) -------------
 
 if ($AllUsers -and -not (Test-IsAdmin)) {
     Write-Host "Elevation required. Relaunching as administrator..."
-    # Re-launch self with same params, plus a brief sleep so the window stays visible
     $script = '"' + $PSCommandPath + '"'
     $args   = @()
     $args += ('-Title ' + ('"'+$Title+'"'))
@@ -145,7 +137,7 @@ if ($AllUsers -and -not (Test-IsAdmin)) {
     if ($BackgroundArguments) { $args += ('-BackgroundArguments ' + ('"'+$BackgroundArguments+'"')) }
     if ($Icon)                { $args += ('-Icon ' + ('"'+$Icon+'"')) }
     if ($KeyName)             { $args += ('-KeyName ' + ('"'+$KeyName+'"')) }
-    if ($Targets)             { $args += ($Targets | ForEach-Object { '-Targets ' + $_ }) }
+    if ($Targets)             { $args += ('-Targets ' + ($Targets -join ',')) }   # <-- pass once, comma-separated
     if ($Revert)              { $args += '-Revert' }
     if ($AllUsers)            { $args += '-AllUsers' }
     if ($RestartExplorer)     { $args += '-RestartExplorer' }
@@ -170,7 +162,7 @@ if (-not $rootKey) {
 $Report = if ($AllUsers) { New-HKLMReport } else { $null }
 
 foreach ($t in $Targets) {
-    $itemSubPath    = Get-ItemSubPath -Target $t -KeyName $KeyName     # e.g. "*\shell\Open_with_VS_Code"
+    $itemSubPath    = Get-ItemSubPath -Target $t -KeyName $KeyName
     $commandSubPath = "$itemSubPath\command"
 
     if ($Revert) {
@@ -179,7 +171,6 @@ foreach ($t in $Targets) {
             Write-Host "Removed $t context item at: ${itemSubPath}"
             if ($Report) { $Report.Succeeded += $t }
         } catch {
-            # If it doesn't exist, treat as success; otherwise record failure
             if ($_.Exception -and ($_.Exception.Message -notmatch 'cannot find the subkey')) {
                 Write-Warning "Failed to remove $t at ${itemSubPath}: $($_.Exception.Message)"
                 if ($Report) {
@@ -194,16 +185,15 @@ foreach ($t in $Targets) {
         continue
     }
 
-    # Create or open the item and command keys
     try {
-        $itemKey    = $rootKey.CreateSubKey($itemSubPath)    # returns a writable RegistryKey
+        $itemKey    = $rootKey.CreateSubKey($itemSubPath)    # writable RegistryKey
         $commandKey = $rootKey.CreateSubKey($commandSubPath)
 
         if (-not $itemKey -or -not $commandKey) {
             throw "CreateSubKey returned null for '${itemSubPath}' or '${commandSubPath}'."
         }
 
-        # Set menu text (default value and MUIVerb)
+        # Menu text (default + MUIVerb)
         $itemKey.SetValue('', $Title, [Microsoft.Win32.RegistryValueKind]::String)
         $itemKey.SetValue('MUIVerb', $Title, [Microsoft.Win32.RegistryValueKind]::String)
 
@@ -212,13 +202,11 @@ foreach ($t in $Targets) {
             $itemKey.SetValue('Icon', $Icon, [Microsoft.Win32.RegistryValueKind]::String)
         }
 
-        # Build and set command line
+        # Command line
         $argTpl = if ($t -eq 'Background') { $BackgroundArguments } else { $Arguments }
         $cmd    = Build-CommandLine -ExePath $CommandPath -ArgTemplate $argTpl
-
         $commandKey.SetValue('', $cmd, [Microsoft.Win32.RegistryValueKind]::String)
 
-        # Close handles
         $commandKey.Close()
         $itemKey.Close()
 
@@ -236,9 +224,7 @@ foreach ($t in $Targets) {
     }
 }
 
-# Print summary for HKLM (AllUsers)
 if ($Report) { Write-HKLMReport -Report $Report }
 
-# Cleanup and optional Explorer restart
 $rootKey.Close()
 if ($RestartExplorer) { Restart-Explorer }
