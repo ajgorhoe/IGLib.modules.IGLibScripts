@@ -155,7 +155,59 @@ if ($AllUsers -and -not (Test-IsAdmin)) {
     exit
 }
 
+# ------------- Auxiliary functions for printing passed parameters: -------------
+
+function Write-HashTable {
+    param(
+        [hashtable]$Table
+    )
+    if ($null -eq $Table) {
+        Write-Host "  NULL hashtable"
+        return
+    }
+    if ($Table.Count -eq 0) {
+        Write-Host "  EMPTY hashtable"
+        return
+    }
+    foreach ($key in $Table.Keys) {
+        Write-Host "  ${key}: $($Table[$key])"
+    }
+}
+
+function Write-Array {
+    param(
+        [object[]]$Array
+    )
+    if ($null -eq $Array) {
+        Write-Host "  NULL"
+        return
+    }
+    if ($Array.Count -eq 0) {
+        Write-Host "  EMPTY"
+        return
+    }
+    for ($i = 0; $i -lt $Array.Count; $i++) {
+        Write-Host "  ${i}: $($Array[$i])"
+    }
+}
+
 # ---------------- Main logic (using Microsoft.Win32.Registry) ----------------
+
+Write-Host "`nAdding or removing Explorer menu item ($($MyInvocation.MyCommand.Name))..." -ForegroundColor Green
+Write-Host "`nScript parameters:"
+Write-HashTable $PSBoundParameters
+Write-Host "  Positional:"
+Write-Array $args
+
+
+
+# Below debug code causes an error, commented for now:
+# # DEBUG: show bound parameters once
+# if ($PSBoundParameters.Count) {
+#   Write-Host ("`n[DEBUG] Bound params: " + ($PSBoundParameters.Keys | Sort-Object | ForEach-Object {
+#     "$_=$($PSBoundParameters[$_]-join ',')"
+#   } | Join-String -Separator '  '))
+# }
 
 if (-not $KeyName) { $KeyName = Get-SafeKeyNameFromTitle -Title $Title }
 if (-not $Arguments)           { $Arguments = '"%1"' }
