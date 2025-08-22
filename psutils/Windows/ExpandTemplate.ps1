@@ -479,6 +479,10 @@ Write-Host "`nScript parameters:"
 Write-HashTable $PSBoundParameters
 Write-Host "  Positional:"
 Write-Array $args
+Write-Host "Var:"
+Write-Array $Var
+Write-Host "Variables:"
+Write-HashTable $Variables
 Write-Host "`nTemplate path: `n  ${tplPath}"
 Write-Host ""
 
