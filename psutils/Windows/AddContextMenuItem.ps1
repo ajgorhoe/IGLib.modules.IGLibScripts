@@ -9,7 +9,7 @@
 
   Targets:
     - Files       → *\shell\<KeyName>\command      (argument default: "%1")
-    - Directories → Directory\shell\<KeyName}\command
+    - Directories → Directory\shell\<KeyName>\command
     - Background  → Directory\Background\shell\<KeyName>\command (argument default: "%V")
 
   Uses the Microsoft.Win32.Registry .NET API to avoid wildcard issues with the registry provider.
@@ -40,7 +40,7 @@
 
 .PARAMETER AllUsers
   Write under HKLM\Software\Classes for all users (requires elevation).
-  Prints a concise summary at the end.
+  NOTE: When combined with -Revert, this script now removes both HKLM (all users) and HKCU (current user).
 
 .PARAMETER RestartExplorer
   Restart Explorer after changes (affects current session only).
@@ -78,8 +78,8 @@ function Restart-Explorer {
     }
 }
 function Get-ClassesRootKey {
-    param([switch]$Machine)
-    if ($Machine) {
+    param([ValidateSet('HKCU','HKLM')][string]$Hive)
+    if ($Hive -eq 'HKLM') {
         return [Microsoft.Win32.Registry]::LocalMachine.OpenSubKey('Software\Classes', $true)
     } else {
         return [Microsoft.Win32.Registry]::CurrentUser.OpenSubKey('Software\Classes', $true)
@@ -106,19 +106,14 @@ function Get-SafeKeyNameFromTitle {
     return $k
 }
 
-# --- Summary helpers for AddContextMenuItem (HKLM path) --------------------
-function New-HKLMReport {
-    [ordered]@{
-        RootHive      = 'HKLM\Software\Classes'
-        Succeeded     = @()
-        Failed        = @()
-        FailedDetails = @()
-    }
+# Small summaries
+function New-HiveReport {
+    [ordered]@{ Hive = ''; Succeeded = @(); Failed = @(); FailedDetails = @() }
 }
-function Write-HKLMReport {
+function Write-HiveReport {
     param([hashtable]$Report)
     Write-Host ""
-    Write-Host "=== All-Users summary (HKLM\Software\Classes) ===" -ForegroundColor Cyan
+    Write-Host ("=== Summary ({0}\Software\Classes) ===" -f $Report.Hive) -ForegroundColor Cyan
     Write-Host ("Targets succeeded : {0}" -f ($(if ($Report.Succeeded.Count) { $Report.Succeeded -join ', ' } else { 'None' })))
     if ($Report.Failed.Count) {
         Write-Host ("Targets failed    : {0}" -f ($Report.Failed -join ', '))
@@ -173,25 +168,16 @@ Write-Host "`nScript parameters:"
 Write-HashTable $PSBoundParameters
 Write-Host "  Positional:"
 Write-Array $args
-Write-Host "Targets parameter:"
-Write-Array $Targets
+# Write-Host "Targets parameter:"
+# Write-Array $Targets
 Write-Host
-
-# # Below debug code causes an error, commented for now:
-# # DEBUG: show bound parameters once
-# if ($PSBoundParameters.Count) {
-#   Write-Host ("`n[DEBUG] Bound params: " + ($PSBoundParameters.Keys | Sort-Object | ForEach-Object {
-#     "$_=$($PSBoundParameters[$_]-join ',')"
-#   } | Join-String -Separator '  '))
-# }
 
 # ------------- Elevation for -AllUsers (robust quoting; Targets as array literal) -------------
 
 if ($AllUsers -and -not (Test-IsAdmin)) {
-    Write-Host "Elevation required. Relaunching as administrator..."
+    Write-Host "Elevation required. Relaunching $($MyInvocation.MyCommand.Name) as administrator..." -ForegroundColor Cyan
 
     $scriptSingleQuoted = SQ $PSCommandPath
-
     $args = @()
     $args += ('-Title ' + (SQ $Title))
     $args += ('-CommandPath ' + (SQ $CommandPath))
@@ -199,12 +185,11 @@ if ($AllUsers -and -not (Test-IsAdmin)) {
     if ($BackgroundArguments) { $args += ('-BackgroundArguments ' + (SQ $BackgroundArguments)) }
     if ($Icon)                { $args += ('-Icon ' + (SQ $Icon)) }
     if ($KeyName)             { $args += ('-KeyName ' + (SQ $KeyName)) }
-    if ($Targets)             { $args += ('-Targets ' + ($Targets -join ',')) }  # NOTE: unquoted, comma-separated
+    if ($Targets)             { $args += ('-Targets ' + ($Targets -join ',')) } # unquoted, comma-separated is fine in -Command
     if ($Revert)              { $args += '-Revert' }
     if ($AllUsers)            { $args += '-AllUsers' }
     if ($RestartExplorer)     { $args += '-RestartExplorer' }
 
-    # Build final -Command string. Ensure the Targets token remains unquoted.
     $joined = ($args -join ' ')
     $full   = "& $scriptSingleQuoted $joined; Start-Sleep -Seconds 6"
 
@@ -218,78 +203,94 @@ if (-not $KeyName) { $KeyName = Get-SafeKeyNameFromTitle -Title $Title }
 if (-not $Arguments)           { $Arguments = '"%1"' }
 if (-not $BackgroundArguments) { $BackgroundArguments = '"%V"' }
 
-$rootKey = Get-ClassesRootKey -Machine:$AllUsers
-if (-not $rootKey) {
-    Write-Error "Failed to open $(if ($AllUsers) { 'HKLM' } else { 'HKCU' })\Software\Classes for write."
-    exit 1
+# When -AllUsers -Revert, remove in both HKLM (global) AND HKCU (current user)
+$hivesToTouch = @()
+if ($AllUsers) {
+    if ($Revert) {
+        $hivesToTouch = @('HKLM','HKCU')
+    } else {
+        $hivesToTouch = @('HKLM')
+    }
+} else {
+    $hivesToTouch = @('HKCU')
 }
 
-$Report = if ($AllUsers) { New-HKLMReport } else { $null }
+$reports = @()
 
-foreach ($t in $Targets) {
-    $itemSubPath    = Get-ItemSubPath -Target $t -KeyName $KeyName
-    $commandSubPath = "$itemSubPath\command"
+foreach ($hive in $hivesToTouch) {
 
-    if ($Revert) {
-        try {
-            $rootKey.DeleteSubKeyTree($itemSubPath, $false)
-            Write-Host "Removed $t context item at: ${itemSubPath}"
-            if ($Report) { $Report.Succeeded += $t }
-        } catch {
-            if ($_.Exception -and ($_.Exception.Message -notmatch 'cannot find the subkey')) {
-                Write-Warning "Failed to remove $t at ${itemSubPath}: $($_.Exception.Message)"
-                if ($Report) {
-                    $Report.Failed        += $t
-                    $Report.FailedDetails += "${t}: $($_.Exception.Message)"
-                }
-            } else {
-                Write-Host "Nothing to remove for $t at: ${itemSubPath}"
-                if ($Report) { $Report.Succeeded += $t }
-            }
-        }
+    $rootKey = Get-ClassesRootKey -Hive $hive
+    if (-not $rootKey) {
+        Write-Error "Failed to open ${hive}\Software\Classes for write."
         continue
     }
 
-    try {
-        $itemKey    = $rootKey.CreateSubKey($itemSubPath)    # writable RegistryKey
-        $commandKey = $rootKey.CreateSubKey($commandSubPath)
+    $report = New-HiveReport
+    $report.Hive = $hive
 
-        if (-not $itemKey -or -not $commandKey) {
-            throw "CreateSubKey returned null for '${itemSubPath}' or '${commandSubPath}'."
+    foreach ($t in $Targets) {
+        $itemSubPath    = Get-ItemSubPath -Target $t -KeyName $KeyName
+        $commandSubPath = "$itemSubPath\command"
+
+        if ($Revert) {
+            try {
+                $rootKey.DeleteSubKeyTree($itemSubPath, $false)
+                Write-Host "Removed $t context item at: ${itemSubPath}  (${hive})"
+                $report.Succeeded += $t
+            } catch {
+                if ($_.Exception -and ($_.Exception.Message -notmatch 'cannot find the subkey')) {
+                    Write-Warning "Failed to remove $t at ${itemSubPath} (${hive}): $($_.Exception.Message)"
+                    $report.Failed        += $t
+                    $report.FailedDetails += "${t}: $($_.Exception.Message)"
+                } else {
+                    Write-Host "Nothing to remove for $t at: ${itemSubPath}  (${hive})"
+                    $report.Succeeded += $t
+                }
+            }
+            continue
         }
 
-        # Menu text (default + MUIVerb)
-        $itemKey.SetValue('', $Title, [Microsoft.Win32.RegistryValueKind]::String)
-        $itemKey.SetValue('MUIVerb', $Title, [Microsoft.Win32.RegistryValueKind]::String)
+        try {
+            $itemKey    = $rootKey.CreateSubKey($itemSubPath)    # writable RegistryKey
+            $commandKey = $rootKey.CreateSubKey($commandSubPath)
 
-        # Optional icon
-        if ($Icon) {
-            $itemKey.SetValue('Icon', $Icon, [Microsoft.Win32.RegistryValueKind]::String)
-        }
+            if (-not $itemKey -or -not $commandKey) {
+                throw "CreateSubKey returned null for '${itemSubPath}' or '${commandSubPath}'."
+            }
 
-        # Command line
-        $argTpl = if ($t -eq 'Background') { $BackgroundArguments } else { $Arguments }
-        $cmd    = Build-CommandLine -ExePath $CommandPath -ArgTemplate $argTpl
-        $commandKey.SetValue('', $cmd, [Microsoft.Win32.RegistryValueKind]::String)
+            # Menu text (default + MUIVerb)
+            $itemKey.SetValue('', $Title, [Microsoft.Win32.RegistryValueKind]::String)
+            $itemKey.SetValue('MUIVerb', $Title, [Microsoft.Win32.RegistryValueKind]::String)
 
-        $commandKey.Close()
-        $itemKey.Close()
+            # Optional icon
+            if ($Icon) { $itemKey.SetValue('Icon', $Icon, [Microsoft.Win32.RegistryValueKind]::String) }
 
-        Write-Host "Added/Updated $t context item: ${itemSubPath}"
-        Write-Host "  Command = $cmd"
-        if ($Icon) { Write-Host "  Icon    = $Icon" }
+            # Command line
+            $argTpl = if ($t -eq 'Background') { $BackgroundArguments } else { $Arguments }
+            $cmd    = Build-CommandLine -ExePath $CommandPath -ArgTemplate $argTpl
+            $commandKey.SetValue('', $cmd, [Microsoft.Win32.RegistryValueKind]::String)
 
-        if ($Report) { $Report.Succeeded += $t }
-    } catch {
-        Write-Warning "Failed to create/update $t at ${itemSubPath}: $($_.Exception.Message)"
-        if ($Report) {
-            $Report.Failed        += $t
-            $Report.FailedDetails += "${t}: $($_.Exception.Message)"
+            $commandKey.Close(); $itemKey.Close()
+
+            Write-Host "Added/Updated $t context item: ${itemSubPath}  (${hive})"
+            Write-Host "  Command = $cmd"
+            if ($Icon) { Write-Host "  Icon    = $Icon" }
+
+            $report.Succeeded += $t
+        } catch {
+            Write-Warning "Failed to create/update $t at ${itemSubPath} (${hive}): $($_.Exception.Message)"
+            $report.Failed        += $t
+            $report.FailedDetails += "${t}: $($_.Exception.Message)"
         }
     }
+
+    $rootKey.Close()
+    $reports += $report
 }
 
-if ($Report) { Write-HKLMReport -Report $Report }
+# Print per-hive summaries
+foreach ($r in $reports) { Write-HiveReport -Report $r }
 
-$rootKey.Close()
 if ($RestartExplorer) { Restart-Explorer }
+
+Write-Host "`n  ... adding or removing Explorer menu item ($($MyInvocation.MyCommand.Name)) completed.`n" -ForegroundColor Green
