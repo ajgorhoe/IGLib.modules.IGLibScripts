@@ -362,8 +362,8 @@ Special-case: `.reg` (registry script files) outputs to the required **UTF-16 LE
     * `{{ env.USERNAME }}`
     * `{{ var.ScriptFile }}`
 * **Namespaces**:
-  * `var.<Name>` – user-provided variables (via `-Variables @{ ... }` or `-Variable Name Value`).
-  * `env.<NAME>` – environment variables (e.g., `env.USERNAME`, `env.LOCALAPPDATA`).
+  * `var.<Name>` - user-provided variables (via `-Variables @{ ... }` or `-Variable Name Value`).
+  * `env.<NAME>` - environment variables (e.g., `env.USERNAME`, `env.LOCALAPPDATA`). Note that on Linux, environment variable names are case sensitive.
   * *(Reserved for future)* `ps:` – evaluate PowerShell expressions (not implemented yet).
 * **Filters** (chainable):
   * `regq` - escapes quotes (replaces `"` => `\"`); used e.g. for .reg (Windows Registry script) files
