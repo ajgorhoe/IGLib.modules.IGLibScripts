@@ -1,0 +1,47 @@
+
+# This is an example template file that can be processed by using the template
+# expansion script "ExpandTemplate.ps1" (a simple template engine).
+# In this file, line comments starting with # are used in order to provide 
+# some context information.
+# The file contains various kinds of placeholders, which can be understood and
+# are substituted by the template engine to generate the text file (named as
+# the current file, but without the .tmpl extension).
+# This template file contain various kinds of placeholders (to substitute 
+# environment variables or user-provided variables in form of user variables
+# (i.e., key-value pairs), with different kinds of filters applied, or without
+# filters).
+# To generate the text file from this template, you can use PowerShell code 
+# snippets provided by Samples_GenerateFileFromTemplate.ps1, which are related
+# to this file. 
+
+# The following environment variables need to be defined for successful
+# generation (suggested values are also provided):
+#   ENVPATHWIN = C:\Users\Uporabnik\Documents\MyDoc.md
+#   ENVPATHUNIX = /home/uporabnik/doc/MyDoc.md
+#   ENVSIMPLE = EnvSimpleValue
+#   ENVLONGER = Value ot the environment variable (longer)
+
+# The following user-provided variables need to be defined:
+#   MyVarSimple = North
+#   MyVarLong = This is a longer variable used to demonstrate complex filters.
+#   PathWin = C:\Program Files (x86)\Microsoft SQL Server\
+#   PathUnix = ~/doc/MyDoc.md
+
+# SIMPLE PLACEHOLDERS:
+
+# Simple placeholders to substitute environment variables:
+The value of environment variable ENVSIMPLE is {{ env.ENVSIMPLE }}. The path
+stored in ENVPATHWIN is:
+  {{ env.ENVPATHWIN }}
+On the other hand, the path stored in ENVPATHUNIX is:
+  {{ env.ENVPATHUNIX }}
+
+# Simple placeholders to substitute user-provided values (via variables):
+The user-provided value of MyVarSimple is {{ var.MyVarSimple }}. The quoted value 
+of MyVarLong is: "{{ var.MyVarLong }}"
+
+# PLACEHOLDERS WITH FILTERS to transform values:
+
+
+
+

@@ -1,5 +1,5 @@
 
-# This file contains PowerShell snippets that demonstrate how use the
+# This file contains PowerShell snippets that demonstrate how to use the
 # template engine implemented in ExpandTemplate.ps1 in order to generate
 # Registry script files.
 # The generated Registry script files cause creation of Windows Explorer's
