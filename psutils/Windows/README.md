@@ -13,6 +13,27 @@
   * [To Do](#notes---todo) - things that might be done in the future
   * [Possible Scripting Extensions of ExpandTemplate (the Scripting Engine)](#notes---possible-scripting-extensions-of-the-expandtemplateps1-the-template-engine)
 
+## Quick To Do
+
+### Quick - Documentation - To Improve
+
+* In Examples for each script, **add a comment before each code snippet** that tells what the example does (what is the effect). For example:
+~~~powershell
+# Hides the taskbar; -RestartExplorer restarts the Windows Explorer, such that settings take effect.
+.\HideTaskbar.ps1 -RestartExplorer
+# Attempts to apply the registry changes that hide the taskbar to all users
+.\HideTaskbar.ps1 -AllUsers -RestartExplorer
+# Reverts the effect of the script / un-hides the taskbar (only fot the current user)
+.\HideTaskbar.ps1 -Revert -RestartExplorer
+~~~
+
+
+
+
+
+
+
+
 ## Miscellaneous Remarks
 
 ## Remarks on RemoveTaskbar.ps1
@@ -142,7 +163,6 @@ See:
 
 This idea is about allowing ***computed values*** inside templates. Recommended are two tiers of “power,” each with its own markup so users immediately understand the risk level:
 
-
 #### Tier 1 — Safe inline expressions (no commands)
 
 **Markup:** `{{ expr: <expression> | filters... }}`
@@ -155,7 +175,6 @@ This idea is about allowing ***computed values*** inside templates. Recommended 
   * `{{ expr: var.Title + ' (Portable)' | regq }}` → escapes quotes for `.reg`
 
 **Rationale**: This cowers majority of “computed text” needs without letting arbitrary PowerShell code run. Implementation can validate the expression (e.g., reject `| ; & > <` and command keywords), then evaluate via a tiny evaluator or a restricted `ScriptBlock` (see notes below).
-
 
 #### Tier 2 — Full PowerShell (opt-in)
 
