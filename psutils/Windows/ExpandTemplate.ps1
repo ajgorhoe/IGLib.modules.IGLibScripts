@@ -15,17 +15,21 @@
 
   Filters (applied left-to-right):
 
-    • trim        — String.Trim()
-    • upper       — Uppercase
-    • lower       — Lowercase
-    • regq        — Escape " as \" (e.g. for .reg REG_SZ lines)
-    • regesc      — Escape " as \" and \ as \\ (e.g. for paths in .reg REG_SZ lines)
-    • quote       — Wrap the whole value in double quotes
-    • append:"x"  — Append literal text x
+    • trim           - String.Trim()
+    • upper          - Uppercase
+    • lower          - Lowercase
+    • regq           - Escape " as \" (e.g. for .reg REG_SZ lines)
+    • regesc         - Escape " as \" and \ as \\ (e.g. for paths in .reg REG_SZ lines)
+    • quote          - Wrap the whole value in double quotes
+    • append:"text"  - Append literal text x
+    • prepend:"text" - Prepend literal text
     • pathappend:"\suffix" — Append a path suffix verbatim (no separator logic)
-    • addarg:"%1" — Append a space + quoted argument (e.g., `" "%1"` or `" "%V"`)
-    • expandsz    — Encode the current string as REG_EXPAND_SZ in .reg syntax:
-                     hex(2):aa,bb,... (UTF-16LE bytes with terminating 00 00)
+    • replace:"old":"new" - Replace all occurrences of old with new
+    • default:"fallback"  - Use fallback if the current value is empty
+    • pathquote      - Wrap in quotes if not already quoted
+    • addarg:"%1"    - Append a space + quoted argument (e.g., `" "%1"` or `" "%V"`)
+    • expandsz       - Encode the current string as REG_EXPAND_SZ in .reg syntax:
+                       hex(2):aa,bb,... (UTF-16LE bytes with terminating 00 00)
 
   Multi-line placeholders:
     Placeholders can span multiple lines and contain pipes on separate lines. Whitespace
@@ -342,6 +346,15 @@ function Apply-Filters {
     foreach ($f in $Pipeline) {
         $name = $f.name.ToLowerInvariant()
         $arg  = $f.arg
+        # --- PATCH: support multi-arg filters (non-breaking) ---
+        # Some older code only sets $f.arg; newer parser may also set $f.args (array).
+        $__args = @()
+        if ($f.PSObject.Properties.Name -contains 'args' -and $f.args) {
+            $__args = $f.args
+        } elseif ($null -ne $f.arg) {
+            $__args = @($f.arg)
+        }
+        # -------------------------------------------------------
 
         switch ($name) {
             'trim'       { $Value = $Value.Trim() }
@@ -351,9 +364,29 @@ function Apply-Filters {
             'regesc'     { $Value = $Value -replace '\\', '\\' -replace '"', '\"' }
             'quote'      { $Value = '"' + $Value + '"' }
             'append'     { $Value = $Value + ($(if ($null -ne $arg) { $arg } else { '' })) }
+            'prepend'    {
+                $Value = ($(if ($null -ne $f.arg) { $f.arg } else { '' })) + $Value
+            }
             'pathappend' { $Value = $Value + ($(if ($null -ne $arg) { $arg } else { '' })) }
+            'pathquote'  {
+                # Quote only if not already quoted (tolerates surrounding whitespace)
+                if ($Value -notmatch '^\s*".*"\s*$') { $Value = '"' + $Value + '"' }
+            }
             'addarg'     { $Value = $Value + ' "' + ($(if ($null -ne $arg) { $arg } else { '' })) + '"' }
-
+            'default'    {
+                if ([string]::IsNullOrWhiteSpace($Value)) {
+                    $Value = ($(if ($null -ne $f.arg) { $f.arg } else { '' }))
+                }
+            }
+            'replace'    {
+                # Literal replacement (no regex). Requires two args: old, new
+                if ($__args.Count -lt 2) {
+                    throw 'replace filter requires two arguments: replace:"old":"new"'
+                }
+                $old = $__args[0]
+                $new = $__args[1]
+                $Value = $Value.Replace($old, $new)
+            }
             'expandsz' {
                 # Encode as REG_EXPAND_SZ in .reg hex(2) form (UTF-16LE, null-terminated)
                 $bytes = [System.Text.Encoding]::Unicode.GetBytes($Value + [char]0)
