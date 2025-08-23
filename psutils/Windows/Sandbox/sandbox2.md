@@ -225,7 +225,7 @@ A minimal **WinForms** dialog to apply icon sizes:
 
 **Notes**
 
-* Built for simplicity; you already fixed a symbol display quirk by changing the warning glyph to “Warning: ”.
+* Built for simplicity.
 
 ---
 
@@ -247,7 +247,11 @@ Under the hood it uses the **.NET Registry API** (`Microsoft.Win32.Registry`) to
 * `-Arguments <string>` – default `"%1"` for Files/Directories.
 * `-BackgroundArguments <string>` – default `"%V"` for Background.
 * `-Icon <string>` – optional icon path.
-* `-Targets <Files|Directories|Background>[]` – one or more; default `Files,Directories`.
+* `-Targets <Files|Directories|Background>[]` – one or more; specifies for which objects the context menu item appears; default is `Files,Directories`.
+  * `Files` - the Explorer menu item appears when right-clicking a file in Windows Explorer or a compatible application (such as Total Commander)
+  * `Directories` - appears when right-clicking directories
+  * `Background` - appears when right-clicking empty space in Explorer
+
 * `-KeyName <string>` – registry key name; defaults to a safe version of the title.
 * `-Revert` – remove the item instead of creating.
 * `-AllUsers` – operate under **HKLM\Software\Classes** (global).
@@ -336,26 +340,43 @@ Returns whether the current PowerShell session is running as **Administrator**.
 ### `RunAsAdmin.ps1`
 
 **What it does:**
-Sample pattern for self-elevation: if not admin → relaunch the same script with arguments using `Start-Process -Verb RunAs` (UAC prompt), then exit the original.
+Sample pattern for self-elevation: if not admin → relaunch the same script with arguments using `Start-Process -Verb RunAs` (UAC prompt), then exit the original. This is just a demonstration script.
 
 ---
 
 ## Template Engine (`ExpandTemplate.ps1`)
 
 **Description**
-Generates final files from templates (`.tmpl`) by expanding placeholders. Special-cases `.reg` outputs to the required **UTF-16 LE** encoding (all other outputs are **UTF-8**).
+Generates final files from templates (`.tmpl`) by expanding dynamic placeholders. This enables the user to create files (templates) with parameterized content, which depend on user-provided values (via script argument, in form of variables) or on environment variables.
+
+Substitution of environment variables is convenient for dynamic insertion of OS-related stuff (such as current user name, home directory and other user-specific directories, content of the PATH environment variable), or values of user-defined environment variables within scripts and automated systems such as continuous integration/delivery.
+
+Special-case: `.reg` (registry script files) outputs to the required **UTF-16 LE** encoding (all other outputs are **UTF-8**).
 
 **Key features**
 
 * **Placeholders**: `{{ ... }}` with a **namespace** and optional **pipe** filters.
+  * General form: ``{{ Namespace.<Qualifier> < | Filter1 | Filter2 ... > }}``
+  * Examples:
+    * `{{ env.LOCALAPPDATA | pathappend:"Local\Programs\" | regesc }}`
+    * `{{ env.USERNAME }}`
+    * `{{ var.ScriptFile }}`
 * **Namespaces**:
-
   * `var.<Name>` – user-provided variables (via `-Variables @{ ... }` or `-Variable Name Value`).
   * `env.<NAME>` – environment variables (e.g., `env.USERNAME`, `env.LOCALAPPDATA`).
   * *(Reserved for future)* `ps:` – evaluate PowerShell expressions (not implemented yet).
 * **Filters** (chainable):
-  `regq` (quote for .reg), `pathappend:"\tail"`, `pathquote`, `lower`, `upper`, `trim`,
-  `replace:"old":"new"`, `default:"fallback"`, `append:"text"`, `prepend:"text"`.
+  * `regq` - escapes quotes (replaces `"` => `\"`); used e.g. for .reg (Windows Registry script) files
+  * `regesc` - escapes quotes and backslashes (replaces `\` => `\\` and `"` => `\"`); used for .reg (Windows Registry script) files and others
+  *  `pathappend:"\tail"` - appends paths with whatever follows the colon
+  *  `pathquote` 
+  *  `lower` - changes input string to lower case
+  *  `upper` - changes input string to upper case
+  *  `trim` - trims leading and trailing whitespace from the input string
+  * `replace:"old":"new"` - 
+  * `default:"fallback"` - 
+  * `append:"text"` - appends literal text to the input string
+  * `prepend:"text"` - prepends input string with literal text
 * **Whitespace tolerant**: placeholders can span multiple lines; spaces/newlines around `|` are ignored.
 * **Output path**:
 
