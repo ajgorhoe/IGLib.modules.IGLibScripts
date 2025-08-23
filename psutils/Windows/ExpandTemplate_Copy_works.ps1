@@ -408,41 +408,21 @@ function Apply-Filters {
 function Parse-Placeholder {
     <#
     .SYNOPSIS
-      Parse the inside of {{ ... }} into namespace, name, and a filter pipeline.
-
-    .DESCRIPTION
-      Expected head forms:
-        var.Name
-        env.NAME
-      Followed by optional filters separated by pipes:
-        | filter
-        | filter:"arg"
-        | filter:"arg1":"arg2"   # multiple args supported (e.g., replace:"old":"new")
-
-      Whitespace/newlines around pipes and colons are tolerated.
+      Parse a placeholder expression into its parts.
 
     .PARAMETER ExprText
-      Raw text inside the {{ and }} delimiters.
+      The raw text inside {{ and }}.
 
     .OUTPUTS
-      Hashtable:
-        @{ ns = 'var'|'env'
-           name = 'Name'
-           filters = @(
-               @{ name='filterName'; arg='<firstArg-or-$null>'; args=@('<arg1>','<arg2>',...) },
-               ...
-           )
-        }
+      Hashtable with keys: ns, name, filters (array of @{name;arg}).
     #>
     param([string]$ExprText)
 
-    # Split the expression around pipes; tolerate newlines/whitespace.
+    # Allow expressions to contain newlines and arbitrary whitespace.
+    # We'll split on '|' and trim each segment afterwards.
     $parts = $ExprText -split '\|'
-    if ($parts.Count -lt 1) {
-        throw "Empty expression in placeholder."
-    }
+    if ($parts.Count -lt 1) { throw "Empty expression in placeholder." }
 
-    # Parse the head: var.Name or env.NAME
     $head = $parts[0].Trim()
     if ($head -notmatch '^(?<ns>var|env)\.(?<name>[A-Za-z_][A-Za-z0-9_\.]*)$') {
         throw "Invalid placeholder head '${head}'. Use 'var.Name' or 'env.NAME'."
@@ -450,45 +430,25 @@ function Parse-Placeholder {
     $ns   = $Matches['ns']
     $name = $Matches['name']
 
-    # Parse zero or more filter segments
     $filters = @()
-    for ($i = 1; $i -lt $parts.Count; $i++) {
+    for ($i=1; $i -lt $parts.Count; $i++) {
         $seg = $parts[$i].Trim()
         if (-not $seg) { continue }
 
-        # Extract filter name
-        if ($seg -notmatch '^(?<fn>[A-Za-z_][A-Za-z0-9_]*)') {
-            throw "Invalid filter segment '${seg}'. Use 'filter' or 'filter:""arg""' (multiple args allowed)."
-        }
-        $fname = $Matches['fn']
-        $rest  = $seg.Substring($Matches[0].Length)
+        $fname = $seg
+        $farg  = $null
 
-        # Extract one or more quoted args: : "arg"
-        $fargs = @()
-        while ($rest -match '^\s*:\s*"(?:[^"\\]|\\.)*"') {
-            if ($rest -match '^\s*:\s*"(?<arg>(?:[^"\\]|\\.)*)"') {
-                $capt = $Matches['arg']
-                # Unescape \" -> " and \\ -> \
-                $capt = $capt -replace '\\\\','\'   # \\  -> \
-                $capt = $capt -replace '\\"','"'    # \"  -> "
-                $fargs += $capt
-                $rest = $rest.Substring($Matches[0].Length)
-            } else {
-                break
-            }
+        # filter:"arg"  (arg may contain \" escapes)
+        if ($seg -match '^(?<fn>[A-Za-z_][A-Za-z0-9_]*)\s*:\s*"(?<arg>(?:[^"\\]|\\.)*)"\s*$') {
+            $fname = $Matches['fn']
+            $farg  = $Matches['arg'] -replace '\\\"','"'
+        } elseif ($seg -match '^(?<fn>[A-Za-z_][A-Za-z0-9_]*)\s*$') {
+            $fname = $Matches['fn']
+            $farg  = $null
+        } else {
+            throw "Invalid filter segment '${seg}'. Use filter or filter:""arg""."
         }
-
-        # No extra junk allowed after args
-        if ($rest.Trim()) {
-            throw "Invalid filter segment '${seg}'. Unexpected text after arguments."
-        }
-
-        # Store both the first arg (compat) and the full args array
-        $filters += @{
-            name = $fname
-            arg  = ($(if ($fargs.Count -gt 0) { $fargs[0] } else { $null }))
-            args = $fargs
-        }
+        $filters += @{ name = $fname; arg = $farg }
     }
 
     return @{ ns = $ns; name = $name; filters = $filters }
