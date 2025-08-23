@@ -14,10 +14,10 @@
 #   ENVPATHWIN = C:\Users\Uporabnik\Documents\MyDoc.md
 #   ENVPATHUNIX = /home/uporabnik/doc/MyDoc.md
 #   ENVSIMPLE = EnvSimpleValue
-#   ENVLONGER = Value ot the environment variable (longer)
+#   ENVLONGER = "Value of the environment variable (longer)."
 # The following user-provided variables need to be defined:
 #   MyVarSimple = North
-#   MyVarLong = This is a longer variable used to demonstrate complex filters.
+#   MyVarLong = This is a longer variable used to demonstrate composed filters.
 #   PathWin = C:\Program Files (x86)\Microsoft SQL Server\
 #   PathUnix = ~/doc/MyDoc.md
 
@@ -28,16 +28,16 @@
 $Env:ENVPATHWIN = "C:\Users\Uporabnik\Documents\MyDoc.md"
 $Env:ENVPATHUNIX = "/home/uporabnik/doc/MyDoc.md"
 $Env:ENVSIMPLE = "EnvSimpleValue"
-$Env:ENVLONGER = "Value ot the environment variable (longer)"
+$Env:ENVLONGER = "Value of the environment variable (longer)."
 # Define user-provided variables:
 $MyVarSimple = "North"
-$MyVarLong = "This is a longer variable used to demonstrate complex filters."
+$MyVarLong = "This is a longer variable used to demonstrate composed filters."
 $PathWin = "C:\Program Files (x86)\Microsoft SQL Server\"
 $PathUnix = "~/doc/MyDoc.md"
 # Run the template engine to generate thr output file:
 ./ExpandTemplate.ps1 -Template TemplateExample.txt.tmpl  `
   -Output TemplateExample.txt  `
   -Var @( "MyVarSimple=$MyVarSimple", "MyVarLong=$MyVarLong",
-    "PathWin=$PathWin", "$PathUnix=PathUnix" )
+    "PathWin=$PathWin", "PathUnix=$PathUnix" )
 
 

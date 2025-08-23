@@ -14,18 +14,7 @@
 # snippets provided by Samples_GenerateFileFromTemplate.ps1, which are related
 # to this file. 
 
-# The following environment variables need to be defined for successful
-# generation (suggested values are also provided):
-#   ENVPATHWIN = C:\Users\Uporabnik\Documents\MyDoc.md
-#   ENVPATHUNIX = /home/uporabnik/doc/MyDoc.md
-#   ENVSIMPLE = EnvSimpleValue
-#   ENVLONGER = Value ot the environment variable (longer)
-
-# The following user-provided variables need to be defined:
-#   MyVarSimple = North
-#   MyVarLong = This is a longer variable used to demonstrate complex filters.
-#   PathWin = C:\Program Files (x86)\Microsoft SQL Server\
-#   PathUnix = ~/doc/MyDoc.md
+\{\{  \}\}
 
 # SIMPLE PLACEHOLDERS:
 
@@ -36,13 +25,66 @@ stored in ENVPATHWIN is:
 On the other hand, the path stored in ENVPATHUNIX is:
   /home/uporabnik/doc/MyDoc.md
 
+# Output values of all variables used:
+Environment variables used in this template:
+  ENVPATHWIN:  "C:\Users\Uporabnik\Documents\MyDoc.md"
+  ENVPATHUNIX: "/home/uporabnik/doc/MyDoc.md"
+  ENVSIMPLE:   "EnvSimpleValue"
+  ENVLONGER:   "Value of the environment variable (longer)."
+User-provided values (as variables) used in this template:
+  MyVarSimple:  "North"
+  MyVarLong:    "This is a longer variable used to demonstrate complex filters."
+  PathWin:      "C:\Program Files (x86)\Microsoft SQL Server\"
+  PathUnix:     "~/doc/MyDoc.md"
+
 # Simple placeholders to substitute user-provided values (via variables):
 The user-provided value of MyVarSimple is North. The quoted value 
 of MyVarLong is: "This is a longer variable used to demonstrate complex filters."
 
 # PLACEHOLDERS WITH FILTERS to transform values:
 
+# Filter regq replaces " with \" (escapes double quotes).
+# Filter regesc replaces " with \" and \ with \\ (escapes double quotes and
+# backslashes):
+var.PathWin without filters:
+  "C:\Program Files (x86)\Microsoft SQL Server\"
+with filter "| regesc" applied:
+  "C:\\Program Files (x86)\\Microsoft SQL Server\\"
 
+# HANDLING SPACES AND NEWLINES IN PLACEHOLDERS:
+
+# Spaces and newlines within placeholders should not make any difference. 
+# This section tests that this is true.
+
+# Spaces in simple placeholders:
+
+Without spaces:
+The value of user-defined variable MyVarSimple: "North"
+With space on one side:
+The value of user-defined variable MyVarSimple: "North"
+With multiple spaces on both sides: 
+The value of user-defined variable MyVarSimple: "North"
+With newline right after open brackets:
+The value of user-defined variable MyVarSimple: "North"
+With several newlines:
+The value of user-defined variable MyVarSimple: "North"
+
+
+
+
+
+
+# The following environment variables need to be defined for successful
+# generation (suggested values are also provided):
+#   ENVPATHWIN = C:\Users\Uporabnik\Documents\MyDoc.md
+#   ENVPATHUNIX = /home/uporabnik/doc/MyDoc.md
+#   ENVSIMPLE = EnvSimpleValue
+#   ENVLONGER = Value ot the environment variable (longer)
+# The following user-provided variables need to be defined:
+#   MyVarSimple = North
+#   MyVarLong = This is a longer variable used to demonstrate composed filters.
+#   PathWin = C:\Program Files (x86)\Microsoft SQL Server\
+#   PathUnix = ~/doc/MyDoc.md
 
 
 
