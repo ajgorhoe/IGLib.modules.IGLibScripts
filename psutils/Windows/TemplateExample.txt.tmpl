@@ -97,7 +97,7 @@ with filter | trim :
 var.MyVarLong without filters:
   "{{ var.MyVarLong }}"
 with filter | replace:"used to demonstrate":"demonstrating" :
-  "{\{ var.MyVarLong | replace:"used to demonstrate":"demonstrating" }\}"
+  "{{ var.MyVarLong | replace:"used to demonstrate":"demonstrating" }}"
 with filter | replace:"demonstrate":"demonstrating" :
   "{{ var.MyVarLong | replace:"demonstrate":"demonstrating" }}"
 

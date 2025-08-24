@@ -344,16 +344,36 @@ function Apply-Filters {
     )
 
     foreach ($f in $Pipeline) {
-        $name = $f.name.ToLowerInvariant()
-        $arg  = $f.arg
-        # support multi-arg filters (non-breaking)
-        $__args = @()
-        if ($f.PSObject.Properties.Name -contains 'args' -and $f.args) {
-            $__args = $f.args
-        } elseif ($null -ne $f.arg) {
-            $__args = @($f.arg)
-        }
-        # -------------------------------------------------------
+      # --- BEGIN minimal patch: normalize access for hashtable/PSCustomObject ---
+      # Read the filter name, first-arg, and full-args in a way that works for hashtables too.
+      $__isHash = ($f -is [hashtable])
+
+      # Name
+      $name = if ($__isHash) { [string]$f['name'] } else { [string]$f.name }
+
+      # First arg (compat with older single-arg code)
+      $arg  = if ($__isHash) { $f['arg'] } else { $f.arg }
+
+      # Full args array
+      $__args = @()
+      if ($__isHash) {
+          if ($f.ContainsKey('args') -and $f['args']) {
+              $__args = @($f['args'])   # make sure it's an array
+          } elseif ($null -ne $arg) {
+              $__args = @($arg)
+          }
+      } else {
+          if ($f.PSObject.Properties['args'] -and $f.args) {
+              $__args = $f.args
+          } elseif ($null -ne $arg) {
+              $__args = @($arg)
+          }
+      }
+      # --- END minimal patch ---
+
+          Write-Host ("    filter: {0}" -f $name)
+          Write-Host ("      arg  : {0}" -f $arg)
+          Write-Host ("      args : {0}" -f ($__args -join ', '))
 
         switch ($name) {
             'trim'       { $Value = $Value.Trim() }
@@ -378,14 +398,12 @@ function Apply-Filters {
                 }
             }
             'replace' {
-                Write-Host "    replace: arg = '$arg'"
-                Write-Host "    __args = '$__args'"
                 if ($__args.Count -lt 2) {
-                    # throw 'replace filter requires two arguments: replace:"old":"new"'
-                    Write-Host 'ERROR: replace filter requires two arguments: replace:"old":"new"'
+                    throw 'replace filter requires two arguments: replace:"old":"new"'
                 }
-                $old = $__args[0]; $new = $__args[1]
-                $Value = $Value.Replace($old, $new)
+                $old = $__args[0]
+                $new = $__args[1]
+                $Value = $Value.Replace($old, $new)  # literal replacement, not regex
             }
             'expandsz' {
                 # Encode as REG_EXPAND_SZ in .reg hex(2) form (UTF-16LE, null-terminated)
