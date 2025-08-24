@@ -346,8 +346,7 @@ function Apply-Filters {
     foreach ($f in $Pipeline) {
         $name = $f.name.ToLowerInvariant()
         $arg  = $f.arg
-        # --- PATCH: support multi-arg filters (non-breaking) ---
-        # Some older code only sets $f.arg; newer parser may also set $f.args (array).
+        # support multi-arg filters (non-breaking)
         $__args = @()
         if ($f.PSObject.Properties.Name -contains 'args' -and $f.args) {
             $__args = $f.args
@@ -378,13 +377,14 @@ function Apply-Filters {
                     $Value = ($(if ($null -ne $f.arg) { $f.arg } else { '' }))
                 }
             }
-            'replace'    {
-                # Literal replacement (no regex). Requires two args: old, new
+            'replace' {
+                Write-Host "    replace: arg = '$arg'"
+                Write-Host "    __args = '$__args'"
                 if ($__args.Count -lt 2) {
-                    throw 'replace filter requires two arguments: replace:"old":"new"'
+                    # throw 'replace filter requires two arguments: replace:"old":"new"'
+                    Write-Host 'ERROR: replace filter requires two arguments: replace:"old":"new"'
                 }
-                $old = $__args[0]
-                $new = $__args[1]
+                $old = $__args[0]; $new = $__args[1]
                 $Value = $Value.Replace($old, $new)
             }
             'expandsz' {
@@ -436,13 +436,11 @@ function Parse-Placeholder {
     #>
     param([string]$ExprText)
 
-    # Split the expression around pipes; tolerate newlines/whitespace.
+    # Split around '|' (pipes). We’ll trim whitespace per segment.
     $parts = $ExprText -split '\|'
-    if ($parts.Count -lt 1) {
-        throw "Empty expression in placeholder."
-    }
+    if ($parts.Count -lt 1) { throw "Empty expression in placeholder." }
 
-    # Parse the head: var.Name or env.NAME
+    # Head: var.Name or env.NAME
     $head = $parts[0].Trim()
     if ($head -notmatch '^(?<ns>var|env)\.(?<name>[A-Za-z_][A-Za-z0-9_\.]*)$') {
         throw "Invalid placeholder head '${head}'. Use 'var.Name' or 'env.NAME'."
@@ -450,7 +448,7 @@ function Parse-Placeholder {
     $ns   = $Matches['ns']
     $name = $Matches['name']
 
-    # Parse zero or more filter segments
+    # Filters (zero or more)
     $filters = @()
     for ($i = 1; $i -lt $parts.Count; $i++) {
         $seg = $parts[$i].Trim()
@@ -462,17 +460,16 @@ function Parse-Placeholder {
         }
         $fname = $Matches['fn']
         $rest  = $seg.Substring($Matches[0].Length)
-        Write-Host "    Filter: '${fname}'"
 
-        # Extract one or more quoted args: : "arg"
+        # Extract one or more quoted args of the form : "arg"
         $fargs = @()
         while ($rest -match '^\s*:\s*"(?:[^"\\]|\\.)*"') {
+            # capture the next quoted arg
             if ($rest -match '^\s*:\s*"(?<arg>(?:[^"\\]|\\.)*)"') {
                 $capt = $Matches['arg']
                 # Unescape \" -> " and \\ -> \
                 $capt = $capt -replace '\\\\','\'   # \\  -> \
                 $capt = $capt -replace '\\"','"'    # \"  -> "
-                Write-Host "    Filter arg: '${capt}'"
                 $fargs += $capt
                 $rest = $rest.Substring($Matches[0].Length)
             } else {
@@ -480,12 +477,12 @@ function Parse-Placeholder {
             }
         }
 
-        # No extra junk allowed after args
+        # No extra junk allowed after arguments
         if ($rest.Trim()) {
             throw "Invalid filter segment '${seg}'. Unexpected text after arguments."
         }
 
-        # Store both the first arg (compat) and the full args array
+        # Store both first arg (compat) and full args (for multi-arg filters like replace)
         $filters += @{
             name = $fname
             arg  = ($(if ($fargs.Count -gt 0) { $fargs[0] } else { $null }))
