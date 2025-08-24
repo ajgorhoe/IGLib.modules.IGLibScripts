@@ -1,0 +1,150 @@
+﻿
+# This is an example template file that can be processed by using the template
+# expansion script "ExpandTemplate.ps1" (a simple template engine).
+# In this file, line comments starting with # are used in order to provide 
+# some context information.
+# The file contains various kinds of placeholders, which can be understood and
+# are substituted by the template engine to generate the text file (named as
+# the current file, but without the .tmpl extension).
+# This template file contain various kinds of placeholders (to substitute 
+# environment variables or user-provided variables in form of user variables
+# (i.e., key-value pairs), with different kinds of filters applied, or without
+# filters).
+# To generate the text file from this template, you can use PowerShell code 
+# snippets provided by Samples_GenerateFileFromTemplate.ps1, which are related
+# to this file. 
+
+# ESCAPING DOUBLE BRACKETS:
+
+# TODO: This is not yet implemented.
+\{\{  \}\}
+
+# SIMPLE PLACEHOLDERS:
+
+# Simple placeholders to substitute environment variables:
+The value of environment variable ENVSIMPLE is EnvSimpleValue. The path
+stored in ENVPATHWIN is:
+  C:\Users\Uporabnik\Documents\MyDoc.md
+On the other hand, the path stored in ENVPATHUNIX is:
+  /home/uporabnik/doc/MyDoc.md
+
+# Output values of all variables used:
+Environment variables used in this template:
+  ENVPATHWIN:  "C:\Users\Uporabnik\Documents\MyDoc.md"
+  ENVPATHUNIX: "/home/uporabnik/doc/MyDoc.md"
+  ENVSIMPLE:   "EnvSimpleValue"
+  ENVLONGER:   "Value of the environment variable (longer)."
+User-provided values (as variables) used in this template:
+  MyVarSimple:  "NorthEast"
+  MyVarLong:    "This is a longer "str", \ used to demonstrate composed filters.  "
+  PathWin:      "C:\Program Files (x86)\Microsoft SQL Server\"
+  PathUnix:     "~/doc/MyDoc.md"
+
+# Simple placeholders to substitute user-provided values (via variables):
+The user-provided value of MyVarSimple is NorthEast. The quoted value 
+of MyVarLong is: "This is a longer "str", \ used to demonstrate composed filters.  "
+
+# PLACEHOLDERS WITH FILTERS to transform values:
+
+# The regq filter replaces " with \" (escapes double quotes).
+# Filter regesc filter replaces " with \" and \ with \\ (escapes double quotes
+# and backslashes):
+var.MyVarLong without filters:
+  "This is a longer "str", \ used to demonstrate composed filters.  "
+with filter | regq applied:
+  "This is a longer \"str\", \ used to demonstrate composed filters.  "
+with filter | regesc applied:
+  "This is a longer \"str\", \\ used to demonstrate composed filters.  "
+
+# TODO: THIS DOES NOT WORK WELL, whould use .NET Path.Combine
+# The pathappend filter appends its argument to the path:
+var.PathWin without filters:
+  "C:\Program Files (x86)\Microsoft SQL Server\"
+with filter | pathappend:"myfiles" :
+  "C:\Program Files (x86)\Microsoft SQL Server\myfiles"
+with filter | pathappend:"dir1\dir2\icon.png" :
+  "C:\Program Files (x86)\Microsoft SQL Server\dir1\dir2\icon.png"
+
+
+
+var.PathUnix:
+  "~/doc/MyDoc.md"
+with filter | pathappend:"dir1\dir2\icon.png" :
+  "~/doc/MyDoc.mddir1\dir2\icon.png"
+
+# The pathquote filter encloses a path in quotes, if not already enclosed:
+env.ENVPATHWIN:
+  "C:\Users\Uporabnik\Documents\MyDoc.md"
+with filter | pathquote :
+  ""C:\Users\Uporabnik\Documents\MyDoc.md""
+
+# The lower and upper filters change the case:
+var.MyVarSimple:
+  "NorthEast"
+with  filter | lower :
+  "northeast"
+with  filter | upper :
+  "NORTHEAST"
+
+# The trim filter trims the leading and trailing whitespace:
+var.MyVarLong without filters:
+  "This is a longer "str", \ used to demonstrate composed filters.  "
+with filter | trim :
+  "This is a longer "str", \ used to demonstrate composed filters."
+
+# TODO: THIS DOES NOT WORK.
+# The replace filter replaces a substring in the input string:
+var.MyVarLong without filters:
+  "This is a longer "str", \ used to demonstrate composed filters.  "
+with filter | replace:"used to demonstrate":"demonstrating" :
+  "{\{ var.MyVarLong | replace:"used to demonstrate":"demonstrating" }\}"
+with filter | replace:"used to demonstrate":"demonstrating" :
+  "{\{ var.MyVarLong | replace:"old":"new" }\}"
+
+# The append and prepend filters append or prepend strings:
+var.MyVarSimple:
+  "NorthEast"
+with  filter | append:" or North" :
+  "NorthEast or North"
+with  filter | prepend:"North-" :
+  "North-NorthEast"
+
+
+
+# HANDLING SPACES AND NEWLINES IN PLACEHOLDERS:
+
+# Spaces and newlines within placeholders should not make any difference. 
+# This section tests that this is true.
+
+# Spaces in simple placeholders:
+
+Without spaces:
+The value of user-defined variable MyVarSimple: "NorthEast"
+With space on one side:
+The value of user-defined variable MyVarSimple: "NorthEast"
+With multiple spaces on both sides: 
+The value of user-defined variable MyVarSimple: "NorthEast"
+With newline right after open brackets:
+The value of user-defined variable MyVarSimple: "NorthEast"
+With several newlines:
+The value of user-defined variable MyVarSimple: "NorthEast"
+
+
+
+
+
+
+# The following environment variables need to be defined for successful
+# generation (suggested values are also provided):
+#   ENVPATHWIN = C:\Users\Uporabnik\Documents\MyDoc.md
+#   ENVPATHUNIX = /home/uporabnik/doc/MyDoc.md
+#   ENVSIMPLE = EnvSimpleValue
+#   ENVLONGER = Value ot the environment variable (longer)
+# The following user-provided variables need to be defined:
+#   MyVarSimple = NorthEast
+#   MyVarLong = '  This is a longer "str", \ used to demonstrate composed filters.  '
+#   PathWin = C:\Program Files (x86)\Microsoft SQL Server\
+#   PathUnix = ~/doc/MyDoc.md
+
+
+

@@ -1,0 +1,152 @@
+
+# This is an example template file that can be processed by using the template
+# expansion script "ExpandTemplate.ps1" (a simple template engine).
+# In this file, line comments starting with # are used in order to provide 
+# some context information.
+# The file contains various kinds of placeholders, which can be understood and
+# are substituted by the template engine to generate the text file (named as
+# the current file, but without the .tmpl extension).
+# This template file contain various kinds of placeholders (to substitute 
+# environment variables or user-provided variables in form of user variables
+# (i.e., key-value pairs), with different kinds of filters applied, or without
+# filters).
+# To generate the text file from this template, you can use PowerShell code 
+# snippets provided by Samples_GenerateFileFromTemplate.ps1, which are related
+# to this file. 
+
+# ESCAPING DOUBLE BRACKETS:
+
+# TODO: This is not yet implemented.
+\{\{  \}\}
+
+# SIMPLE PLACEHOLDERS:
+
+# Simple placeholders to substitute environment variables:
+The value of environment variable ENVSIMPLE is {{ env.ENVSIMPLE }}. The path
+stored in ENVPATHWIN is:
+  {{ env.ENVPATHWIN }}
+On the other hand, the path stored in ENVPATHUNIX is:
+  {{ env.ENVPATHUNIX }}
+
+# Output values of all variables used:
+Environment variables used in this template:
+  ENVPATHWIN:  "{{env.ENVPATHWIN}}"
+  ENVPATHUNIX: "{{env.ENVPATHUNIX}}"
+  ENVSIMPLE:   "{{env.ENVSIMPLE}}"
+  ENVLONGER:   "{{env.ENVLONGER}}"
+User-provided values (as variables) used in this template:
+  MyVarSimple:  "{{var.MyVarSimple}}"
+  MyVarLong:    "{{var.MyVarLong}}"
+  PathWin:      "{{var.PathWin}}"
+  PathUnix:     "{{var.PathUnix}}"
+
+# Simple placeholders to substitute user-provided values (via variables):
+The user-provided value of MyVarSimple is {{ var.MyVarSimple }}. The quoted value 
+of MyVarLong is: "{{ var.MyVarLong }}"
+
+# PLACEHOLDERS WITH FILTERS to transform values:
+
+# The regq filter replaces " with \" (escapes double quotes).
+# Filter regesc filter replaces " with \" and \ with \\ (escapes double quotes
+# and backslashes):
+var.MyVarLong without filters:
+  "{{ var.MyVarLong }}"
+with filter | regq applied:
+  "{{ var.MyVarLong | regq }}"
+with filter | regesc applied:
+  "{{ var.MyVarLong | regesc }}"
+
+# TODO: THIS DOES NOT WORK WELL, whould use .NET Path.Combine
+# The pathappend filter appends its argument to the path:
+var.PathWin without filters:
+  "{{ var.PathWin }}"
+with filter | pathappend:"myfiles" :
+  "{{ var.PathWin | pathappend:"myfiles" }}"
+with filter | pathappend:"dir1\dir2\icon.png" :
+  "{{ var.PathWin | | pathappend:"dir1\dir2\icon.png" }}"
+
+
+
+var.PathUnix:
+  "{{ var.PathUnix }}"
+with filter | pathappend:"dir1\dir2\icon.png" :
+  "{{ var.PathUnix | pathappend:"dir1\dir2\icon.png" }}"
+
+# The pathquote filter encloses a path in quotes, if not already enclosed:
+env.ENVPATHWIN:
+  "{{ env.ENVPATHWIN }}"
+with filter | pathquote :
+  "{{ env.ENVPATHWIN | pathquote }}"
+
+# The lower and upper filters change the case:
+var.MyVarSimple:
+  "{{ var.MyVarSimple }}"
+with  filter | lower :
+  "{{ var.MyVarSimple | lower }}"
+with  filter | upper :
+  "{{ var.MyVarSimple | upper }}"
+
+# The trim filter trims the leading and trailing whitespace:
+var.MyVarLong without filters:
+  "{{ var.MyVarLong }}"
+with filter | trim :
+  "{{ var.MyVarLong | trim }}"
+
+# TODO: THIS DOES NOT WORK.
+# The replace filter replaces a substring in the input string:
+var.MyVarLong without filters:
+  "{{ var.MyVarLong }}"
+with filter | replace:"used to demonstrate":"demonstrating" :
+  "{{ var.MyVarLong | replace:"used to demonstrate":"demonstrating" }}"
+with filter | replace:"demonstrate":"demonstrating" :
+  "{{ var.MyVarLong | replace:"demonstrate":"demonstrating" }}"
+
+# The append and prepend filters append or prepend strings:
+var.MyVarSimple:
+  "{{ var.MyVarSimple }}"
+with  filter | append:" or North" :
+  "{{ var.MyVarSimple | append:" or North" }}"
+with  filter | prepend:"North-" :
+  "{{ var.MyVarSimple | prepend:"North-" }}"
+
+
+
+# HANDLING SPACES AND NEWLINES IN PLACEHOLDERS:
+
+# Spaces and newlines within placeholders should not make any difference. 
+# This section tests that this is true.
+
+# Spaces in simple placeholders:
+
+Without spaces:
+The value of user-defined variable MyVarSimple: "{{var.MyVarSimple}}"
+With space on one side:
+The value of user-defined variable MyVarSimple: "{{ var.MyVarSimple}}"
+With multiple spaces on both sides: 
+The value of user-defined variable MyVarSimple: "{{  var.MyVarSimple   }}"
+With newline right after open brackets:
+The value of user-defined variable MyVarSimple: "{{
+    var.MyVarSimple   }}"
+With several newlines:
+The value of user-defined variable MyVarSimple: "{{  
+    var.MyVarSimple
+    }}"
+
+
+
+
+
+
+# The following environment variables need to be defined for successful
+# generation (suggested values are also provided):
+#   ENVPATHWIN = C:\Users\Uporabnik\Documents\MyDoc.md
+#   ENVPATHUNIX = /home/uporabnik/doc/MyDoc.md
+#   ENVSIMPLE = EnvSimpleValue
+#   ENVLONGER = Value ot the environment variable (longer)
+# The following user-provided variables need to be defined:
+#   MyVarSimple = NorthEast
+#   MyVarLong = '  This is a longer "str", \ used to demonstrate composed filters.  '
+#   PathWin = C:\Program Files (x86)\Microsoft SQL Server\
+#   PathUnix = ~/doc/MyDoc.md
+
+
