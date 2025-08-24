@@ -369,12 +369,12 @@ Special-case: `.reg` (registry script files) outputs to the required **UTF-16 LE
   * `regq` - escapes quotes (replaces `"` => `\"`); used e.g. for .reg (Windows Registry script) files
   * `regesc` - escapes quotes and backslashes (replaces `\` => `\\` and `"` => `\"`); used for .reg (Windows Registry script) files and others
   *  `pathappend:"\tail"` - appends paths with whatever follows the colon
-  *  `pathquote` 
+  *  `pathquote` - encloses path in quotes, if not already enclosed
   *  `lower` - changes input string to lower case
   *  `upper` - changes input string to upper case
   *  `trim` - trims leading and trailing whitespace from the input string
-  * `replace:"old":"new"` - 
-  * `default:"fallback"` - 
+  * `replace:"old":"new"` - replaces all occurrences of string "old" (1st argument) with string "new" (2nd argument)
+  * `default:"fallback"` - If the value is null or empty string, then argument of the filter (fallback in this case) is substituted, otherwise the value is kept the same
   * `append:"text"` - appends literal text to the input string
   * `prepend:"text"` - prepends input string with literal text
 * **Whitespace tolerant**: placeholders can span multiple lines; spaces/newlines around `|` are ignored.
@@ -416,7 +416,7 @@ Special-case: `.reg` (registry script files) outputs to the required **UTF-16 LE
 
 ```text
 {{ var.Title | regq }}
-{{ env.USERPROFILE | pathappend:"\AppData\Local\Programs\Microsoft VS Code\Code.exe" | regq }}
+{{ env.USERPROFILE | pathappend:"\AppData\Local\Programs\Microsoft VS Code\Code.exe" | regesc }}
 ```
 
 * `var.Title` is replaced with the value of `Title`.

@@ -16,8 +16,8 @@
 #   ENVSIMPLE = EnvSimpleValue
 #   ENVLONGER = "Value of the environment variable (longer)."
 # The following user-provided variables need to be defined:
-#   MyVarSimple = North
-#   MyVarLong = This is a longer variable used to demonstrate composed filters.
+#   MyVarSimple = NorthEast
+#   MyVarLong = '  This is a longer "str", \ used to demonstrate composed filters.  '
 #   PathWin = C:\Program Files (x86)\Microsoft SQL Server\
 #   PathUnix = ~/doc/MyDoc.md
 
@@ -30,11 +30,11 @@ $Env:ENVPATHUNIX = "/home/uporabnik/doc/MyDoc.md"
 $Env:ENVSIMPLE = "EnvSimpleValue"
 $Env:ENVLONGER = "Value of the environment variable (longer)."
 # Define user-provided variables:
-$MyVarSimple = "North"
-$MyVarLong = "This is a longer variable used to demonstrate composed filters."
+$MyVarSimple = "NorthEast"
+$MyVarLong = '  This is a longer "str", \ used to demonstrate composed filters.  '
 $PathWin = "C:\Program Files (x86)\Microsoft SQL Server\"
 $PathUnix = "~/doc/MyDoc.md"
-# Run the template engine to generate thr output file:
+# Run the template engine to generate the output file:
 ./ExpandTemplate.ps1 -Template TemplateExample.txt.tmpl  `
   -Output TemplateExample.txt  `
   -Var @( "MyVarSimple=$MyVarSimple", "MyVarLong=$MyVarLong",

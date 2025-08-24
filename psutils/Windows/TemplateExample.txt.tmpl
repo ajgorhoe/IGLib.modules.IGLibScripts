@@ -14,6 +14,9 @@
 # snippets provided by Samples_GenerateFileFromTemplate.ps1, which are related
 # to this file. 
 
+# ESCAPING DOUBLE BRACKETS:
+
+# TODO: This is not yet implemented.
 \{\{  \}\}
 
 # SIMPLE PLACEHOLDERS:
@@ -43,13 +46,70 @@ of MyVarLong is: "{{ var.MyVarLong }}"
 
 # PLACEHOLDERS WITH FILTERS to transform values:
 
-# Filter regq replaces " with \" (escapes double quotes).
-# Filter regesc replaces " with \" and \ with \\ (escapes double quotes and
-# backslashes):
+# The regq filter replaces " with \" (escapes double quotes).
+# Filter regesc filter replaces " with \" and \ with \\ (escapes double quotes
+# and backslashes):
+var.MyVarLong without filters:
+  "{{ var.MyVarLong }}"
+with filter | regq applied:
+  "{{ var.MyVarLong | regq }}"
+with filter | regesc applied:
+  "{{ var.MyVarLong | regesc }}"
+
+# TODO: THIS DOES NOT WORK WELL, whould use .NET Path.Combine
+# The pathappend filter appends its argument to the path:
 var.PathWin without filters:
   "{{ var.PathWin }}"
-with filter "| regesc" applied:
-  "{{ var.PathWin | regesc }}"
+with filter | pathappend:"myfiles" :
+  "{{ var.PathWin | pathappend:"myfiles" }}"
+with filter | pathappend:"dir1\dir2\icon.png" :
+  "{{ var.PathWin | | pathappend:"dir1\dir2\icon.png" }}"
+
+
+
+var.PathUnix:
+  "{{ var.PathUnix }}"
+with filter | pathappend:"dir1\dir2\icon.png" :
+  "{{ var.PathUnix | pathappend:"dir1\dir2\icon.png" }}"
+
+# The pathquote filter encloses a path in quotes, if not already enclosed:
+env.ENVPATHWIN:
+  "{{ env.ENVPATHWIN }}"
+with filter | pathquote :
+  "{{ env.ENVPATHWIN | pathquote }}"
+
+# The lower and upper filters change the case:
+var.MyVarSimple:
+  "{{ var.MyVarSimple }}"
+with  filter | lower :
+  "{{ var.MyVarSimple | lower }}"
+with  filter | upper :
+  "{{ var.MyVarSimple | upper }}"
+
+# The trim filter trims the leading and trailing whitespace:
+var.MyVarLong without filters:
+  "{{ var.MyVarLong }}"
+with filter | trim :
+  "{{ var.MyVarLong | trim }}"
+
+# TODO: THIS DOES NOT WORK.
+# The replace filter replaces a substring in the input string:
+var.MyVarLong without filters:
+  "{{ var.MyVarLong }}"
+with filter | replace:"used to demonstrate":"demonstrating" :
+  "{\{ var.MyVarLong | replace:"used to demonstrate":"demonstrating" }\}"
+with filter | replace:"used to demonstrate":"demonstrating" :
+  "{\{ var.MyVarLong | replace:"old":"new" }\}"
+
+# The append and prepend filters append or prepend strings:
+var.MyVarSimple:
+  "{{ var.MyVarSimple }}"
+with  filter | append:" or North" :
+  "{{ var.MyVarSimple | append:" or North" }}"
+with  filter | prepend:"North-" :
+  "{{ var.MyVarSimple | prepend:"North-" }}"
+
+
 
 # HANDLING SPACES AND NEWLINES IN PLACEHOLDERS:
 
@@ -84,8 +144,8 @@ The value of user-defined variable MyVarSimple: "{{
 #   ENVSIMPLE = EnvSimpleValue
 #   ENVLONGER = Value ot the environment variable (longer)
 # The following user-provided variables need to be defined:
-#   MyVarSimple = North
-#   MyVarLong = This is a longer variable used to demonstrate composed filters.
+#   MyVarSimple = NorthEast
+#   MyVarLong = '  This is a longer "str", \ used to demonstrate composed filters.  '
 #   PathWin = C:\Program Files (x86)\Microsoft SQL Server\
 #   PathUnix = ~/doc/MyDoc.md
 
