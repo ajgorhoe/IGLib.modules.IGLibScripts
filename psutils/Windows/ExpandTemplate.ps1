@@ -462,6 +462,7 @@ function Parse-Placeholder {
         }
         $fname = $Matches['fn']
         $rest  = $seg.Substring($Matches[0].Length)
+        Write-Host "    Filter: '${fname}'"
 
         # Extract one or more quoted args: : "arg"
         $fargs = @()
@@ -471,6 +472,7 @@ function Parse-Placeholder {
                 # Unescape \" -> " and \\ -> \
                 $capt = $capt -replace '\\\\','\'   # \\  -> \
                 $capt = $capt -replace '\\"','"'    # \"  -> "
+                Write-Host "    Filter arg: '${capt}'"
                 $fargs += $capt
                 $rest = $rest.Substring($Matches[0].Length)
             } else {

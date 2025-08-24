@@ -98,8 +98,8 @@ var.MyVarLong without filters:
   "{{ var.MyVarLong }}"
 with filter | replace:"used to demonstrate":"demonstrating" :
   "{\{ var.MyVarLong | replace:"used to demonstrate":"demonstrating" }\}"
-with filter | replace:"used to demonstrate":"demonstrating" :
-  "{\{ var.MyVarLong | replace:"old":"new" }\}"
+with filter | replace:"demonstrate":"demonstrating" :
+  "{{ var.MyVarLong | replace:"demonstrate":"demonstrating" }}"
 
 # The append and prepend filters append or prepend strings:
 var.MyVarSimple:
