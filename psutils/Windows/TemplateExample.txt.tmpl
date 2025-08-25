@@ -96,10 +96,10 @@ with filter | trim :
 # The replace filter replaces a substring in the input string:
 var.MyVarLong without filters:
   "{{ var.MyVarLong }}"
+with filter | replace:"demonstrate":"show" :
+  "{{ var.MyVarLong | replace:"demonstrate":"show" }}"
 with filter | replace:"used to demonstrate":"demonstrating" :
   "{{ var.MyVarLong | replace:"used to demonstrate":"demonstrating" }}"
-with filter | replace:"demonstrate":"demonstrating" :
-  "{{ var.MyVarLong | replace:"demonstrate":"demonstrating" }}"
 
 # The append and prepend filters append or prepend strings:
 var.MyVarSimple:

@@ -96,10 +96,10 @@ with filter | trim :
 # The replace filter replaces a substring in the input string:
 var.MyVarLong without filters:
   "This is a longer "str", \ used to demonstrate composed filters.  "
+with filter | replace:"demonstrate":"show" :
+  "This is a longer "str", \ used to show composed filters.  "
 with filter | replace:"used to demonstrate":"demonstrating" :
-  "{\{ var.MyVarLong | replace:"used to demonstrate":"demonstrating" }\}"
-with filter | replace:"used to demonstrate":"demonstrating" :
-  "{\{ var.MyVarLong | replace:"old":"new" }\}"
+  "This is a longer "str", \ demonstrating composed filters.  "
 
 # The append and prepend filters append or prepend strings:
 var.MyVarSimple:
