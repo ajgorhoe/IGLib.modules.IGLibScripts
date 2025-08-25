@@ -607,6 +607,10 @@ if (-not $Output) {
 $pattern = '\{\{\s*([\s\S]+?)\s*\}\}'
 $errors  = New-Object System.Collections.Generic.List[string]
 
+# Temporarily transform double curly brackets escaping:
+$tplText = $tplText -replace "\\{{", "\{\{"
+$tplText = $tplText -replace "\\}}", "\}\}"
+
 $expanded = [System.Text.RegularExpressions.Regex]::Replace(
     $tplText,
     $pattern,
@@ -627,6 +631,10 @@ $expanded = [System.Text.RegularExpressions.Regex]::Replace(
         }
     }
 )
+
+# Backward transform double curly brackets escaping:
+$expanded = $expanded -replace "\\{\\{", "{{"
+$expanded = $expanded -replace "\\}\\}", "}}"
 
 if ($errors.Count -gt 0) {
     $nl = [Environment]::NewLine

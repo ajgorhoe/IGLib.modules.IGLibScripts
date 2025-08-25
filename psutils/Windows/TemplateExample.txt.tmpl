@@ -16,8 +16,9 @@
 
 # ESCAPING DOUBLE BRACKETS:
 
-# TODO: This is not yet implemented.
-\{\{  \}\}
+\{{ Escaped double curly brackets should transform to literal double brackets. \}}
+\{{ \{{ This should also works when escaped opening brackets are not matched...
+  ... or when escaped closing brackets are not matched. \}}
 
 # SIMPLE PLACEHOLDERS:
 
@@ -56,16 +57,14 @@ with filter | regq applied:
 with filter | regesc applied:
   "{{ var.MyVarLong | regesc }}"
 
-# TODO: THIS DOES NOT WORK WELL, whould use .NET Path.Combine
+# TODO: THIS DOES NOT WORK WELL, should use .NET Path.Combine
 # The pathappend filter appends its argument to the path:
 var.PathWin without filters:
   "{{ var.PathWin }}"
 with filter | pathappend:"myfiles" :
   "{{ var.PathWin | pathappend:"myfiles" }}"
 with filter | pathappend:"dir1\dir2\icon.png" :
-  "{{ var.PathWin | | pathappend:"dir1\dir2\icon.png" }}"
-
-
+  "{{ var.PathWin | pathappend:"dir1\dir2\icon.png" }}"
 
 var.PathUnix:
   "{{ var.PathUnix }}"
@@ -92,7 +91,6 @@ var.MyVarLong without filters:
 with filter | trim :
   "{{ var.MyVarLong | trim }}"
 
-# TODO: THIS DOES NOT WORK.
 # The replace filter replaces a substring in the input string:
 var.MyVarLong without filters:
   "{{ var.MyVarLong }}"
@@ -109,7 +107,25 @@ with  filter | append:" or North" :
 with  filter | prepend:"North-" :
   "{{ var.MyVarSimple | prepend:"North-" }}"
 
+# TODO: Not yet implemented: filter arguments not in double quotes
+with  filter | prepend:North :
+  "\{{ var.MyVarSimple | prepend:North \}}"
 
+# MULTIPLE FILTERS:
+
+# Multiple filters can be applied to the initial string in order to produce
+# the final string with which the placeholder is substituted. Filters are 
+# applied from left to right.
+var.PathWin without filters:
+  "{{ var.PathWin }}"
+with filters | pathappend:"dir1\dir2\icon.png" | replace:"\\":"/" :
+  "{{ var.PathWin | pathappend:"dir1\dir2\icon.png" | replace:"\\":"/" }}"
+Different order of the same filters can give different results:
+with filters | replace:"\\":"/" | pathappend:"dir1\dir2\icon.png" :
+  "{{ var.PathWin | replace:"\\":"/" | pathappend:"dir1\dir2\icon.png" }}"
+More than two filters:
+with filters | pathappend:"dir1\dir2\icon.png" | replace:"\\":"/" | prepend:"The path is: " :
+  "{{ var.PathWin | pathappend:"dir1\dir2\icon.png" | replace:"\\":"/" | prepend:"The path is: " }}"
 
 # HANDLING SPACES AND NEWLINES IN PLACEHOLDERS:
 

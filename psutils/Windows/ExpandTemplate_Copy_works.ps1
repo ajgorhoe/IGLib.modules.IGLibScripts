@@ -344,17 +344,36 @@ function Apply-Filters {
     )
 
     foreach ($f in $Pipeline) {
-        $name = $f.name.ToLowerInvariant()
-        $arg  = $f.arg
-        # --- PATCH: support multi-arg filters (non-breaking) ---
-        # Some older code only sets $f.arg; newer parser may also set $f.args (array).
-        $__args = @()
-        if ($f.PSObject.Properties.Name -contains 'args' -and $f.args) {
-            $__args = $f.args
-        } elseif ($null -ne $f.arg) {
-            $__args = @($f.arg)
-        }
-        # -------------------------------------------------------
+      # --- BEGIN minimal patch: normalize access for hashtable/PSCustomObject ---
+      # Read the filter name, first-arg, and full-args in a way that works for hashtables too.
+      $__isHash = ($f -is [hashtable])
+
+      # Name
+      $name = if ($__isHash) { [string]$f['name'] } else { [string]$f.name }
+
+      # First arg (compat with older single-arg code)
+      $arg  = if ($__isHash) { $f['arg'] } else { $f.arg }
+
+      # Full args array
+      $__args = @()
+      if ($__isHash) {
+          if ($f.ContainsKey('args') -and $f['args']) {
+              $__args = @($f['args'])   # make sure it's an array
+          } elseif ($null -ne $arg) {
+              $__args = @($arg)
+          }
+      } else {
+          if ($f.PSObject.Properties['args'] -and $f.args) {
+              $__args = $f.args
+          } elseif ($null -ne $arg) {
+              $__args = @($arg)
+          }
+      }
+      # --- END minimal patch ---
+
+          Write-Host ("    filter: {0}" -f $name)
+          Write-Host ("      arg  : {0}" -f $arg)
+          Write-Host ("      args : {0}" -f ($__args -join ', '))
 
         switch ($name) {
             'trim'       { $Value = $Value.Trim() }
@@ -378,14 +397,13 @@ function Apply-Filters {
                     $Value = ($(if ($null -ne $f.arg) { $f.arg } else { '' }))
                 }
             }
-            'replace'    {
-                # Literal replacement (no regex). Requires two args: old, new
+            'replace' {
                 if ($__args.Count -lt 2) {
                     throw 'replace filter requires two arguments: replace:"old":"new"'
                 }
                 $old = $__args[0]
                 $new = $__args[1]
-                $Value = $Value.Replace($old, $new)
+                $Value = $Value.Replace($old, $new)  # literal replacement, not regex
             }
             'expandsz' {
                 # Encode as REG_EXPAND_SZ in .reg hex(2) form (UTF-16LE, null-terminated)
@@ -408,21 +426,39 @@ function Apply-Filters {
 function Parse-Placeholder {
     <#
     .SYNOPSIS
-      Parse a placeholder expression into its parts.
+      Parse the inside of {{ ... }} into namespace, name, and a filter pipeline.
+
+    .DESCRIPTION
+      Expected head forms:
+        var.Name
+        env.NAME
+      Followed by optional filters separated by pipes:
+        | filter
+        | filter:"arg"
+        | filter:"arg1":"arg2"   # multiple args supported (e.g., replace:"old":"new")
+
+      Whitespace/newlines around pipes and colons are tolerated.
 
     .PARAMETER ExprText
-      The raw text inside {{ and }}.
+      Raw text inside the {{ and }} delimiters.
 
     .OUTPUTS
-      Hashtable with keys: ns, name, filters (array of @{name;arg}).
+      Hashtable:
+        @{ ns = 'var'|'env'
+           name = 'Name'
+           filters = @(
+               @{ name='filterName'; arg='<firstArg-or-$null>'; args=@('<arg1>','<arg2>',...) },
+               ...
+           )
+        }
     #>
     param([string]$ExprText)
 
-    # Allow expressions to contain newlines and arbitrary whitespace.
-    # We'll split on '|' and trim each segment afterwards.
+    # Split around '|' (pipes). We’ll trim whitespace per segment.
     $parts = $ExprText -split '\|'
     if ($parts.Count -lt 1) { throw "Empty expression in placeholder." }
 
+    # Head: var.Name or env.NAME
     $head = $parts[0].Trim()
     if ($head -notmatch '^(?<ns>var|env)\.(?<name>[A-Za-z_][A-Za-z0-9_\.]*)$') {
         throw "Invalid placeholder head '${head}'. Use 'var.Name' or 'env.NAME'."
@@ -430,25 +466,46 @@ function Parse-Placeholder {
     $ns   = $Matches['ns']
     $name = $Matches['name']
 
+    # Filters (zero or more)
     $filters = @()
-    for ($i=1; $i -lt $parts.Count; $i++) {
+    for ($i = 1; $i -lt $parts.Count; $i++) {
         $seg = $parts[$i].Trim()
         if (-not $seg) { continue }
 
-        $fname = $seg
-        $farg  = $null
-
-        # filter:"arg"  (arg may contain \" escapes)
-        if ($seg -match '^(?<fn>[A-Za-z_][A-Za-z0-9_]*)\s*:\s*"(?<arg>(?:[^"\\]|\\.)*)"\s*$') {
-            $fname = $Matches['fn']
-            $farg  = $Matches['arg'] -replace '\\\"','"'
-        } elseif ($seg -match '^(?<fn>[A-Za-z_][A-Za-z0-9_]*)\s*$') {
-            $fname = $Matches['fn']
-            $farg  = $null
-        } else {
-            throw "Invalid filter segment '${seg}'. Use filter or filter:""arg""."
+        # Extract filter name
+        if ($seg -notmatch '^(?<fn>[A-Za-z_][A-Za-z0-9_]*)') {
+            throw "Invalid filter segment '${seg}'. Use 'filter' or 'filter:""arg""' (multiple args allowed)."
         }
-        $filters += @{ name = $fname; arg = $farg }
+        $fname = $Matches['fn']
+        $rest  = $seg.Substring($Matches[0].Length)
+
+        # Extract one or more quoted args of the form : "arg"
+        $fargs = @()
+        while ($rest -match '^\s*:\s*"(?:[^"\\]|\\.)*"') {
+            # capture the next quoted arg
+            if ($rest -match '^\s*:\s*"(?<arg>(?:[^"\\]|\\.)*)"') {
+                $capt = $Matches['arg']
+                # Unescape \" -> " and \\ -> \
+                $capt = $capt -replace '\\\\','\'   # \\  -> \
+                $capt = $capt -replace '\\"','"'    # \"  -> "
+                $fargs += $capt
+                $rest = $rest.Substring($Matches[0].Length)
+            } else {
+                break
+            }
+        }
+
+        # No extra junk allowed after arguments
+        if ($rest.Trim()) {
+            throw "Invalid filter segment '${seg}'. Unexpected text after arguments."
+        }
+
+        # Store both first arg (compat) and full args (for multi-arg filters like replace)
+        $filters += @{
+            name = $fname
+            arg  = ($(if ($fargs.Count -gt 0) { $fargs[0] } else { $null }))
+            args = $fargs
+        }
     }
 
     return @{ ns = $ns; name = $name; filters = $filters }
@@ -550,6 +607,10 @@ if (-not $Output) {
 $pattern = '\{\{\s*([\s\S]+?)\s*\}\}'
 $errors  = New-Object System.Collections.Generic.List[string]
 
+# Temporarily transform double curly brackets escaping:
+$tplText = $tplText -replace "\\{{", "\{\{"
+$tplText = $tplText -replace "\\}}", "\}\}"
+
 $expanded = [System.Text.RegularExpressions.Regex]::Replace(
     $tplText,
     $pattern,
@@ -570,6 +631,10 @@ $expanded = [System.Text.RegularExpressions.Regex]::Replace(
         }
     }
 )
+
+# Backward transform double curly brackets escaping:
+$expanded = $expanded -replace "\\{\\{", "{{"
+$expanded = $expanded -replace "\\}\\}", "}}"
 
 if ($errors.Count -gt 0) {
     $nl = [Environment]::NewLine
