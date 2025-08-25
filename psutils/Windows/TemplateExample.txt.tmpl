@@ -120,10 +120,10 @@ var.PathWin without filters:
   "{{ var.PathWin }}"
 with filters | pathappend:"dir1\dir2\icon.png" | replace:"\\":"/" :
   "{{ var.PathWin | pathappend:"dir1\dir2\icon.png" | replace:"\\":"/" }}"
-Different order of the same filters can give different results:
+different order of the same filters can give different results:
 with filters | replace:"\\":"/" | pathappend:"dir1\dir2\icon.png" :
   "{{ var.PathWin | replace:"\\":"/" | pathappend:"dir1\dir2\icon.png" }}"
-More than two filters:
+more than two filters:
 with filters | pathappend:"dir1\dir2\icon.png" | replace:"\\":"/" | prepend:"The path is: " :
   "{{ var.PathWin | pathappend:"dir1\dir2\icon.png" | replace:"\\":"/" | prepend:"The path is: " }}"
 
@@ -148,9 +148,31 @@ The value of user-defined variable MyVarSimple: "{{
     var.MyVarSimple
     }}"
 
+# Spaces in placeholders with filters:
 
-
-
+var.PathWin without filters:
+  "{{ var.PathWin }}"
+with three filters, | pathappend:"dir1\dir2\icon.png" | replace:"\\":"/" | prepend:"The path is: " :
+  "{{ var.PathWin | pathappend:"dir1\dir2\icon.png" | replace:"\\":"/" | prepend:"The path is: " }}"
+with no spaces:
+  "{{var.PathWin | pathappend:"dir1\dir2\icon.png" | replace:"\\":"/" | prepend:"The path is: "}}"
+with spaces removed even around filter signs ():
+  "{{var.PathWin|pathappend:"dir1\dir2\icon.png"|replace:"\\":"/"|prepend:"The path is: "}}"
+with newline after opening parentheses:
+  "{{
+      var.PathWin | pathappend:"dir1\dir2\icon.png" | replace:"\\":"/" | prepend:"The path is: " }}"
+with newlines after opening and before closing parentheses:
+  "{{
+      var.PathWin | pathappend:"dir1\dir2\icon.png" | replace:"\\":"/" | prepend:"The path is: "
+  }}"
+with newlines also between pipes (at various places):
+  "{{
+      var.PathWin
+        | pathappend:"dir1\dir2\icon.png" | 
+        replace:"\\":"/"
+        |
+        prepend:"The path is: "
+  }}"
 
 
 # The following environment variables need to be defined for successful
