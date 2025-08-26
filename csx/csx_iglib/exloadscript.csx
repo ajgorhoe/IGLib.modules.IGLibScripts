@@ -1,6 +1,6 @@
 
 
-// Loading dependencies - C# script & C# file, and veify that definitions are there:
+// Loading dependencies - C# script & C# file, and verify that definitions are there:
 
 
 #r "System"
