@@ -1,11 +1,12 @@
 #!/usr/bin/env dotnet-script
 
-#load "tstdev.csx"
+#load "testutils.csx"
+
 
 using System;
 
 
-Console.WriteLine($"\nFrom rst.csx:\n");
+Console.WriteLine($"\nFrom tests.csx:\n");
 
 Console.WriteLine($"GetCurrentTime(): {GetCurrentTime()}");
 Console.WriteLine($"time: {time}");
