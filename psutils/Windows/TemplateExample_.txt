@@ -43,6 +43,7 @@ User-provided values (as variables) used in this template:
   DirtyRelativePath: "../.\.\.//../users//\\/aa/./x.xml"
   DirtyAbsolutePath: "C:\users\\Uporabnik/.//..\Uporabnik/doc/\\/Mydoc.dox"
   EscapedStr:        "sq \' dq \" bsl \\ nl \n cr \r ht \t vt \v bsp \b ff \f null \0 nl \012 A \101 sp \040 ht \x09 Z \x5A ! \x21 weird \x4142 ☺ \u263A ☃ \u2603 π \u03C0 A \u0041 gothicAhsa 𐌰 \U00010330 rocket 🚀 \U0001F680 cat 🐈 \U0001F408"
+  EscapedStrSimple:  "sq \' dq \" bsl \\ nl \n cr \r ht \t vt \v bsp \b ff \f null \0 nl \012 A \101 sp \040 ht \x09 Z \x5A ! \x21 weird \x4142 ☺ \u263A ☃ "
   ForUrlEncoding:    "Café Münchën!.#.$.&. .'.(.).*.+.,./.:.;.=.?.@.[.]"
   ForXMLEncoding:    ""Hello & Hoodbye!"  5 < 6 & 7 > 4  <a id=e55>#e55</a>"
 
@@ -157,6 +158,77 @@ with filter | pathos :
 with filter | pathosabs :
   "/c/users/Uporabnik/doc/Mydoc.dox"
 
+# ENCODING / DECODING, ESCAPING, COMPRESSION filters
+
+# These filters include urlencode / urldecode, xmlencode / xmldecode, 
+# base64 / frombase64, hex / fromhex, escc / fromescc, 
+# escjava / fromescjava, esccs / fromesccs
+# In some cases, input or output can be binary. Where output is binary, 
+# filters should be combined with filters that convert binary data to text,
+# such as base64 or hex. For example, gzip produced binary result, and can
+# be combined with base64 or hex, e.g. "| gzip | base64"; to restore to 
+# string, we then use "| frombase64 | gunzip".
+
+# URL encoding / decoding:
+var.ForUrlEncoding:
+  "Café Münchën!.#.$.&. .'.(.).*.+.,./.:.;.=.?.@.[.]"
+with filter | urlencode :
+  "Caf%C3%A9%20M%C3%BCnch%C3%ABn!.%23.%24.%26.%20.'.(.).*.%2B.%2C.%2F.%3A.%3B.%3D.%3F.%40.%5B.%5D"
+round trip  | urlencode | urldecode :
+  "Café Münchën!.#.$.&. .'.(.).*.+.,./.:.;.=.?.@.[.]"
+
+# XML / HTML encoding / decoding:
+var.ForXMLEncoding:
+  ""Hello & Hoodbye!"  5 < 6 & 7 > 4  <a id=e55>#e55</a>"
+with filter | xmlencode :
+  "&quot;Hello &amp; Hoodbye!&quot;  5 &lt; 6 &amp; 7 &gt; 4  &lt;a id=e55&gt;#e55&lt;/a&gt;"
+round trip  | xmlencode | xmldecode :
+  ""Hello & Hoodbye!"  5 < 6 & 7 > 4  <a id=e55>#e55</a>"
+
+# C/C++ -style escaping:
+var.EscapedStr:
+  "sq \' dq \" bsl \\ nl \n cr \r ht \t vt \v bsp \b ff \f null \0 nl \012 A \101 sp \040 ht \x09 Z \x5A ! \x21 weird \x4142 ☺ \u263A ☃ \u2603 π \u03C0 A \u0041 gothicAhsa 𐌰 \U00010330 rocket 🚀 \U0001F680 cat 🐈 \U0001F408"
+with filter | fromescc :
+  "sq ' dq " bsl \ nl 
+ cr  ht 	 vt  bsp  ff  null   nl 
+ A A sp   ht 	 Z Z ! ! weird A42 ☺ u263A ☃ u2603 π u03C0 A u0041 gothicAhsa 𐌰 U00010330 rocket 🚀 U0001F680 cat 🐈 U0001F408"
+round trip  | fromescc| escc  :
+  "sq \'' dq \"" bsl \\\ nl \n\x0a cr \r\x0d ht \t\x09 vt \x0b bsp \b\x08 ff \f\x0c null \x00 nl \n\x0a A A sp   ht \t\x09 Z Z ! ! weird A42 ☺ u263A ☃ u2603 π u03C0 A u0041 gothicAhsa 𐌰 U00010330 rocket 🚀 U0001F680 cat 🐈 U0001F408"
+  "sq \' dq \" bsl \\ nl \n cr \r ht \t vt \v bsp \b ff \f null \0 nl \012 A \101 sp \040 ht \x09 Z \x5A ! \x21 weird \x4142 ☺ \u263A ☃ \u2603 π \u03C0 A \u0041 gothicAhsa 𐌰 \U00010330 rocket 🚀 \U0001F680 cat 🐈 \U0001F408"
+
+# Java -style escaping:
+var.EscapedStr:
+  "sq \' dq \" bsl \\ nl \n cr \r ht \t vt \v bsp \b ff \f null \0 nl \012 A \101 sp \040 ht \x09 Z \x5A ! \x21 weird \x4142 ☺ \u263A ☃ \u2603 π \u03C0 A \u0041 gothicAhsa 𐌰 \U00010330 rocket 🚀 \U0001F680 cat 🐈 \U0001F408"
+with filter | fromescjava :
+  "sq ' dq " bsl \ nl 
+ cr  ht 	 vt v bsp  ff  null   nl 
+ A A sp   ht x09 Z x5A ! x21 weird x4142 ☺ ☺ ☃ ☃ π π A A gothicAhsa 𐌰 0330 rocket 🚀 F680 cat 🐈 F408"
+round trip  | fromescjava| escjava  :
+  "sq \'' dq \"" bsl \\\ nl \n\u000a cr \r\u000d ht \t\u0009 vt v bsp \b\u0008 ff \f\u000c null \u0000 nl \n\u000a A A sp   ht x09 Z x5A ! x21 weird x4142 \u263a \u263a \u2603 \u2603 \u03c0 \u03c0 A A gothicAhsa \ud800\udf30 \u00010330 rocket \ud83d\ude80 \u0001F680 cat \ud83d\udc08 \u0001F408"
+  "sq \' dq \" bsl \\ nl \n cr \r ht \t vt \v bsp \b ff \f null \0 nl \012 A \101 sp \040 ht \x09 Z \x5A ! \x21 weird \x4142 ☺ \u263A ☃ \u2603 π \u03C0 A \u0041 gothicAhsa 𐌰 \U00010330 rocket 🚀 \U0001F680 cat 🐈 \U0001F408"
+
+# C# -style escaping:
+var.EscapedStr:
+  "sq \' dq \" bsl \\ nl \n cr \r ht \t vt \v bsp \b ff \f null \0 nl \012 A \101 sp \040 ht \x09 Z \x5A ! \x21 weird \x4142 ☺ \u263A ☃ "
+with filter | fromesccs :
+  "sq ' dq " bsl \ nl 
+ cr  ht 	 vt v bsp  ff  null 0 nl 012 A 101 sp 040 ht x09 Z x5A ! x21 weird x4142 ☺ ☺ ☃ "
+# ToDo: conversion below throws exception
+round trip  | fromesccs| esccs  :
+  "{{ var.EscapedStrSimple | fromesccs | esccs }}"
+  "sq \' dq \" bsl \\ nl \n cr \r ht \t vt \v bsp \b ff \f null \0 nl \012 A \101 sp \040 ht \x09 Z \x5A ! \x21 weird \x4142 ☺ \u263A ☃ "
+
+# With simpler escaped string:
+var.EscapedStr:
+  "sq \' dq \" bsl \\ nl \n cr \r ht \t vt \v bsp \b ff \f null \0 nl \012 A \101 sp \040 ht \x09 Z \x5A ! \x21 weird \x4142 ☺ \u263A ☃ \u2603 π \u03C0 A \u0041 gothicAhsa 𐌰 \U00010330 rocket 🚀 \U0001F680 cat 🐈 \U0001F408"
+with filter | fromesccs :
+  "{{ var.EscapedStr | fromesccs }}"
+# ToDo: conversion below throws exception
+round trip | fromesccs | esccs  :
+  "{{ var.EscapedStr | fromesccs | esccs }}"
+  "sq \' dq \" bsl \\ nl \n cr \r ht \t vt \v bsp \b ff \f null \0 nl \012 A \101 sp \040 ht \x09 Z \x5A ! \x21 weird \x4142 ☺ \u263A ☃ \u2603 π \u03C0 A \u0041 gothicAhsa 𐌰 \U00010330 rocket 🚀 \U0001F680 cat 🐈 \U0001F408"
+
+
 # MULTIPLE FILTERS:
 
 # Multiple filters can be applied to the initial string in order to produce
@@ -223,6 +295,7 @@ with newlines also between pipes (at various places):
 #   DirtyRelativePath = "../.\.\.//../users//\\/aa/./x.xml"
 #   DirtyAbsolutePath = "C:\users\\Uporabnik/.//..\Uporabnik/doc/\\/Mydoc.dox"
 #   EscapedStr = "sq \' dq \`" bsl \\ nl \n cr \r ht \t vt \v bsp \b ff \f null \0 nl \012 A \101 sp \040 ht \x09 Z \x5A ! \x21 weird \x4142 â˜º \u263A â˜ƒ \u2603 Ï€ \u03C0 A \u0041 gothicAhsa ðŒ° \U00010330 rocket ðŸš€ \U0001F680 cat ðŸˆ \U0001F408"
+#   EscapedStrSimple = "sq \' dq \`" bsl \\ nl \n cr \r ht \t vt \v bsp \b ff \f null \0 nl \012 A \101 sp \040 ht \x09 Z \x5A ! \x21 weird \x4142 â˜º \u263A â˜ƒ "
 #   ForUrlEncoding = "CafÃ© MÃ¼nchÃ«n!.#.$.&. .'.(.).*.+.,./.:.;.=.?.@.[.]"
 #   ForXMLEncoding = "`"Hello & Hoodbye!`"  5 < 6 & 7 > 4  <a id=e55>#e55</a>"
 
