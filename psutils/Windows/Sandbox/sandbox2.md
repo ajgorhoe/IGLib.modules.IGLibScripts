@@ -356,11 +356,14 @@ Special-case: `.reg` (registry script files) outputs to the required **UTF-16 LE
 **Key features**
 
 * **Placeholders**: `{{ ... }}` with a **namespace** and optional **pipe** filters.
-  * General form: ``{{ Namespace.<Qualifier> < | Filter1 | Filter2 ... > }}``
+  * General form: `{{ Namespace.<Qualifier> < | Filter1 | Filter2 ... > }}`
+  * Filter - general form: `FilterrName<"arg1":"arg2":...>`
+    * Examples: `regesc`, `append:"  `nThe text: "`, `replace:"myusername":"MyUserName"`
   * Examples:
-    * `{{ env.LOCALAPPDATA | pathappend:"Local\Programs\" | regesc }}`
     * `{{ env.USERNAME }}`
-    * `{{ var.ScriptFile }}`
+    * `{{ var.ScriptFilePath | regesc }}`
+    * `{{ env.LOCALAPPDATA | pathappend:"Local\Programs\" | regesc }}`
+    * `{{ var.MyFilePath | replace:"/":"\" | replace:"\":"\\" }}`
 * **Namespaces**:
   * `var.<Name>` - user-provided variables (via `-Variables @{ ... }` or `-Variable Name Value`).
   * `env.<NAME>` - environment variables (e.g., `env.USERNAME`, `env.LOCALAPPDATA`). Note that on Linux, environment variable names are case sensitive.
