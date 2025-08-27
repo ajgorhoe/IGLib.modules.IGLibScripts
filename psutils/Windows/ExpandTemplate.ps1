@@ -775,6 +775,7 @@ function Apply-Filters {
             'prepend'    {
                 $Value = ($(if ($null -ne $f.arg) { $f.arg } else { '' })) + $Value
             }
+            # PATH manipulation filters:
             'pathappend' { 
               $Value = $Value + ($(if ($null -ne $arg) { $arg } else { '' })) 
             }
@@ -788,6 +789,25 @@ function Apply-Filters {
             'pathwinabs' { $Value = To-WindowsPathAbsolute $Value }
             'pathlinuxabs' { $Value = To-LinuxPathAbsolute $Value }
             'pathosabs' { $Value = To-OSPathAbsolute $Value }
+            # end: path manipulation filters
+            # ENCODING/decoding, ESCAPING, COMPRESSION filters:
+            'base64'      { $Value = Filter-Base64      $Value }
+            'frombase64'  { $Value = Filter-FromBase64  $Value } # returns byte[]
+            'hex'         { $Value = Filter-Hex         $Value }
+            'fromhex'     { $Value = Filter-FromHex     $Value } # returns byte[]
+            'gzip'        { $Value = Filter-Gzip        $Value } # returns byte[]
+            'gunzip'      { $Value = Filter-Gunzip      $Value } # returns string
+            'urlencode'   { $Value = Filter-UrlEncode   $Value }
+            'urldecode'   { $Value = Filter-UrlDecode   $Value }
+            'xmlencode'   { $Value = Filter-XmlEncode   $Value }
+            'xmldecode'   { $Value = Filter-XmlDecode   $Value }
+            'escc'        { $Value = Escape-C           (As-String $Value) }
+            'fromescc'    { $Value = Unescape-C         (As-String $Value) }
+            'escjava'     { $Value = Escape-Java        (As-String $Value) }
+            'fromescjava' { $Value = Unescape-Java      (As-String $Value) }
+            'esccs'       { $Value = Escape-Cs          (As-String $Value) }
+            'fromesccs'   { $Value = Unescape-Cs        (As-String $Value) }
+            # end: encoding/decoding, escaping, compression
             'addarg'     { $Value = $Value + ' "' + ($(if ($null -ne $arg) { $arg } else { '' })) + '"' }
             'default'    {
                 if ([string]::IsNullOrWhiteSpace($Value)) {
