@@ -103,4 +103,30 @@ then running the script in interactive shell in one of the described ways will m
 >
 ~~~
 
-For more detailed and up-to-date information, **see the [dotnet-script README file](https://github.com/dotnet-script/dotnet-script/blob/master/README.md)**.
+We can pass arguments to scripts and access them in script code. In order to do this, run the script (say `test.csx`) by adding `--` followed by space-separated script arguments, e.g.:
+
+~~~shell
+dotnet script test.csx -- arg1 arg2 arg3
+~~~
+
+In the script, arguments can be accessed via the `Args` variable (predefined). For example, we can print the command-line arguments passed to the script in the following way:
+
+~~~csharp
+if (Args.Count == 0)
+{
+    Console.WriteLine("  No arguments passed to the script." + Environment.NewLine);
+}
+else
+{
+    Console.WriteLine($"{Args.Count} arguments passed to the script:");
+    int i = 0;
+    foreach (string arg in Args)
+    {
+        i++;
+        Console.WriteLine($"  {i}: {arg}");
+    }
+    Console.WriteLine();
+}
+~~~
+
+For detailed information, **see the [dotnet-script README file](https://github.com/dotnet-script/dotnet-script/blob/master/README.md)**.

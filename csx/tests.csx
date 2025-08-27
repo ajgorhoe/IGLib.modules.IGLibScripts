@@ -2,9 +2,7 @@
 
 #load "testutils.csx"
 
-
 using System;
-
 
 Console.WriteLine($"\nFrom tests.csx:\n");
 
@@ -20,7 +18,3 @@ Console.WriteLine($"scriptfile: {scriptfile}");
 Console.WriteLine($"scriptdir: {scriptdir}");
 Console.WriteLine($"lastscriptfile: {lastscriptfile}");
 Console.WriteLine($"lastscriptdir: {lastscriptdir}");
-
-
-
-
