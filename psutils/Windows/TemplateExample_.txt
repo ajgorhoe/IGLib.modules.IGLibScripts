@@ -36,10 +36,12 @@ Environment variables used in this template:
   ENVSIMPLE:   "EnvSimpleValue"
   ENVLONGER:   "Value of the environment variable (longer)."
 User-provided values (as variables) used in this template:
-  MyVarSimple:  "NorthEast"
-  MyVarLong:    "This is a longer "str", \ used to demonstrate composed filters.  "
-  PathWin:      "C:\Program Files (x86)\Microsoft SQL Server\"
-  PathUnix:     "~/doc/MyDoc.md"
+  MyVarSimple:       "NorthEast"
+  MyVarLong:         "This is a longer "str", \ used to demonstrate composed filters.  "
+  PathWin:           "C:\Program Files (x86)\Microsoft SQL Server\"
+  PathUnix:          "~/doc/MyDoc.md"
+  DirtyRelativePath: "../.\.\.//../users//\\/aa/./x.xml"
+  DirtyAbsolutePath: "C:\users\\Uporabnik/.//..\Uporabnik/doc/\\/Mydoc.dox"
 
 # Simple placeholders to substitute user-provided values (via variables):
 The user-provided value of MyVarSimple is NorthEast. The quoted value 
@@ -56,26 +58,6 @@ with filter | regq applied:
   "This is a longer \"str\", \ used to demonstrate composed filters.  "
 with filter | regesc applied:
   "This is a longer \"str\", \\ used to demonstrate composed filters.  "
-
-# TODO: THIS DOES NOT WORK WELL, should use .NET Path.Combine
-# The pathappend filter appends its argument to the path:
-var.PathWin without filters:
-  "C:\Program Files (x86)\Microsoft SQL Server\"
-with filter | pathappend:"myfiles" :
-  "C:\Program Files (x86)\Microsoft SQL Server\myfiles"
-with filter | pathappend:"dir1\dir2\icon.png" :
-  "C:\Program Files (x86)\Microsoft SQL Server\dir1\dir2\icon.png"
-
-var.PathUnix:
-  "~/doc/MyDoc.md"
-with filter | pathappend:"dir1\dir2\icon.png" :
-  "~/doc/MyDoc.mddir1\dir2\icon.png"
-
-# The pathquote filter encloses a path in quotes, if not already enclosed:
-env.ENVPATHWIN:
-  "C:\Users\Uporabnik\Documents\MyDoc.md"
-with filter | pathquote :
-  ""C:\Users\Uporabnik\Documents\MyDoc.md""
 
 # The lower and upper filters change the case:
 var.MyVarSimple:
@@ -110,6 +92,66 @@ with  filter | prepend:"North-" :
 # TODO: Not yet implemented: filter arguments not in double quotes
 with  filter | prepend:North :
   "{{ var.MyVarSimple | prepend:North }}"
+
+# PATH FILTERS:
+
+# The pathappend filter appends its argument to the path:
+var.PathWin without filters:
+  "C:\Program Files (x86)\Microsoft SQL Server\"
+with filter | pathappend:"myfiles" :
+  "C:\Program Files (x86)\Microsoft SQL Server\myfiles"
+with filter | pathappend:"dir1\dir2\icon.png" :
+  "C:\Program Files (x86)\Microsoft SQL Server\dir1\dir2\icon.png"
+
+var.PathUnix:
+  "~/doc/MyDoc.md"
+with filter | pathappend:"dir1\dir2\icon.png" :
+  "~/doc/MyDoc.mddir1\dir2\icon.png"
+
+# The pathquote filter encloses a path in quotes, if not already enclosed:
+env.ENVPATHWIN:
+  "C:\Users\Uporabnik\Documents\MyDoc.md"
+with filter | pathquote :
+  ""C:\Users\Uporabnik\Documents\MyDoc.md""
+
+# The pathwin, pathlinux, pathos, pathwinabs, pathlinuxabs, and pathosabs 
+# convert paths to a clean canonical form for specific operating systems.
+# Filters with "abs" suffix convert to absolute paths, and filters without
+# "abs" suffix leave relative paths in relative form. Filters perform the 
+# necessary conversion between slashes '/' and backslashes '\', replace 
+# duplicate slashes or backslashes and redundant "/./" parts, resolve "../"
+# in absolute paths, and for Linux forms, replace drive parts, e.g. "C:\"
+# to "/c/".
+
+var.DirtyRelativePath:
+  "../.\.\.//../users//\\/aa/./x.xml"
+with filter | pathwin :
+  "..\..\users\aa\x.xml"
+with filter | pathwinabs :
+  "e:\wsorkspace\ws\other\iglibmodules\IGLibScripts\users\aa\x.xml"
+with filter | pathlinux :
+  "../../users/aa/x.xml"
+with filter | pathlinuxabs :
+  "/e/wsorkspace/ws/other/iglibmodules/IGLibScripts/users/aa/x.xml"
+with filter | pathos :
+  "../../users/aa/x.xml"
+with filter | pathosabs :
+  "/e/wsorkspace/ws/other/iglibmodules/IGLibScripts/users/aa/x.xml"
+
+var.DirtyAbsolutePath:
+  "C:\users\\Uporabnik/.//..\Uporabnik/doc/\\/Mydoc.dox"
+with filter | pathwin :
+  "C:\users\Uporabnik\..\Uporabnik\doc\Mydoc.dox"
+with filter | pathwinabs :
+  "C:\users\Uporabnik\doc\Mydoc.dox"
+with filter | pathlinux :
+  "/c/users/Uporabnik/../Uporabnik/doc/Mydoc.dox"
+with filter | pathlinuxabs :
+  "/c/users/Uporabnik/doc/Mydoc.dox"
+with filter | pathos :
+  "/c/users/Uporabnik/../Uporabnik/doc/Mydoc.dox"
+with filter | pathosabs :
+  "/c/users/Uporabnik/doc/Mydoc.dox"
 
 # MULTIPLE FILTERS:
 
@@ -174,6 +216,8 @@ with newlines also between pipes (at various places):
 #   MyVarLong = '  This is a longer "str", \ used to demonstrate composed filters.  '
 #   PathWin = C:\Program Files (x86)\Microsoft SQL Server\
 #   PathUnix = ~/doc/MyDoc.md
+#   DirtyRelativePath = "../.\.\.//../users//\\/aa/./x.xml"
+#   DirtyAbsolutePath = "C:\users\\Uporabnik/.//..\Uporabnik/doc/\\/Mydoc.dox"
 
 
 

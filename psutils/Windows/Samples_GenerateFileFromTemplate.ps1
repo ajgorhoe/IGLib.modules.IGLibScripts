@@ -20,6 +20,8 @@
 #   MyVarLong = '  This is a longer "str", \ used to demonstrate composed filters.  '
 #   PathWin = C:\Program Files (x86)\Microsoft SQL Server\
 #   PathUnix = ~/doc/MyDoc.md
+#   DirtyRelativePath = "../.\.\.//../users//\\/aa/./x.xml"
+#   DirtyAbsolutePath = "C:\users\\Uporabnik/.//..\Uporabnik/doc/\\/Mydoc.dox"
 
 # Generate TemplateExample_Generated.txt from TemplateExample.txt.tmpl,
 # where variables are passed via -Var array parameter:
@@ -34,10 +36,13 @@ $MyVarSimple = "NorthEast"
 $MyVarLong = '  This is a longer "str", \ used to demonstrate composed filters.  '
 $PathWin = "C:\Program Files (x86)\Microsoft SQL Server\"
 $PathUnix = "~/doc/MyDoc.md"
+$DirtyRelativePath = "../.\.\.//../users//\\/aa/./x.xml"
+$DirtyAbsolutePath = "C:\users\\Uporabnik/.//..\Uporabnik/doc/\\/Mydoc.dox"
 # Run the template engine to generate the output file:
 ./ExpandTemplate.ps1 -Template TemplateExample.txt.tmpl  `
   -Output TemplateExample.txt  `
   -Var @( "MyVarSimple=$MyVarSimple", "MyVarLong=$MyVarLong",
-    "PathWin=$PathWin", "PathUnix=$PathUnix" )
+    "PathWin=$PathWin", "PathUnix=$PathUnix",
+    "DirtyRelativePath=$DirtyRelativePath", "DirtyAbsolutePath=$DirtyAbsolutePath" )
 
 

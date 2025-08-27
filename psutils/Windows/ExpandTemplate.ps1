@@ -479,12 +479,12 @@ function Apply-Filters {
                 # Quote only if not already quoted (tolerates surrounding whitespace)
                 if ($Value -notmatch '^\s*".*"\s*$') { $Value = '"' + $Value + '"' }
             }
-            'pathlinuxabs' { $Value = To-LinuxPathAbsolute $Value }
-            'pathwinabs' { $Value = To-WindowsPathAbsolute $Value }
-            'pathosabs' { $Value = To-OSPathAbsolute $Value }
-            'pathlinux' { $Value = To-LinuxPathPreserveRelative $Value }
             'pathwin' { $Value = To-WindowsPathPreserveRelative $Value }
+            'pathlinux' { $Value = To-LinuxPathPreserveRelative $Value }
             'pathos' { $Value = To-OSPathPreserveRelative $Value }
+            'pathwinabs' { $Value = To-WindowsPathAbsolute $Value }
+            'pathlinuxabs' { $Value = To-LinuxPathAbsolute $Value }
+            'pathosabs' { $Value = To-OSPathAbsolute $Value }
             'addarg'     { $Value = $Value + ' "' + ($(if ($null -ne $arg) { $arg } else { '' })) + '"' }
             'default'    {
                 if ([string]::IsNullOrWhiteSpace($Value)) {
