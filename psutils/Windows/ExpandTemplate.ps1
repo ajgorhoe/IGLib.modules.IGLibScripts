@@ -728,110 +728,113 @@ function Apply-Filters {
       [string] Transformed value.
     #>
     param(
-        [string]   $Value,
+        [object]   $Value,     # can be string or [byte[]] between filters
         [object[]] $Pipeline
     )
 
     foreach ($f in $Pipeline) {
-      # --- BEGIN minimal patch: normalize access for hashtable/PSCustomObject ---
-      # Read the filter name, first-arg, and full-args in a way that works for hashtables too.
-      $__isHash = ($f -is [hashtable])
 
-      # Name
-      $name = if ($__isHash) { [string]$f['name'] } else { [string]$f.name }
+        # ---- Normalize access for hashtable or PSCustomObject ----
+        $isHash = ($f -is [hashtable])
 
-      # First arg (compat with older single-arg code)
-      $arg  = if ($__isHash) { $f['arg'] } else { $f.arg }
+        $name = if ($isHash) { [string]$f['name'] } else { [string]$f.name }
+        $arg  = if ($isHash) { $f['arg'] }         else { $f.arg }
 
-      # Full args array
-      $__args = @()
-      if ($__isHash) {
-          if ($f.ContainsKey('args') -and $f['args']) {
-              $__args = @($f['args'])   # make sure it's an array
-          } elseif ($null -ne $arg) {
-              $__args = @($arg)
-          }
-      } else {
-          if ($f.PSObject.Properties['args'] -and $f.args) {
-              $__args = $f.args
-          } elseif ($null -ne $arg) {
-              $__args = @($arg)
-          }
-      }
-      # --- END minimal patch ---
+        # multi-arg support (e.g., replace:"old":"new")
+        $args = @()
+        if ($isHash) {
+            if ($f.ContainsKey('args') -and $f['args']) { $args = @($f['args']) }
+            elseif ($null -ne $arg) { $args = @($arg) }
+        } else {
+            if ($f.PSObject.Properties['args'] -and $f.args) { $args = $f.args }
+            elseif ($null -ne $arg) { $args = @($arg) }
+        }
 
-          Write-Host ("    filter: {0}" -f $name)
-          Write-Host ("      arg  : {0}" -f $arg)
-          Write-Host ("      args : {0}" -f ($__args -join ', '))
+        switch ($name.ToLowerInvariant()) {
 
-        switch ($name) {
-            'trim'       { $Value = $Value.Trim() }
-            'upper'      { $Value = $Value.ToUpper() }
-            'lower'      { $Value = $Value.ToLower() }
-            'regq'       { $Value = $Value -replace '"', '\"' }
-            'regesc'     { $Value = $Value -replace '\\', '\\' -replace '"', '\"' }
-            'quote'      { $Value = '"' + $Value + '"' }
-            'append'     { $Value = $Value + ($(if ($null -ne $arg) { $arg } else { '' })) }
-            'prepend'    {
-                $Value = ($(if ($null -ne $f.arg) { $f.arg } else { '' })) + $Value
-            }
-            # PATH manipulation filters:
-            'pathappend' { 
-              $Value = $Value + ($(if ($null -ne $arg) { $arg } else { '' })) 
-            }
+            # -------------------- Basic string transforms --------------------
+            'trim'   { $Value = (As-String $Value).Trim() }
+            'upper'  { $Value = (As-String $Value).ToUpper() }
+            'lower'  { $Value = (As-String $Value).ToLower() }
+
+            # -------------------- Quoting / escaping (text) ------------------
+            'quote'      { $Value = '"' + (As-String $Value) + '"' }
             'pathquote'  {
-                # Quote only if not already quoted (tolerates surrounding whitespace)
-                if ($Value -notmatch '^\s*".*"\s*$') { $Value = '"' + $Value + '"' }
+                $s = As-String $Value
+                if ($s -notmatch '^\s*".*"\s*$') { $s = '"' + $s + '"' }
+                $Value = $s
             }
-            'pathwin' { $Value = To-WindowsPathPreserveRelative $Value }
-            'pathlinux' { $Value = To-LinuxPathPreserveRelative $Value }
-            'pathos' { $Value = To-OSPathPreserveRelative $Value }
-            'pathwinabs' { $Value = To-WindowsPathAbsolute $Value }
-            'pathlinuxabs' { $Value = To-LinuxPathAbsolute $Value }
-            'pathosabs' { $Value = To-OSPathAbsolute $Value }
-            # end: path manipulation filters
-            # ENCODING/decoding, ESCAPING, COMPRESSION filters:
-            'base64'      { $Value = Filter-Base64      $Value }
-            'frombase64'  { $Value = Filter-FromBase64  $Value } # returns byte[]
-            'hex'         { $Value = Filter-Hex         $Value }
-            'fromhex'     { $Value = Filter-FromHex     $Value } # returns byte[]
-            'gzip'        { $Value = Filter-Gzip        $Value } # returns byte[]
-            'gunzip'      { $Value = Filter-Gunzip      $Value } # returns string
-            'urlencode'   { $Value = Filter-UrlEncode   $Value }
-            'urldecode'   { $Value = Filter-UrlDecode   $Value }
-            'xmlencode'   { $Value = Filter-XmlEncode   $Value }
-            'xmldecode'   { $Value = Filter-XmlDecode   $Value }
-            'escc'        { $Value = Escape-C           (As-String $Value) }
-            'fromescc'    { $Value = Unescape-C         (As-String $Value) }
-            'escjava'     { $Value = Escape-Java        (As-String $Value) }
-            'fromescjava' { $Value = Unescape-Java      (As-String $Value) }
-            'esccs'       { $Value = Escape-Cs          (As-String $Value) }
-            'fromesccs'   { $Value = Unescape-Cs        (As-String $Value) }
-            # end: encoding/decoding, escaping, compression
-            'addarg'     { $Value = $Value + ' "' + ($(if ($null -ne $arg) { $arg } else { '' })) + '"' }
-            'default'    {
-                if ([string]::IsNullOrWhiteSpace($Value)) {
-                    $Value = ($(if ($null -ne $f.arg) { $f.arg } else { '' }))
+            'regq'    { $Value = (As-String $Value) -replace '"','\"' }
+            'regesc'  { $Value = ((As-String $Value) -replace '\\','\\') -replace '"','\"' }
+
+            # -------------------- Path normalization (your helpers) ----------
+            'pathwin'     { $Value = To-WindowsPathPreserveRelative (As-String $Value) }
+            'pathlinux'   { $Value = To-LinuxPathPreserveRelative   (As-String $Value) }
+            'pathos'      { $Value = To-OSPathPreserveRelative      (As-String $Value) }
+            'pathwinabs'  { $Value = To-WindowsPathAbsolute         (As-String $Value) }
+            'pathlinuxabs'{ $Value = To-LinuxPathAbsolute           (As-String $Value) }
+            'pathosabs'   { $Value = To-OSPathAbsolute              (As-String $Value) }
+
+            # -------------------- String composition -------------------------
+            'prepend'     { $Value = ($(if ($null -ne $arg) { $arg } else { '' })) + (As-String $Value) }
+            'append'      { $Value = (As-String $Value) + ($(if ($null -ne $arg) { $arg } else { '' })) }
+            'default'     {
+                $s = As-String $Value
+                if ([string]::IsNullOrWhiteSpace($s)) {
+                    $Value = ($(if ($null -ne $arg) { $arg } else { '' }))
+                } else {
+                    $Value = $s
                 }
             }
-            'replace' {
-                if ($__args.Count -lt 2) {
-                    throw 'replace filter requires two arguments: replace:"old":"new"'
-                }
-                $old = $__args[0]
-                $new = $__args[1]
-                $Value = $Value.Replace($old, $new)  # literal replacement, not regex
+            'replace'     {
+                if ($args.Count -lt 2) { throw 'replace filter requires two arguments: replace:"old":"new"' }
+                $old = $args[0]; $new = $args[1]
+                $Value = (As-String $Value).Replace($old, $new)   # literal, not regex
             }
+            'pathappend'  { $Value = (As-String $Value) + ($(if ($null -ne $arg) { $arg } else { '' })) }
+            'addarg'      { $Value = (As-String $Value) + ' "' + ($(if ($null -ne $arg) { $arg } else { '' })) + '"' }
+
+            # -------------------- Text encodings ------------------------------
+            'urlencode'   { $Value = Filter-UrlEncode (As-String $Value) }
+            'urldecode'   { $Value = Filter-UrlDecode (As-String $Value) }
+
+            'xmlencode'   { $Value = Filter-XmlEncode (As-String $Value) }
+            'xmldecode'   { $Value = Filter-XmlDecode (As-String $Value) }
+
+            # -------------------- Binary/text codecs -------------------------
+            'gzip'        { $Value = Filter-Gzip      $Value }  # -> byte[]
+            'gunzip'      { $Value = Filter-Gunzip    $Value }  # -> string
+
+            'base64'      { $Value = Filter-Base64    $Value }  # bytes or string -> base64 string
+            'frombase64'  { $Value = Filter-FromBase64 $Value } # base64 string   -> byte[]
+
+            'hex'         { $Value = Filter-Hex       $Value }  # bytes or string -> hex string
+            'fromhex'     { $Value = Filter-FromHex   $Value }  # hex string      -> byte[]
+
+            # -------------------- Programming-language escapes ---------------
+            'escc'        { $Value = Escape-C         (As-String $Value) }
+            'fromescc'    { $Value = Unescape-C       (As-String $Value) }
+
+            'escjava'     { $Value = Escape-Java      (As-String $Value) }
+            'fromescjava' { $Value = Unescape-Java    (As-String $Value) }
+
+            'esccs'       { $Value = Escape-Cs        (As-String $Value) }
+            'fromesccs'   { $Value = Unescape-Cs      (As-String $Value) }
+
+            # -------------------- .reg specific ------------------------------
             'expandsz' {
-                # Encode as REG_EXPAND_SZ in .reg hex(2) form (UTF-16LE, null-terminated)
-                $bytes = [System.Text.Encoding]::Unicode.GetBytes($Value + [char]0)
+                $s     = As-String $Value
+                $bytes = [System.Text.Encoding]::Unicode.GetBytes($s + [char]0)
                 $hex   = ($bytes | ForEach-Object { $_.ToString('x2') }) -join ','
                 $Value = 'hex(2):' + $hex
             }
 
-            default     { throw "Unknown filter '${name}'." }
+            default {
+                throw "Unknown filter '${name}'."
+            }
         }
     }
+
     return $Value
 }
 
