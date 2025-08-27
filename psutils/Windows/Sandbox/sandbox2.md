@@ -373,6 +373,12 @@ Special-case: `.reg` (registry script files) outputs to the required **UTF-16 LE
   * `regesc` - escapes quotes and backslashes (replaces `\` => `\\` and `"` => `\"`); used for .reg (Windows Registry script) files and others
   *  `pathappend:"\tail"` - appends paths with whatever follows the colon
   *  `pathquote` - encloses path in quotes, if not already enclosed
+  * `pathwinabs` - converts a path to canonical Windows-style absolute path (also converts slashes to backslashes, replaces `\.\` and duplicate backslashes, resolves `..\`)
+  * `pathlinuxabs` - converts a path to canonical Linux-style absolute path (converts backslashes to slashes, replaces `/./` and duplicate slashes, resolves `../`, maps drive letters (C:\ → /c/) if path starts with them)
+  * `pathosabs` - converts a path to canonical absolute path for the current operating system (OS); if the current OS is Windows, the result is equivalent to `pathwinabs`, otherwise it is equivalent to `pathlinuxabs`.
+  * `pathwin` - converts a path to canonical Windows-style path while preserving relative paths (converts slashes to backslashes, replaces `\.\` and duplicate backslashes, etc.)
+  * `pathlinux` - converts a path to canonical Linux-style path while preserving relative paths (converts backslashes to slashes, replaces `/./` and duplicate slashes, maps drive letters (C:\ → /c/) if path starts with them)
+  * `pathos` - converts a path to canonical path for the current operating system (OS); if the current OS is Windows, the result is equivalent to `pathwin`, otherwise it is equivalent to `pathlinux`.
   *  `lower` - changes input string to lower case
   *  `upper` - changes input string to upper case
   *  `trim` - trims leading and trailing whitespace from the input string
