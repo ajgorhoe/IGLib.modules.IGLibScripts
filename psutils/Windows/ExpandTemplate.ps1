@@ -320,6 +320,18 @@ function Parse-VarPairs {
     return $ht
 }
 
+# returns true if $v is a byte array
+function Is-ByteVector {
+    param([object]$v)
+    if ($v -is [byte[]]) { return $true }
+    if ($v -is [System.Array]) {
+        $et = $v.GetType().GetElementType()
+        if ($et) { return ($et -eq [byte]) }
+        # object[] with byte elements
+        if ($v.Length -gt 0 -and $v[0] -is [byte]) { return $true }
+    }
+    return $false
+}
 
 # ---------------------------------------------------------------------------
 # FILTERS: encode / decode, compression, escape filters
@@ -794,6 +806,26 @@ function Apply-Filters {
             'pathappend'  { $Value = (As-String $Value) + ($(if ($null -ne $arg) { $arg } else { '' })) }
             'addarg'      { $Value = (As-String $Value) + ' "' + ($(if ($null -ne $arg) { $arg } else { '' })) + '"' }
 
+            # ----------------- Bytes-to-text and vice versa -------------------
+            # Decode byte[] -> string using UTF-16LE (.NET "Unicode" string)
+            'utf16' { 
+                $bytes = As-Bytes $Value
+                $Value = [System.Text.Encoding]::Unicode.GetString($bytes)
+            }
+            # Decode byte[] -> string using UTF-8
+            'utf8' {
+                $bytes = As-Bytes $Value
+                $Value = [System.Text.Encoding]::UTF8.GetString($bytes)
+            }
+            # Force string -> byte[] using UTF-16LE (symmetry helper):
+            'bytes' {
+                $Value = As-Bytes $Value   # already returns Unicode bytes
+            }
+            # Returns type of the value (for debugging purposes)
+            'type' {
+              $Value = ($Value).GetType().FullName
+            }
+            
             # -------------------- Text encodings ------------------------------
             'urlencode'   { $Value = Filter-UrlEncode (As-String $Value) }
             'urldecode'   { $Value = Filter-UrlDecode (As-String $Value) }
@@ -806,10 +838,44 @@ function Apply-Filters {
             'gunzip'      { $Value = Filter-Gunzip    $Value }  # -> string
 
             'base64'      { $Value = Filter-Base64    $Value }  # bytes or string -> base64 string
-            'frombase64'  { $Value = Filter-FromBase64 $Value } # base64 string   -> byte[]
+            # Decode base64 → string (UTF-16LE)
+            'strfrombase64' { $Value = [Text.Encoding]::Unicode.GetString( (Filter-FromBase64 $Value) ) }
+            # 'frombase64'  { $Value = Filter-FromBase64 $Value } # base64 string   -> byte[]
+            # With optional filters for final conversion to encoded string:
+            'frombase64' {
+                $bytes = Filter-FromBase64 $Value
+                if ($args.Count -gt 0) {
+                    switch ($args[0].ToLower()) {
+                        'utf16'  { $Value = [Text.Encoding]::Unicode.GetString($bytes) }
+                        'utf8'   { $Value = [Text.Encoding]::UTF8.GetString($bytes) }
+                        'ascii'  { $Value = [Text.Encoding]::ASCII.GetString($bytes) }
+                        'latin1' { $Value = [Text.Encoding]::GetEncoding(28591).GetString($bytes) }
+                        default  { throw "frombase64: unknown decode '$($args[0])' (use utf16|utf8|ascii|latin1)" }
+                    }
+                } else {
+                    $Value = $bytes  # binary mode (for chaining into gzip, etc.)
+                }
+            }
 
             'hex'         { $Value = Filter-Hex       $Value }  # bytes or string -> hex string
-            'fromhex'     { $Value = Filter-FromHex   $Value }  # hex string      -> byte[]
+            # Decode hex → string (UTF-16LE)
+            'strfromhex'    { $Value = [Text.Encoding]::Unicode.GetString( (Filter-FromHex     $Value) ) }            
+            # 'fromhex'     { $Value = Filter-FromHex   $Value }  # hex string      -> byte[]
+            # With optional filters for final conversion to encoded string:
+            'fromhex' {
+                $bytes = Filter-FromHex $Value
+                if ($args.Count -gt 0) {
+                    switch ($args[0].ToLower()) {
+                        'utf16'  { $Value = [Text.Encoding]::Unicode.GetString($bytes) }
+                        'utf8'   { $Value = [Text.Encoding]::UTF8.GetString($bytes) }
+                        'ascii'  { $Value = [Text.Encoding]::ASCII.GetString($bytes) }
+                        'latin1' { $Value = [Text.Encoding]::GetEncoding(28591).GetString($bytes) }
+                        default  { throw "fromhex: unknown decode '$($args[0])' (use utf16|utf8|ascii|latin1)" }
+                    }
+                } else {
+                    $Value = $bytes
+                }
+            }
 
             # -------------------- Programming-language escapes ---------------
             'escc'        { $Value = Escape-C         (As-String $Value) }
@@ -1045,8 +1111,8 @@ $expanded = [System.Text.RegularExpressions.Regex]::Replace(
             $out  = Apply-Filters -Value $val0 -Pipeline $ph.filters
             Write-Host "  Final value:`n  $out"
             # If a pipeline ends as byte[], force the template author to finish with base64/hex/gunzip/etc.
-            if ($out -is [byte[]]) {
-                throw "Placeholder ended with binary data. Add a final text-producing filter (e.g., base64, hex, gunzip)."
+            if (Is-ByteVector $out) {
+                throw "Placeholder resulted in binary data. Add a final text-producing filter (e.g., base64, hex, gunzip, utf16)."
             }            
             return $out
         } catch {

@@ -203,16 +203,17 @@ round trip  | fromescjava| escjava  :
   "{{ var.EscapedStr | fromescjava| escjava  }}"
   "{{ var.EscapedStr }}"
 
+# TODO: conversion / filter fromesccs throws exception
 # C# -style escaping:
 var.EscapedStr:
   "{{ var.EscapedStrSimple }}"
 with filter | fromesccs :
   "{{ var.EscapedStrSimple | fromesccs }}"
-# ToDo: conversion below throws exception
 round trip  | fromesccs| esccs  :
   "\{{ var.EscapedStrSimple | fromesccs | esccs \}}"
   "{{ var.EscapedStrSimple }}"
 
+# TODO: conversion / filter fromesccs throws exception
 # With simpler escaped string:
 var.EscapedStr:
   "{{ var.EscapedStr }}"
@@ -222,6 +223,77 @@ with filter | fromesccs :
 round trip | fromesccs | esccs  :
   "\{{ var.EscapedStr | fromesccs | esccs \}}"
   "{{ var.EscapedStr }}"
+
+
+
+
+
+# TODO: Round trip converstion | base64 | frombase64 is wrong!
+# Base64 encoding / decoding:
+var.EscapedStr:
+  "{{ var.EscapedStr }}"
+with filter | base64 :
+  "{{ var.EscapedStr | base64 }}"
+round trip  | base64 | frombase64  (+ original for comparison):
+  "{{ var.EscapedStr | base64 | frombase64 }}"
+  "{{ var.EscapedStr }}"
+round trip  | base64 | frombase64 | utf16  (+ original for comparison):
+  "{{ var.EscapedStr | base64 | frombase64 | utf16 }}"
+  "{{ var.EscapedStr }}"
+round trip  | base64 | frombase64:"utf16"  (+ original for comparison):
+  "{{ var.EscapedStr | base64 | frombase64:"utf16" }}"
+  "{{ var.EscapedStr }}"
+round trip  | base64 | strfrombase64  (+ original for comparison):
+  "{{ var.EscapedStr | base64 | strfrombase64 }}"
+  "{{ var.EscapedStr }}"
+
+Type after applying  | base64 :
+      {{ var.EscapedStr | base64 | type }}
+Type after applying | base64 | frombase64 :
+      {{ var.EscapedStr | base64 | frombase64 | type }}
+Type after applying | base64 | frombase64 | utf16 :
+      {{ var.EscapedStr | base64 | frombase64 | utf16 | type }}
+Type after applying | base64 | frombase64:"utf16" :
+      {{ var.EscapedStr | base64 | frombase64:"utf16" | type }}
+Type after applying | base64 | strfrombase64 :
+      {{ var.EscapedStr | base64 | strfrombase64 | type }}
+
+
+
+with filter | base64 | strfrombase64 | base64 :
+  "{{ var.EscapedStr | base64 | strfrombase64 | base64  }}"
+
+with filter | base64 | frombase64 | utf16 | base64 :
+  "{{ var.EscapedStr | base64 | frombase64 | utf16 | base64  }}"
+
+
+
+
+
+# TODO: Round trip converstion | hex | fromhex is wrong!
+# Hexadecimal encoding / decoding:
+var.EscapedStr:
+  "{{ var.EscapedStr }}"
+with filter | hex :
+  "{{ var.EscapedStr | hex }}"
+round trip  | hex | fromhex  (+ original for comparison):
+  "{{ var.EscapedStr | hex | fromhex  }}"
+  "{{ var.EscapedStr }}"
+
+round trip  | hex | fromhex | utf16  (+ original for comparison):
+  "{{ var.EscapedStr | hex | fromhex | utf16 }}"
+  "{{ var.EscapedStr }}"
+round trip  | hex | fromhex:"utf16"  (+ original for comparison):
+  "{{ var.EscapedStr | hex | fromhex:"utf16" }}"
+  "{{ var.EscapedStr }}"
+round trip  | hex | strfromhex  (+ original for comparison):
+  "{{ var.EscapedStr | hex | strfromhex }}"
+  "{{ var.EscapedStr }}"
+
+
+with filter | hex | strfromhex | hex :
+  "{{ var.EscapedStr | hex | strfromhex | hex  }}"
+
 
 
 # MULTIPLE FILTERS:
