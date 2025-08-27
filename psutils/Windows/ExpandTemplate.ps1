@@ -1041,6 +1041,10 @@ $expanded = [System.Text.RegularExpressions.Regex]::Replace(
             Write-Host "  Unfiltered value:`n  $val0"
             $out  = Apply-Filters -Value $val0 -Pipeline $ph.filters
             Write-Host "  Final value:`n  $out"
+            # If a pipeline ends as byte[], force the template author to finish with base64/hex/gunzip/etc.
+            if ($out -is [byte[]]) {
+                throw "Placeholder ended with binary data. Add a final text-producing filter (e.g., base64, hex, gunzip)."
+            }            
             return $out
         } catch {
             $errors.Add("Error in placeholder '{{ ${expr} }}': $($_.Exception.Message)")
