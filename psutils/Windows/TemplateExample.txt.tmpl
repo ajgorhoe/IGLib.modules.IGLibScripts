@@ -16,8 +16,9 @@
 
 # ESCAPING DOUBLE BRACKETS:
 
-# TODO: This is not yet implemented.
-\{\{  \}\}
+\{{ Escaped double curly brackets should transform to literal double brackets. \}}
+\{{ \{{ This should also works when escaped opening brackets are not matched...
+  ... or when escaped closing brackets are not matched. \}}
 
 # SIMPLE PLACEHOLDERS:
 
@@ -35,10 +36,12 @@ Environment variables used in this template:
   ENVSIMPLE:   "{{env.ENVSIMPLE}}"
   ENVLONGER:   "{{env.ENVLONGER}}"
 User-provided values (as variables) used in this template:
-  MyVarSimple:  "{{var.MyVarSimple}}"
-  MyVarLong:    "{{var.MyVarLong}}"
-  PathWin:      "{{var.PathWin}}"
-  PathUnix:     "{{var.PathUnix}}"
+  MyVarSimple:       "{{var.MyVarSimple}}"
+  MyVarLong:         "{{var.MyVarLong}}"
+  PathWin:           "{{var.PathWin}}"
+  PathUnix:          "{{var.PathUnix}}"
+  DirtyRelativePath: "{{var.DirtyRelativePath}}"
+  DirtyAbsolutePath: "{{var.DirtyAbsolutePath}}"
 
 # Simple placeholders to substitute user-provided values (via variables):
 The user-provided value of MyVarSimple is {{ var.MyVarSimple }}. The quoted value 
@@ -56,28 +59,6 @@ with filter | regq applied:
 with filter | regesc applied:
   "{{ var.MyVarLong | regesc }}"
 
-# TODO: THIS DOES NOT WORK WELL, whould use .NET Path.Combine
-# The pathappend filter appends its argument to the path:
-var.PathWin without filters:
-  "{{ var.PathWin }}"
-with filter | pathappend:"myfiles" :
-  "{{ var.PathWin | pathappend:"myfiles" }}"
-with filter | pathappend:"dir1\dir2\icon.png" :
-  "{{ var.PathWin | | pathappend:"dir1\dir2\icon.png" }}"
-
-
-
-var.PathUnix:
-  "{{ var.PathUnix }}"
-with filter | pathappend:"dir1\dir2\icon.png" :
-  "{{ var.PathUnix | pathappend:"dir1\dir2\icon.png" }}"
-
-# The pathquote filter encloses a path in quotes, if not already enclosed:
-env.ENVPATHWIN:
-  "{{ env.ENVPATHWIN }}"
-with filter | pathquote :
-  "{{ env.ENVPATHWIN | pathquote }}"
-
 # The lower and upper filters change the case:
 var.MyVarSimple:
   "{{ var.MyVarSimple }}"
@@ -92,14 +73,13 @@ var.MyVarLong without filters:
 with filter | trim :
   "{{ var.MyVarLong | trim }}"
 
-# TODO: THIS DOES NOT WORK.
 # The replace filter replaces a substring in the input string:
 var.MyVarLong without filters:
   "{{ var.MyVarLong }}"
+with filter | replace:"demonstrate":"show" :
+  "{{ var.MyVarLong | replace:"demonstrate":"show" }}"
 with filter | replace:"used to demonstrate":"demonstrating" :
   "{{ var.MyVarLong | replace:"used to demonstrate":"demonstrating" }}"
-with filter | replace:"demonstrate":"demonstrating" :
-  "{{ var.MyVarLong | replace:"demonstrate":"demonstrating" }}"
 
 # The append and prepend filters append or prepend strings:
 var.MyVarSimple:
@@ -109,7 +89,85 @@ with  filter | append:" or North" :
 with  filter | prepend:"North-" :
   "{{ var.MyVarSimple | prepend:"North-" }}"
 
+# TODO: Not yet implemented: filter arguments not in double quotes
+with  filter | prepend:North :
+  "\{{ var.MyVarSimple | prepend:North \}}"
 
+# PATH FILTERS:
+
+# The pathappend filter appends its argument to the path:
+var.PathWin without filters:
+  "{{ var.PathWin }}"
+with filter | pathappend:"myfiles" :
+  "{{ var.PathWin | pathappend:"myfiles" }}"
+with filter | pathappend:"dir1\dir2\icon.png" :
+  "{{ var.PathWin | pathappend:"dir1\dir2\icon.png" }}"
+
+var.PathUnix:
+  "{{ var.PathUnix }}"
+with filter | pathappend:"dir1\dir2\icon.png" :
+  "{{ var.PathUnix | pathappend:"dir1\dir2\icon.png" }}"
+
+# The pathquote filter encloses a path in quotes, if not already enclosed:
+env.ENVPATHWIN:
+  "{{ env.ENVPATHWIN }}"
+with filter | pathquote :
+  "{{ env.ENVPATHWIN | pathquote }}"
+
+# The pathwin, pathlinux, pathos, pathwinabs, pathlinuxabs, and pathosabs 
+# convert paths to a clean canonical form for specific operating systems.
+# Filters with "abs" suffix convert to absolute paths, and filters without
+# "abs" suffix leave relative paths in relative form. Filters perform the 
+# necessary conversion between slashes '/' and backslashes '\', replace 
+# duplicate slashes or backslashes and redundant "/./" parts, resolve "../"
+# in absolute paths, and for Linux forms, replace drive parts, e.g. "C:\"
+# to "/c/".
+
+var.DirtyRelativePath:
+  "{{ var.DirtyRelativePath }}"
+with filter | pathwin :
+  "{{ var.DirtyRelativePath | pathwin }}"
+with filter | pathwinabs :
+  "{{ var.DirtyRelativePath | pathwinabs }}"
+with filter | pathlinux :
+  "{{ var.DirtyRelativePath | pathlinux }}"
+with filter | pathlinuxabs :
+  "{{ var.DirtyRelativePath | pathlinuxabs }}"
+with filter | pathos :
+  "{{ var.DirtyRelativePath | pathos }}"
+with filter | pathosabs :
+  "{{ var.DirtyRelativePath | pathosabs }}"
+
+var.DirtyAbsolutePath:
+  "{{ var.DirtyAbsolutePath }}"
+with filter | pathwin :
+  "{{ var.DirtyAbsolutePath | pathwin }}"
+with filter | pathwinabs :
+  "{{ var.DirtyAbsolutePath | pathwinabs }}"
+with filter | pathlinux :
+  "{{ var.DirtyAbsolutePath | pathlinux }}"
+with filter | pathlinuxabs :
+  "{{ var.DirtyAbsolutePath | pathlinuxabs }}"
+with filter | pathos :
+  "{{ var.DirtyAbsolutePath | pathos }}"
+with filter | pathosabs :
+  "{{ var.DirtyAbsolutePath | pathosabs }}"
+
+# MULTIPLE FILTERS:
+
+# Multiple filters can be applied to the initial string in order to produce
+# the final string with which the placeholder is substituted. Filters are 
+# applied from left to right.
+var.PathWin without filters:
+  "{{ var.PathWin }}"
+with filters | pathappend:"dir1\dir2\icon.png" | replace:"\\":"/" :
+  "{{ var.PathWin | pathappend:"dir1\dir2\icon.png" | replace:"\\":"/" }}"
+different order of the same filters can give different results:
+with filters | replace:"\\":"/" | pathappend:"dir1\dir2\icon.png" :
+  "{{ var.PathWin | replace:"\\":"/" | pathappend:"dir1\dir2\icon.png" }}"
+more than two filters:
+with filters | pathappend:"dir1\dir2\icon.png" | replace:"\\":"/" | prepend:"The path is: " :
+  "{{ var.PathWin | pathappend:"dir1\dir2\icon.png" | replace:"\\":"/" | prepend:"The path is: " }}"
 
 # HANDLING SPACES AND NEWLINES IN PLACEHOLDERS:
 
@@ -132,9 +190,31 @@ The value of user-defined variable MyVarSimple: "{{
     var.MyVarSimple
     }}"
 
+# Spaces in placeholders with filters:
 
-
-
+var.PathWin without filters:
+  "{{ var.PathWin }}"
+with three filters, | pathappend:"dir1\dir2\icon.png" | replace:"\\":"/" | prepend:"The path is: " :
+  "{{ var.PathWin | pathappend:"dir1\dir2\icon.png" | replace:"\\":"/" | prepend:"The path is: " }}"
+with no spaces:
+  "{{var.PathWin | pathappend:"dir1\dir2\icon.png" | replace:"\\":"/" | prepend:"The path is: "}}"
+with spaces removed even around filter signs ():
+  "{{var.PathWin|pathappend:"dir1\dir2\icon.png"|replace:"\\":"/"|prepend:"The path is: "}}"
+with newline after opening parentheses:
+  "{{
+      var.PathWin | pathappend:"dir1\dir2\icon.png" | replace:"\\":"/" | prepend:"The path is: " }}"
+with newlines after opening and before closing parentheses:
+  "{{
+      var.PathWin | pathappend:"dir1\dir2\icon.png" | replace:"\\":"/" | prepend:"The path is: "
+  }}"
+with newlines also between pipes (at various places):
+  "{{
+      var.PathWin
+        | pathappend:"dir1\dir2\icon.png" | 
+        replace:"\\":"/"
+        |
+        prepend:"The path is: "
+  }}"
 
 
 # The following environment variables need to be defined for successful
@@ -148,5 +228,7 @@ The value of user-defined variable MyVarSimple: "{{
 #   MyVarLong = '  This is a longer "str", \ used to demonstrate composed filters.  '
 #   PathWin = C:\Program Files (x86)\Microsoft SQL Server\
 #   PathUnix = ~/doc/MyDoc.md
+#   DirtyRelativePath = "../.\.\.//../users//\\/aa/./x.xml"
+#   DirtyAbsolutePath = "C:\users\\Uporabnik/.//..\Uporabnik/doc/\\/Mydoc.dox"
 
 

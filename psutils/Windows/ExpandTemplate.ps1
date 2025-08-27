@@ -321,6 +321,92 @@ function Parse-VarPairs {
 }
 
 # ---------------------------------------------------------------------------
+# Helpers: path manipulation filters
+# Conversion to Windows or Linux paths, canonization w.r. the current OS.
+# ---------------------------------------------------------------------------
+
+# Changes path to absolute, normalizing it for Windows (backslashes, resolved 
+# . and .., replacing duplicate backslashes).
+function To-WindowsPathAbsolute($path) {
+    # Resolve relative bits, normalize slashes
+    $normalized = [System.IO.Path]::GetFullPath($path)
+
+    # Ensure backslashes (in case input had forward slashes)
+    return $normalized -replace '/', '\'
+}
+
+# Changes path to absolute, normalizing it for Linux (slashes, resolved 
+# . and .., replacing duplicate slashes).
+function To-LinuxPathAbsolute($path) {
+    # Normalize using .NET first (removes ./, duplicate slashes, etc.)
+    $normalized = [System.IO.Path]::GetFullPath($path)
+
+    # Convert backslashes to forward slashes
+    $normalized = $normalized -replace '\\', '/'
+
+    # Replace drive letter (C:\ → /c/ style, like WSL/MinGW convention)
+    if ($normalized -match '^([A-Za-z]):') {
+        $drive = $matches[1].ToLower()
+        $normalized = $normalized -replace '^.:', "/$drive"
+    }
+
+    return $normalized
+}
+
+# Converts path to absolute, normalized for the current OS.
+function To-OSPathAbsolute($path) {
+    if ($IsWindows) {
+        return To-WindowsPathAbsolute $path
+    } else {
+        return To-LinuxPathAbsolute $path
+    }
+}
+
+# Changes path to a canonical form for Windows, preserving relative paths.
+function To-WindowsPathPreserveRelative($path) {
+    # Convert all separators to backslash
+    $p = $path -replace '/', '\'
+
+    # Collapse duplicate backslashes (except for leading \\ in UNC paths)
+    $p = $p -replace '(?<!^)(\\)\\+', '$1'
+
+    # Remove "\.\" parts
+    $p = $p -replace '\\\.(?=\\|$)', ''
+
+    return $p
+}
+
+# Changes path to a canonical form for Linux, preserving relative paths.
+function To-LinuxPathPreserveRelative($path) {
+    # Convert all backslashes to forward slash
+    $p = $path -replace '\\', '/'
+
+    # Collapse duplicate slashes (but keep leading // for network paths if you want)
+    $p = $p -replace '//+', '/'
+
+    # Remove "/./" parts
+    $p = $p -replace '/\.(?=/|$)', ''
+
+    # Optional: map drive letters (C:\ → /c/) if path starts with them
+    if ($p -match '^([A-Za-z]):') {
+        $drive = $matches[1].ToLower()
+        $p = $p -replace '^.:', "/$drive"
+    }
+
+    return $p
+}
+
+# Changes path to a canonical form for the current OS, preserving relative paths.
+function To-OSPathPreserveRelative($path) {
+    if ($IsWindows) {
+        return To-WindowsPathPreserveRelative $path
+    } else {
+        return To-LinuxPathPreserveRelative $path
+    }
+}
+
+
+# ---------------------------------------------------------------------------
 # Helper: Apply-Filters
 # Applies a pipeline of filters to a string, returning the transformed value.
 # ---------------------------------------------------------------------------
@@ -386,11 +472,19 @@ function Apply-Filters {
             'prepend'    {
                 $Value = ($(if ($null -ne $f.arg) { $f.arg } else { '' })) + $Value
             }
-            'pathappend' { $Value = $Value + ($(if ($null -ne $arg) { $arg } else { '' })) }
+            'pathappend' { 
+              $Value = $Value + ($(if ($null -ne $arg) { $arg } else { '' })) 
+            }
             'pathquote'  {
                 # Quote only if not already quoted (tolerates surrounding whitespace)
                 if ($Value -notmatch '^\s*".*"\s*$') { $Value = '"' + $Value + '"' }
             }
+            'pathwin' { $Value = To-WindowsPathPreserveRelative $Value }
+            'pathlinux' { $Value = To-LinuxPathPreserveRelative $Value }
+            'pathos' { $Value = To-OSPathPreserveRelative $Value }
+            'pathwinabs' { $Value = To-WindowsPathAbsolute $Value }
+            'pathlinuxabs' { $Value = To-LinuxPathAbsolute $Value }
+            'pathosabs' { $Value = To-OSPathAbsolute $Value }
             'addarg'     { $Value = $Value + ' "' + ($(if ($null -ne $arg) { $arg } else { '' })) + '"' }
             'default'    {
                 if ([string]::IsNullOrWhiteSpace($Value)) {
@@ -607,6 +701,10 @@ if (-not $Output) {
 $pattern = '\{\{\s*([\s\S]+?)\s*\}\}'
 $errors  = New-Object System.Collections.Generic.List[string]
 
+# Temporarily transform double curly brackets escaping:
+$tplText = $tplText -replace "\\{{", "\{\{"
+$tplText = $tplText -replace "\\}}", "\}\}"
+
 $expanded = [System.Text.RegularExpressions.Regex]::Replace(
     $tplText,
     $pattern,
@@ -627,6 +725,10 @@ $expanded = [System.Text.RegularExpressions.Regex]::Replace(
         }
     }
 )
+
+# Backward transform double curly brackets escaping:
+$expanded = $expanded -replace "\\{\\{", "{{"
+$expanded = $expanded -replace "\\}\\}", "}}"
 
 if ($errors.Count -gt 0) {
     $nl = [Environment]::NewLine
