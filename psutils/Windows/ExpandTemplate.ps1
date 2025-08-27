@@ -356,10 +356,19 @@ function As-Bytes {
 
 # ========================= Base64 =========================
 function Filter-Base64   { param($v) return [System.Convert]::ToBase64String((As-Bytes $v)) }
+
 function Filter-FromBase64 {
-    param($v)
-    $s = As-String $v
-    return [System.Convert]::FromBase64String($s)
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)]
+        [string]$Value
+    )
+    try {
+        # Always return a true [byte[]]
+        return [System.Convert]::FromBase64String($Value)
+    } catch {
+        throw "frombase64: invalid Base64 input ($($_.Exception.Message))."
+    }
 }
 
 # ========================= Hex (lowercase) =========================
@@ -368,16 +377,27 @@ function Filter-Hex {
     $bytes = As-Bytes $v
     return (($bytes | ForEach-Object { $_.ToString('x2') }) -join '')
 }
+
 function Filter-FromHex {
-    param($v)
-    $s = (As-String $v) -replace '\s',''
-    if ($s.Length % 2 -ne 0) { throw "fromhex requires an even number of hex digits." }
-    $len = $s.Length / 2
-    $bytes = New-Object byte[] $len
-    for ($i=0; $i -lt $len; $i++) {
-        $bytes[$i] = [Convert]::ToByte($s.Substring(2*$i,2),16)
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)]
+        [string]$Value
+    )
+    $hex = $Value -replace '\s+', ''
+    if ($hex.Length % 2 -ne 0) {
+        throw "fromhex: hex string length must be even."
     }
-    return $bytes
+    $list = New-Object System.Collections.Generic.List[byte]
+    for ($i = 0; $i -lt $hex.Length; $i += 2) {
+        try {
+            $b = [System.Convert]::ToByte($hex.Substring($i,2), 16)
+        } catch {
+            throw "fromhex: invalid hex at position $i."
+        }
+        [void]$list.Add($b)
+    }
+    return $list.ToArray()   # => [byte[]]
 }
 
 # ========================= GZip =========================
@@ -809,8 +829,9 @@ function Apply-Filters {
             # ----------------- Bytes-to-text and vice versa -------------------
             # Decode byte[] -> string using UTF-16LE (.NET "Unicode" string)
             'utf16' { 
-                $bytes = As-Bytes $Value
-                $Value = [System.Text.Encoding]::Unicode.GetString($bytes)
+                # $bytes = As-Bytes $Value
+                # $Value = [System.Text.Encoding]::Unicode.GetString($bytes)
+                $Value = [System.Text.Encoding]::Unicode.GetString($value)
             }
             # Decode byte[] -> string using UTF-8
             'utf8' {
