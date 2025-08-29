@@ -118,44 +118,22 @@ $a = "Initial String"
 Write-Host "a = `"$a`""
 $b = Filter-Base64 $a
 Write-Host "b = `"$b`""
-$c = Filter-FromBase64Old $b  # Call the old variant
+$c = Filter-FromBase64Old $b  # Call the older variant
 Write-Host "c = `"$c`""
-$d = utf16Old $c
-Write-Host "d = `"$d`""
+$d = utf16Old $c           # Older variant
+Write-Host "d = `"$d`""    # Wrong result (array of objects converted to string)
 
 # Verify types after conversion:
 Write-Host "  Type of a: $($a.GetType().FullName)"  # System.String"
 Write-Host "  Type of b: $($b.GetType().FullName)"  # System.String
-Write-Host "  Type of c: $($c.GetType().FullName)"  # System.Object[]
+Write-Host "  Type of c: $($c.GetType().FullName)"  # System.Object[] - problematic
 ~~~
-
-
 
 **The Issue**:
 
-When calling functions that return a byte array (.NET type byte[]), the actual result is of type object[].
+When calling functions that return a byte array (.NET type byte[]), the actual result is of type object[]. Therefore, attempted conversion fails (more details below).
 
-Test code:
-
-
-~~~powershell
-$a = "Initial String"
-Write-Host "a = `"$a`""
-$b = Filter-Base64 $a
-Write-Host "b = `"$b`""
-$c = Filter-FromBase64 $b  # Call the new variant
-Write-Host "c = `"$c`""
-$d = utf16Old $c
-Write-Host "d = `"$d`""
-
-# Verify types after conversion:
-Write-Host "  Type of a: $($a.GetType().FullName)"  # System.String"
-Write-Host "  Type of b: $($b.GetType().FullName)"  # System.String
-Write-Host "  Type of c: $($c.GetType().FullName)"  # System.Object[]
-~~~
-
-
-
+Test code with the new string-to-bytes filter:
 
 ## The Fix
 
@@ -227,12 +205,18 @@ function Filter-Gzip {
 
 ~~~powershell
 $a = "Initial String"
+Write-Host "a = `"$a`""
 $b = Filter-Base64 $a
-$c = Filter-FromBase64 $b
+Write-Host "b = `"$b`""
+$c = Filter-FromBase64 $b  # Call the newer variant
+Write-Host "c = `"$c`""
+$d = utf16Old $c     # Older variant in this conversion should also work
+Write-Host "d = `"$d`""  # correct: "Initial String"
 
-$a.GetType().FullName  # System.String
-$b.GetType().FullName  # System.String
-$c.GetType().FullName  # System.Byte[]   ✅
+# Verify types after conversion:
+Write-Host "  Type of a: $($a.GetType().FullName)"  # System.String"
+Write-Host "  Type of b: $($b.GetType().FullName)"  # System.String
+Write-Host "  Type of c: $($c.GetType().FullName)"  # System.Byte[]
 ~~~
 
 ## Why your `utf16` change “fixed” the path
