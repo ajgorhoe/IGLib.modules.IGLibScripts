@@ -392,7 +392,7 @@ function Filter-FromHex {
         [void]$list.Add($b)
     }
     [byte[]]$bytes = $list.ToArray()
-    Write-Output -NoEnumerate $bytes       # <— critical
+    Write-Output -NoEnumerate $bytes       # critical to return byte[] as-is (instead of enumerating bytes, resulting in object[]
 }
 
 # ========================= GZip =========================
@@ -409,7 +409,7 @@ function Filter-Gzip {
     $gz.Dispose()
     [byte[]]$bytes = $msOut.ToArray()
     $msOut.Dispose()
-    Write-Output -NoEnumerate $bytes       # <— critical
+    Write-Output -NoEnumerate $bytes       # critical to return byte[] as-is (instead of enumerating bytes, resulting in object[])
 }
 
 function Filter-Gunzip {
@@ -421,8 +421,11 @@ function Filter-Gunzip {
     $gz.CopyTo($msOut)
     $gz.Dispose()
     $outBytes = $msOut.ToArray()
-    # Return TEXT (Unicode) by default
-    return [System.Text.Encoding]::Unicode.GetString($outBytes)
+    ## Return TEXT (Unicode) by default (old way, not consistent with new 
+    ## filters guidelines):
+    # return [System.Text.Encoding]::Unicode.GetString($outBytes)
+    # Return unzipped value as byte[] (will need utf16 filter to get string):
+    Write-Output -NoEnumerate $outBytes   # critical to return byte[] as-is (instead of enumerating bytes, resulting in object[]
 }
 
 # ========================= URL encode/decode =========================
