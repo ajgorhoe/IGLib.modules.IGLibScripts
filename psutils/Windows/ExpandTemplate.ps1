@@ -359,13 +359,10 @@ function Filter-Base64   { param($v) return [System.Convert]::ToBase64String((As
 
 function Filter-FromBase64 {
     [CmdletBinding()]
-    param(
-        [Parameter(Mandatory)]
-        [string]$Value
-    )
+    param([Parameter(Mandatory)][string]$Value)
     try {
-        # Always return a true [byte[]]
-        return [System.Convert]::FromBase64String($Value)
+        [byte[]]$bytes = [Convert]::FromBase64String($Value)
+        Write-Output -NoEnumerate $bytes   # <— critical
     } catch {
         throw "frombase64: invalid Base64 input ($($_.Exception.Message))."
     }
@@ -380,36 +377,40 @@ function Filter-Hex {
 
 function Filter-FromHex {
     [CmdletBinding()]
-    param(
-        [Parameter(Mandatory)]
-        [string]$Value
-    )
-    $hex = $Value -replace '\s+', ''
-    if ($hex.Length % 2 -ne 0) {
-        throw "fromhex: hex string length must be even."
-    }
+    param([Parameter(Mandatory)][string]$Value)
+    $hex = ($Value -replace '\s+', '')
+    if ($hex.Length % 2 -ne 0) { throw "fromhex: hex string length must be even." }
+
     $list = New-Object System.Collections.Generic.List[byte]
     for ($i = 0; $i -lt $hex.Length; $i += 2) {
         try {
-            $b = [System.Convert]::ToByte($hex.Substring($i,2), 16)
+            $b = [Convert]::ToByte($hex.Substring($i,2), 16)
         } catch {
             throw "fromhex: invalid hex at position $i."
         }
         [void]$list.Add($b)
     }
-    return $list.ToArray()   # => [byte[]]
+    [byte[]]$bytes = $list.ToArray()
+    Write-Output -NoEnumerate $bytes       # <— critical
 }
 
 # ========================= GZip =========================
+
 function Filter-Gzip {
-    param($v)
-    $in = As-Bytes $v
+    [CmdletBinding()]
+    param([Parameter(Mandatory)][string]$Value)
+    $enc   = [Text.Encoding]::Unicode
+    $input = $enc.GetBytes($Value)
+
     $msOut = New-Object System.IO.MemoryStream
-    $gzip = New-Object System.IO.Compression.GzipStream($msOut, [System.IO.Compression.CompressionLevel]::Optimal, $true)
-    $gzip.Write($in, 0, $in.Length)
-    $gzip.Dispose()
-    return $msOut.ToArray()
+    $gz    = New-Object System.IO.Compression.GZipStream($msOut, [IO.Compression.CompressionLevel]::Optimal, $true)
+    $gz.Write($input, 0, $input.Length)
+    $gz.Dispose()
+    [byte[]]$bytes = $msOut.ToArray()
+    $msOut.Dispose()
+    Write-Output -NoEnumerate $bytes       # <— critical
 }
+
 function Filter-Gunzip {
     param($v)
     $inBytes = As-Bytes $v

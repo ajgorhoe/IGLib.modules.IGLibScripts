@@ -235,8 +235,14 @@ var.EscapedStr:
   "{{ var.EscapedStr }}"
 with filter | base64 :
   "{{ var.EscapedStr | base64 }}"
+# Round trip conversion to Byte[] (needs additional conversion to string with | utf16)
 round trip  | base64 | frombase64  (+ original for comparison):
   "{{ var.EscapedStr | base64 | frombase64 }}"
+  "{{ var.EscapedStr }}"
+
+# Round trip conversions back to string:
+round trip  | base64 | strfrombase64  (+ original for comparison):
+  "{{ var.EscapedStr | base64 | strfrombase64 }}"
   "{{ var.EscapedStr }}"
 round trip  | base64 | frombase64 | utf16  (+ original for comparison):
   "{{ var.EscapedStr | base64 | frombase64 | utf16 }}"
@@ -244,13 +250,11 @@ round trip  | base64 | frombase64 | utf16  (+ original for comparison):
 round trip  | base64 | frombase64:"utf16"  (+ original for comparison):
   "{{ var.EscapedStr | base64 | frombase64:"utf16" }}"
   "{{ var.EscapedStr }}"
-round trip  | base64 | strfrombase64  (+ original for comparison):
-  "{{ var.EscapedStr | base64 | strfrombase64 }}"
-  "{{ var.EscapedStr }}"
 
+# Types of various results:
 Type after applying  | base64 :
       {{ var.EscapedStr | base64 | type }}
-Type after applying | base64 | frombase64 :
+Type after applying | base64 | frombase64  (problematic before, should be Byte[]):
       {{ var.EscapedStr | base64 | frombase64 | type }}
 Type after applying | base64 | frombase64 | utf16 :
       {{ var.EscapedStr | base64 | frombase64 | utf16 | type }}
@@ -259,16 +263,15 @@ Type after applying | base64 | frombase64:"utf16" :
 Type after applying | base64 | strfrombase64 :
       {{ var.EscapedStr | base64 | strfrombase64 | type }}
 
-
-
 with filter | base64 | strfrombase64 | base64 :
   "{{ var.EscapedStr | base64 | strfrombase64 | base64  }}"
+with filter | base64 | strfrombase64 | base64 :
+  "{{ var.EscapedStr | base64 | strfrombase64 | base64 | strfrombase64 }}"
 
 with filter | base64 | frombase64 | utf16 | base64 :
   "{{ var.EscapedStr | base64 | frombase64 | utf16 | base64  }}"
-
-
-
+with filter | base64 | frombase64 | utf16 | base64 :
+  "{{ var.EscapedStr | base64 | frombase64 | utf16 | base64 | frombase64 | utf16 }}"
 
 
 # TODO: Round trip converstion | hex | fromhex is wrong!
@@ -277,24 +280,33 @@ var.EscapedStr:
   "{{ var.EscapedStr }}"
 with filter | hex :
   "{{ var.EscapedStr | hex }}"
+# Round trip conversion to Byte[] (needs additional conversion to string with | utf16)
 round trip  | hex | fromhex  (+ original for comparison):
   "{{ var.EscapedStr | hex | fromhex  }}"
   "{{ var.EscapedStr }}"
 
+# Round trip conversions back to string:
+round trip  | hex | strfromhex  (+ original for comparison):
+  "{{ var.EscapedStr | hex | strfromhex }}"
+  "{{ var.EscapedStr }}"
 round trip  | hex | fromhex | utf16  (+ original for comparison):
   "{{ var.EscapedStr | hex | fromhex | utf16 }}"
   "{{ var.EscapedStr }}"
 round trip  | hex | fromhex:"utf16"  (+ original for comparison):
   "{{ var.EscapedStr | hex | fromhex:"utf16" }}"
   "{{ var.EscapedStr }}"
-round trip  | hex | strfromhex  (+ original for comparison):
-  "{{ var.EscapedStr | hex | strfromhex }}"
-  "{{ var.EscapedStr }}"
 
-
-with filter | hex | strfromhex | hex :
-  "{{ var.EscapedStr | hex | strfromhex | hex  }}"
-
+# Types of various results:
+Type after applying  | hex :
+      {{ var.EscapedStr | hex | type }}
+Type after applying | hex | fromhex  (problematic before, should be Byte[]):
+      {{ var.EscapedStr | hex | fromhex | type }}
+Type after applying | hex | fromhex | utf16 :
+      {{ var.EscapedStr | hex | fromhex | utf16 | type }}
+Type after applying | hex | fromhex:"utf16" :
+      {{ var.EscapedStr | hex | fromhex:"utf16" | type }}
+Type after applying | hex | strfromhex :
+      {{ var.EscapedStr | hex | strfromhex | type }}
 
 
 # MULTIPLE FILTERS:
