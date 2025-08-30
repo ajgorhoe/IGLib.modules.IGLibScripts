@@ -308,7 +308,8 @@ var.EscapedStr:
   "{{ var.EscapedStr }}"
 with filter gzip | base64 :
   "{{ var.EscapedStr | gzip | base64 }}"
-# Round trip conversion to Byte[] (needs additional conversion to string with | utf16)
+# Round trip conversion to Byte[] (needs additional conversion to string
+# with | utf16)
 round trip | gzip | gunzip (+ original for comparison):
   "{{ var.EscapedStr | gzip | gunzip }}"
   "{{ var.EscapedStr }}"
@@ -320,16 +321,15 @@ round trip | gzip | strgunzip  (+ original for comparison):
 round trip | gzip | gunzip | utf16  (+ original for comparison):
   "{{ var.EscapedStr | gzip | gunzip | utf16 }}"
   "{{ var.EscapedStr }}"
-# TODO: gunzip filter with optional argument "utf16" not yet implemented!
 round trip | gzip | gunzip:"utf16"  (+ original for comparison):
   "{{ var.EscapedStr | gzip | gunzip:"utf16" }}"
   "{{ var.EscapedStr }}"
 
-# TODO: gunzip filter with additional argument "utf8" is NOT implemented
-# (and there are currently no plans to implement it), but it DOES NOT THROW!
+# The gunzip filter with additional argument "utf8" is NOT implemented
+# (and there are currently no plans to implement it), and woulld throw:
 round trip | gzip | gunzip:"utf8"  (+ original for comparison):
-  "{{ var.EscapedStr | gzip | gunzip:"utf8" }}"
-  "{{ var.EscapedStr }}"
+  "\{{ var.EscapedStr | gzip | gunzip:"utf8" \\}}"
+  "\{{ var.EscapedStr \}}"
 
 # MULTIPLE FILTERS:
 

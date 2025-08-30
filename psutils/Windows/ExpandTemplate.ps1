@@ -860,13 +860,22 @@ function Apply-Filters {
 
             # -------------------- Binary/text codecs -------------------------
             
-            
             # Compress string or byte[] → byte[] with gzip
             'gzip'        { $Value = Filter-Gzip      $Value }  # -> byte[]
             # Unzip byte[] → string (UTF-16LE, .NET "Unicode" string):
             'strgunzip'   { $Value = [Text.Encoding]::Unicode.GetString( (Filter-Gunzip $Value) ) }  # byte[] -> byte[] -> string
             # Uncompress byte[] → byte[] with gzip (needs additional utf16 filter to get string):
-            'gunzip'      { $Value = Filter-Gunzip    $Value }  # -> string
+            'gunzip' { 
+              $bytes = Filter-Gunzip    $Value 
+                if ($args.Count -gt 0) {
+                    switch ($args[0].ToLower()) {
+                        'utf16'  { $Value = [Text.Encoding]::Unicode.GetString($bytes) }
+                        default  { throw "gunzip: unknown decode '$($args[0])' (use utf16)" }
+                    }
+                } else {
+                    $Value = $bytes  # binary mode (for chaining into utf16, base64, etc.)
+                }
+            }
 
             # Encode string or byte[] → base64 string
             'base64'      { $Value = Filter-Base64    $Value }  # bytes or string -> base64 string
