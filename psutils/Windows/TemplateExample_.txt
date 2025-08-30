@@ -230,11 +230,6 @@ round trip | fromesccs | esccs  :
   "sq \' dq \" bsl \\ nl \n cr \r ht \t vt \v bsp \b ff \f null \0 nl \012 A \101 sp \040 ht \x09 Z \x5A ! \x21 weird \x4142 ☺ \u263A ☃ \u2603 π \u03C0 A \u0041 gothicAhsa 𐌰 \U00010330 rocket 🚀 \U0001F680 cat 🐈 \U0001F408"
 
 
-
-
-
-# TODO: Round trip converstion | base64 | frombase64 is wrong!
-
 # Base64 encoding / decoding:
 var.EscapedStr:
   "sq \' dq \" bsl \\ nl \n cr \r ht \t vt \v bsp \b ff \f null \0 nl \012 A \101 sp \040 ht \x09 Z \x5A ! \x21 weird \x4142 ☺ \u263A ☃ \u2603 π \u03C0 A \u0041 gothicAhsa 𐌰 \U00010330 rocket 🚀 \U0001F680 cat 🐈 \U0001F408"
@@ -279,7 +274,6 @@ with filter | base64 | frombase64 | utf16 | base64 :
   "sq \' dq \" bsl \\ nl \n cr \r ht \t vt \v bsp \b ff \f null \0 nl \012 A \101 sp \040 ht \x09 Z \x5A ! \x21 weird \x4142 ☺ \u263A ☃ \u2603 π \u03C0 A \u0041 gothicAhsa 𐌰 \U00010330 rocket 🚀 \U0001F680 cat 🐈 \U0001F408"
 
 
-# TODO: Round trip converstion | hex | fromhex is wrong!
 # Hexadecimal encoding / decoding:
 var.EscapedStr:
   "sq \' dq \" bsl \\ nl \n cr \r ht \t vt \v bsp \b ff \f null \0 nl \012 A \101 sp \040 ht \x09 Z \x5A ! \x21 weird \x4142 ☺ \u263A ☃ \u2603 π \u03C0 A \u0041 gothicAhsa 𐌰 \U00010330 rocket 🚀 \U0001F680 cat 🐈 \U0001F408"
@@ -312,6 +306,29 @@ Type after applying | hex | fromhex:"utf16" :
       System.String
 Type after applying | hex | strfromhex :
       System.String
+
+# COMPRESSION / decompression (gzip and gunzip):
+
+var.EscapedStr:
+  "sq \' dq \" bsl \\ nl \n cr \r ht \t vt \v bsp \b ff \f null \0 nl \012 A \101 sp \040 ht \x09 Z \x5A ! \x21 weird \x4142 ☺ \u263A ☃ \u2603 π \u03C0 A \u0041 gothicAhsa 𐌰 \U00010330 rocket 🚀 \U0001F680 cat 🐈 \U0001F408"
+with filter gzip | base64 :
+  "H4sIAAAAAAAEAF1Qyw7BUBScxMZnlAXbixIkFiLxBzZiQz0qxPu19Gk+owvhV8yZXoI0mcxM58w57R5bBBigSBx7nieOsMdSakBceb4iRtiJG8Y4iBuePD/56Y3UiDjlY3yqpiO70jb31exQQpmsLVWSDj4tDqHS730XqgZZ36uq5nJelTV7xgRzXjn2bkg31I5mwZwjeQ0VTWa+HEcvwC2TOqY62p1eZo5TV4AZ1rwn5paIb2NeO6SLxD0t2VPS6VsqfKxjx4kIC15m39FKro/fZJf760pG7Eoz2ft/xv5FHS/D6ABsugEAAA=="
+# Round trip conversion to Byte[] (needs additional conversion to string with | utf16)
+round trip | gzip | gunzip (+ original for comparison):
+  "sq \' dq \" bsl \\ nl \n cr \r ht \t vt \v bsp \b ff \f null \0 nl \012 A \101 sp \040 ht \x09 Z \x5A ! \x21 weird \x4142 ☺ \u263A ☃ \u2603 π \u03C0 A \u0041 gothicAhsa 𐌰 \U00010330 rocket 🚀 \U0001F680 cat 🐈 \U0001F408"
+  "sq \' dq \" bsl \\ nl \n cr \r ht \t vt \v bsp \b ff \f null \0 nl \012 A \101 sp \040 ht \x09 Z \x5A ! \x21 weird \x4142 ☺ \u263A ☃ \u2603 π \u03C0 A \u0041 gothicAhsa 𐌰 \U00010330 rocket 🚀 \U0001F680 cat 🐈 \U0001F408"
+
+# Round trip conversions - zip and back to string:
+round trip | gzip | strgunzip  (+ original for comparison):
+  "{{ var.EscapedStr | gzip | strgunzip }}"
+  "sq \' dq \" bsl \\ nl \n cr \r ht \t vt \v bsp \b ff \f null \0 nl \012 A \101 sp \040 ht \x09 Z \x5A ! \x21 weird \x4142 ☺ \u263A ☃ \u2603 π \u03C0 A \u0041 gothicAhsa 𐌰 \U00010330 rocket 🚀 \U0001F680 cat 🐈 \U0001F408"
+
+round trip | gzip | gunzip | utf16  (+ original for comparison):
+  "{{ var.EscapedStr | gzip | gunzip | utf16 }}"
+  "sq \' dq \" bsl \\ nl \n cr \r ht \t vt \v bsp \b ff \f null \0 nl \012 A \101 sp \040 ht \x09 Z \x5A ! \x21 weird \x4142 ☺ \u263A ☃ \u2603 π \u03C0 A \u0041 gothicAhsa 𐌰 \U00010330 rocket 🚀 \U0001F680 cat 🐈 \U0001F408"
+round trip | gzip | gunzip:"utf16"  (+ original for comparison):
+  "{{ var.EscapedStr | gzip | gunzip:"utf16" }}"
+  "sq \' dq \" bsl \\ nl \n cr \r ht \t vt \v bsp \b ff \f null \0 nl \012 A \101 sp \040 ht \x09 Z \x5A ! \x21 weird \x4142 ☺ \u263A ☃ \u2603 π \u03C0 A \u0041 gothicAhsa 𐌰 \U00010330 rocket 🚀 \U0001F680 cat 🐈 \U0001F408"
 
 
 # MULTIPLE FILTERS:

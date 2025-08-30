@@ -225,11 +225,6 @@ round trip | fromesccs | esccs  :
   "{{ var.EscapedStr }}"
 
 
-
-
-
-# TODO: Round trip converstion | base64 | frombase64 is wrong!
-
 # Base64 encoding / decoding:
 var.EscapedStr:
   "{{ var.EscapedStr }}"
@@ -274,7 +269,6 @@ with filter | base64 | frombase64 | utf16 | base64 :
   "{{ var.EscapedStr | base64 | frombase64 | utf16 | base64 | frombase64 | utf16 }}"
 
 
-# TODO: Round trip converstion | hex | fromhex is wrong!
 # Hexadecimal encoding / decoding:
 var.EscapedStr:
   "{{ var.EscapedStr }}"
@@ -307,6 +301,29 @@ Type after applying | hex | fromhex:"utf16" :
       {{ var.EscapedStr | hex | fromhex:"utf16" | type }}
 Type after applying | hex | strfromhex :
       {{ var.EscapedStr | hex | strfromhex | type }}
+
+# COMPRESSION / decompression (gzip and gunzip):
+
+var.EscapedStr:
+  "{{ var.EscapedStr }}"
+with filter gzip | base64 :
+  "{{ var.EscapedStr | gzip | base64 }}"
+# Round trip conversion to Byte[] (needs additional conversion to string with | utf16)
+round trip | gzip | gunzip (+ original for comparison):
+  "{{ var.EscapedStr | gzip | gunzip }}"
+  "{{ var.EscapedStr }}"
+
+# Round trip conversions - zip and back to string:
+round trip | gzip | strgunzip  (+ original for comparison):
+  "\{{ var.EscapedStr | gzip | strgunzip \}}"
+  "{{ var.EscapedStr }}"
+
+round trip | gzip | gunzip | utf16  (+ original for comparison):
+  "\{{ var.EscapedStr | gzip | gunzip | utf16 \}}"
+  "{{ var.EscapedStr }}"
+round trip | gzip | gunzip:"utf16"  (+ original for comparison):
+  "\{{ var.EscapedStr | gzip | gunzip:"utf16" \}}"
+  "{{ var.EscapedStr }}"
 
 
 # MULTIPLE FILTERS:

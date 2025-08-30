@@ -342,6 +342,7 @@ function Is-ByteVector {
 # ---------------------------------------------------------------------------
 
 # ========================= Helpers: string/bytes =========================
+
 function As-String {
     param([Parameter(Mandatory)] [object]$Value)
     if ($Value -is [byte[]]) { return [System.Text.Encoding]::Unicode.GetString($Value) }
@@ -830,8 +831,7 @@ function Apply-Filters {
             # ----------------- Bytes-to-text and vice versa -------------------
             # Decode byte[] -> string using UTF-16LE (.NET "Unicode" string)
             'utf16' { 
-                # $bytes = As-Bytes $Value
-                # $Value = [System.Text.Encoding]::Unicode.GetString($bytes)
+                # expects byte[]
                 $Value = [System.Text.Encoding]::Unicode.GetString($value)
             }
             # Decode byte[] -> string using UTF-8
@@ -856,14 +856,21 @@ function Apply-Filters {
             'xmldecode'   { $Value = Filter-XmlDecode (As-String $Value) }
 
             # -------------------- Binary/text codecs -------------------------
+            
+            
+            # Compress string or byte[] → byte[] with gzip
             'gzip'        { $Value = Filter-Gzip      $Value }  # -> byte[]
+            # Unzip byte[] → string (UTF-16LE, .NET "Unicode" string):
+            'strgunzip'   { $Value = [Text.Encoding]::Unicode.GetString( (Filter-Gunzip $Value) ) }  # byte[] -> byte[] -> string
+            # Uncompress byte[] → byte[] with gzip (needs additional utf16 filter to get string):
             'gunzip'      { $Value = Filter-Gunzip    $Value }  # -> string
 
+            # Encode string or byte[] → base64 string
             'base64'      { $Value = Filter-Base64    $Value }  # bytes or string -> base64 string
-            # Decode base64 → string (UTF-16LE)
+            # Decode base64 → string (UTF-16LE, .NET "Unicode" string)
             'strfrombase64' { $Value = [Text.Encoding]::Unicode.GetString( (Filter-FromBase64 $Value) ) }
-            # 'frombase64'  { $Value = Filter-FromBase64 $Value } # base64 string   -> byte[]
-            # With optional filters for final conversion to encoded string:
+            # Decode base64 → Byte[], with optional filters for final conversion to
+            # encoded string:
             'frombase64' {
                 $bytes = Filter-FromBase64 $Value
                 if ($args.Count -gt 0) {
@@ -879,11 +886,12 @@ function Apply-Filters {
                 }
             }
 
+            # Encode string or byte[] → hex lowercase string
             'hex'         { $Value = Filter-Hex       $Value }  # bytes or string -> hex string
-            # Decode hex → string (UTF-16LE)
+            # Decode hex → string (UTF-16LE, .NET "Unicode" string)
             'strfromhex'    { $Value = [Text.Encoding]::Unicode.GetString( (Filter-FromHex     $Value) ) }            
-            # 'fromhex'     { $Value = Filter-FromHex   $Value }  # hex string      -> byte[]
-            # With optional filters for final conversion to encoded string:
+            # Decode hex → Byte[], with optional filters for final conversion to
+            # encoded string:
             'fromhex' {
                 $bytes = Filter-FromHex $Value
                 if ($args.Count -gt 0) {
