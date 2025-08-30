@@ -1152,6 +1152,11 @@ $expanded = [System.Text.RegularExpressions.Regex]::Replace(
             Write-Host "  Unfiltered value:`n  $val0"
             $out  = Apply-Filters -Value $val0 -Pipeline $ph.filters
             Write-Host "  Final value:`n  $out"
+            if (-not $out -is [string]) {
+                Write-Warning "  Final value is not a string:"
+                Write-Host "  ${out}"
+                Write-Host "  Type: $($out.GetType().FullName))"
+            }
             # If a pipeline ends as byte[], force the template author to finish with base64/hex/gunzip/etc.
             if (Is-ByteVector $out) {
                 throw "Placeholder resulted in binary data. Add a final text-producing filter (e.g., base64, hex, gunzip, utf16)."

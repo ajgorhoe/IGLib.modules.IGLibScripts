@@ -45,7 +45,7 @@ User-provided values (as variables) used in this template:
   EscapedStr:        "sq \' dq \" bsl \\ nl \n cr \r ht \t vt \v bsp \b ff \f null \0 nl \012 A \101 sp \040 ht \x09 Z \x5A ! \x21 weird \x4142 ☺ \u263A ☃ \u2603 π \u03C0 A \u0041 gothicAhsa 𐌰 \U00010330 rocket 🚀 \U0001F680 cat 🐈 \U0001F408"
   EscapedStrSimple:  "sq \' dq \" bsl \\ nl \n cr \r ht \t vt \v bsp \b ff \f null \0 nl \012 A \101 sp \040 ht \x09 Z \x5A ! \x21 weird \x4142 ☺ \u263A ☃ "
   ForUrlEncoding:    "Café Münchën!.#.$.&. .'.(.).*.+.,./.:.;.=.?.@.[.]"
-  ForXMLEncoding:    ""Hello & Hoodbye!"  5 < 6 & 7 > 4  <a id=e55>#e55</a>"
+  ForXMLEncoding:    ""Hello & Goodbye!"  5 < 6 & 7 > 4  <a id=e55>#e55</a>"
 
 
 # Simple placeholders to substitute user-provided values (via variables):
@@ -179,11 +179,11 @@ round trip  | urlencode | urldecode :
 
 # XML / HTML encoding / decoding:
 var.ForXMLEncoding:
-  ""Hello & Hoodbye!"  5 < 6 & 7 > 4  <a id=e55>#e55</a>"
+  ""Hello & Goodbye!"  5 < 6 & 7 > 4  <a id=e55>#e55</a>"
 with filter | xmlencode :
-  "&quot;Hello &amp; Hoodbye!&quot;  5 &lt; 6 &amp; 7 &gt; 4  &lt;a id=e55&gt;#e55&lt;/a&gt;"
+  "&quot;Hello &amp; Goodbye!&quot;  5 &lt; 6 &amp; 7 &gt; 4  &lt;a id=e55&gt;#e55&lt;/a&gt;"
 round trip  | xmlencode | xmldecode :
-  ""Hello & Hoodbye!"  5 < 6 & 7 > 4  <a id=e55>#e55</a>"
+  ""Hello & Goodbye!"  5 < 6 & 7 > 4  <a id=e55>#e55</a>"
 
 # C/C++ -style escaping:
 var.EscapedStr:
@@ -309,11 +309,40 @@ Type after applying | hex | strfromhex :
 
 # COMPRESSION / decompression (gzip and gunzip):
 
+# gzip / gunzip of a simple string:
+var.PathWin:
+  "C:\Program Files (x86)\Microsoft SQL Server\"
+with filter | base64 :
+  "UQB3AEEANgBBAEYAdwBBAFUAQQBCAHkAQQBHADgAQQBaAHcAQgB5AEEARwBFAEEAYgBRAEEAZwBBAEUAWQBBAGEAUQBCAHMAQQBHAFUAQQBjAHcAQQBnAEEAQwBnAEEAZQBBAEEANABBAEQAWQBBAEsAUQBCAGMAQQBFADAAQQBhAFEAQgBqAEEASABJAEEAYgB3AEIAegBBAEcAOABBAFoAZwBCADAAQQBDAEEAQQBVAHcAQgBSAEEARQB3AEEASQBBAEIAVABBAEcAVQBBAGMAZwBCADIAQQBHAFUAQQBjAGcAQgBjAEEAQQA9AD0A"
+with filter | gzip | base64 :
+  "H4sIAAAAAAAEAHNmsGKIYQhgKGLIZ0gHkokMuQwKDG4MmQw5DKkMxUC2BkMFgwWDGYMmUJ0vUDwZrLYYiNMYSoDywQyBDD5gOhUoUwYmYxgA0Nf1rVgAAAA="
+# Round trip conversion to Byte[] (needs additional conversion to string
+# with | utf16)
+round trip | gzip | gunzip (+ original for comparison):
+  "67 0 58 0 92 0 80 0 114 0 111 0 103 0 114 0 97 0 109 0 32 0 70 0 105 0 108 0 101 0 115 0 32 0 40 0 120 0 56 0 54 0 41 0 92 0 77 0 105 0 99 0 114 0 111 0 115 0 111 0 102 0 116 0 32 0 83 0 81 0 76 0 32 0 83 0 101 0 114 0 118 0 101 0 114 0 92 0"
+  "C:\Program Files (x86)\Microsoft SQL Server\"
+
+# Round trip conversions - zip and back to string:
+round trip | gzip | strgunzip  (+ original for comparison):
+  "C:\Program Files (x86)\Microsoft SQL Server\"
+  "C:\Program Files (x86)\Microsoft SQL Server\"
+round trip | gzip | gunzip | utf16  (+ original for comparison):
+  "C:\Program Files (x86)\Microsoft SQL Server\"
+  "C:\Program Files (x86)\Microsoft SQL Server\"
+round trip | gzip | gunzip:"utf16"  (+ original for comparison):
+  "C:\Program Files (x86)\Microsoft SQL Server\"
+  "C:\Program Files (x86)\Microsoft SQL Server\"
+
+# gzip / gunzip of more complex string (EscapedStr, includes UTF pictographs
+# like emojis, even outside the Basic Multilingual Plane)
 var.EscapedStr:
   "sq \' dq \" bsl \\ nl \n cr \r ht \t vt \v bsp \b ff \f null \0 nl \012 A \101 sp \040 ht \x09 Z \x5A ! \x21 weird \x4142 ☺ \u263A ☃ \u2603 π \u03C0 A \u0041 gothicAhsa 𐌰 \U00010330 rocket 🚀 \U0001F680 cat 🐈 \U0001F408"
-with filter gzip | base64 :
+with filter | base64 :
+  "cwBxACAAXAAnACAAZABxACAAXAAiACAAYgBzAGwAIABcAFwAIABuAGwAIABcAG4AIABjAHIAIABcAHIAIABoAHQAIABcAHQAIAB2AHQAIABcAHYAIABiAHMAcAAgAFwAYgAgAGYAZgAgAFwAZgAgAG4AdQBsAGwAIABcADAAIABuAGwAIABcADAAMQAyACAAQQAgAFwAMQAwADEAIABzAHAAIABcADAANAAwACAAaAB0ACAAXAB4ADAAOQAgAFoAIABcAHgANQBBACAAIQAgAFwAeAAyADEAIAB3AGUAaQByAGQAIABcAHgANAAxADQAMgAgADomIABcAHUAMgA2ADMAQQAgAAMmIABcAHUAMgA2ADAAMwAgAMADIABcAHUAMAAzAEMAMAAgAEEAIABcAHUAMAAwADQAMQAgAGcAbwB0AGgAaQBjAEEAaABzAGEAIAAA2DDfIABcAFUAMAAwADAAMQAwADMAMwAwACAAcgBvAGMAawBlAHQAIAA92IDeIABcAFUAMAAwADAAMQBGADYAOAAwACAAYwBhAHQAIAA92AjcIABcAFUAMAAwADAAMQBGADQAMAA4AA=="
+#with filter | gzip | base64 :
   "H4sIAAAAAAAEAF1Qyw7BUBScxMZnlAXbixIkFiLxBzZiQz0qxPu19Gk+owvhV8yZXoI0mcxM58w57R5bBBigSBx7nieOsMdSakBceb4iRtiJG8Y4iBuePD/56Y3UiDjlY3yqpiO70jb31exQQpmsLVWSDj4tDqHS730XqgZZ36uq5nJelTV7xgRzXjn2bkg31I5mwZwjeQ0VTWa+HEcvwC2TOqY62p1eZo5TV4AZ1rwn5paIb2NeO6SLxD0t2VPS6VsqfKxjx4kIC15m39FKro/fZJf760pG7Eoz2ft/xv5FHS/D6ABsugEAAA=="
-# Round trip conversion to Byte[] (needs additional conversion to string with | utf16)
+ Round trip conversion to Byte[] (needs additional conversion to string
+# with | utf16)
 round trip | gzip | gunzip (+ original for comparison):
   "115 0 113 0 32 0 92 0 39 0 32 0 100 0 113 0 32 0 92 0 34 0 32 0 98 0 115 0 108 0 32 0 92 0 92 0 32 0 110 0 108 0 32 0 92 0 110 0 32 0 99 0 114 0 32 0 92 0 114 0 32 0 104 0 116 0 32 0 92 0 116 0 32 0 118 0 116 0 32 0 92 0 118 0 32 0 98 0 115 0 112 0 32 0 92 0 98 0 32 0 102 0 102 0 32 0 92 0 102 0 32 0 110 0 117 0 108 0 108 0 32 0 92 0 48 0 32 0 110 0 108 0 32 0 92 0 48 0 49 0 50 0 32 0 65 0 32 0 92 0 49 0 48 0 49 0 32 0 115 0 112 0 32 0 92 0 48 0 52 0 48 0 32 0 104 0 116 0 32 0 92 0 120 0 48 0 57 0 32 0 90 0 32 0 92 0 120 0 53 0 65 0 32 0 33 0 32 0 92 0 120 0 50 0 49 0 32 0 119 0 101 0 105 0 114 0 100 0 32 0 92 0 120 0 52 0 49 0 52 0 50 0 32 0 58 38 32 0 92 0 117 0 50 0 54 0 51 0 65 0 32 0 3 38 32 0 92 0 117 0 50 0 54 0 48 0 51 0 32 0 192 3 32 0 92 0 117 0 48 0 51 0 67 0 48 0 32 0 65 0 32 0 92 0 117 0 48 0 48 0 52 0 49 0 32 0 103 0 111 0 116 0 104 0 105 0 99 0 65 0 104 0 115 0 97 0 32 0 0 216 48 223 32 0 92 0 85 0 48 0 48 0 48 0 49 0 48 0 51 0 51 0 48 0 32 0 114 0 111 0 99 0 107 0 101 0 116 0 32 0 61 216 128 222 32 0 92 0 85 0 48 0 48 0 48 0 49 0 70 0 54 0 56 0 48 0 32 0 99 0 97 0 116 0 32 0 61 216 8 220 32 0 92 0 85 0 48 0 48 0 48 0 49 0 70 0 52 0 48 0 56 0"
   "sq \' dq \" bsl \\ nl \n cr \r ht \t vt \v bsp \b ff \f null \0 nl \012 A \101 sp \040 ht \x09 Z \x5A ! \x21 weird \x4142 ☺ \u263A ☃ \u2603 π \u03C0 A \u0041 gothicAhsa 𐌰 \U00010330 rocket 🚀 \U0001F680 cat 🐈 \U0001F408"
@@ -403,7 +432,7 @@ with newlines also between pipes (at various places):
 #   EscapedStr = "sq \' dq \`" bsl \\ nl \n cr \r ht \t vt \v bsp \b ff \f null \0 nl \012 A \101 sp \040 ht \x09 Z \x5A ! \x21 weird \x4142 â˜º \u263A â˜ƒ \u2603 Ï€ \u03C0 A \u0041 gothicAhsa ðŒ° \U00010330 rocket ðŸš€ \U0001F680 cat ðŸˆ \U0001F408"
 #   EscapedStrSimple = "sq \' dq \`" bsl \\ nl \n cr \r ht \t vt \v bsp \b ff \f null \0 nl \012 A \101 sp \040 ht \x09 Z \x5A ! \x21 weird \x4142 â˜º \u263A â˜ƒ "
 #   ForUrlEncoding = "CafÃ© MÃ¼nchÃ«n!.#.$.&. .'.(.).*.+.,./.:.;.=.?.@.[.]"
-#   ForXMLEncoding = "`"Hello & Hoodbye!`"  5 < 6 & 7 > 4  <a id=e55>#e55</a>"
+#   ForXMLEncoding = "`"Hello & Goodbye!`"  5 < 6 & 7 > 4  <a id=e55>#e55</a>"
 
 
 

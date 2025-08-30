@@ -304,11 +304,39 @@ Type after applying | hex | strfromhex :
 
 # COMPRESSION / decompression (gzip and gunzip):
 
+# gzip / gunzip of a simple string:
+var.PathWin:
+  "{{ var.PathWin }}"
+with filter | base64 :
+  "{{ var.PathWin | base64 | base64 }}"
+with filter | gzip | base64 :
+  "{{ var.PathWin | gzip | base64 }}"
+# Round trip conversion to Byte[] (needs additional conversion to string
+# with | utf16)
+round trip | gzip | gunzip (+ original for comparison):
+  "{{ var.PathWin | gzip | gunzip }}"
+  "{{ var.PathWin }}"
+
+# Round trip conversions - zip and back to string:
+round trip | gzip | strgunzip  (+ original for comparison):
+  "{{ var.PathWin | gzip | strgunzip }}"
+  "{{ var.PathWin }}"
+round trip | gzip | gunzip | utf16  (+ original for comparison):
+  "{{ var.PathWin | gzip | gunzip | utf16 }}"
+  "{{ var.PathWin }}"
+round trip | gzip | gunzip:"utf16"  (+ original for comparison):
+  "{{ var.PathWin | gzip | gunzip:"utf16" }}"
+  "{{ var.PathWin }}"
+
+# gzip / gunzip of more complex string (EscapedStr, includes UTF pictographs
+# like emojis, even outside the Basic Multilingual Plane)
 var.EscapedStr:
   "{{ var.EscapedStr }}"
-with filter gzip | base64 :
+with filter | base64 :
+  "{{ var.EscapedStr | base64 }}"
+#with filter | gzip | base64 :
   "{{ var.EscapedStr | gzip | base64 }}"
-# Round trip conversion to Byte[] (needs additional conversion to string
+ Round trip conversion to Byte[] (needs additional conversion to string
 # with | utf16)
 round trip | gzip | gunzip (+ original for comparison):
   "{{ var.EscapedStr | gzip | gunzip }}"
@@ -411,6 +439,6 @@ with newlines also between pipes (at various places):
 #   EscapedStr = "sq \' dq \`" bsl \\ nl \n cr \r ht \t vt \v bsp \b ff \f null \0 nl \012 A \101 sp \040 ht \x09 Z \x5A ! \x21 weird \x4142 ☺ \u263A ☃ \u2603 π \u03C0 A \u0041 gothicAhsa 𐌰 \U00010330 rocket 🚀 \U0001F680 cat 🐈 \U0001F408"
 #   EscapedStrSimple = "sq \' dq \`" bsl \\ nl \n cr \r ht \t vt \v bsp \b ff \f null \0 nl \012 A \101 sp \040 ht \x09 Z \x5A ! \x21 weird \x4142 ☺ \u263A ☃ "
 #   ForUrlEncoding = "Café Münchën!.#.$.&. .'.(.).*.+.,./.:.;.=.?.@.[.]"
-#   ForXMLEncoding = "`"Hello & Hoodbye!`"  5 < 6 & 7 > 4  <a id=e55>#e55</a>"
+#   ForXMLEncoding = "`"Hello & Goodbye!`"  5 < 6 & 7 > 4  <a id=e55>#e55</a>"
 
 
