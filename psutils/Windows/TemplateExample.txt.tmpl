@@ -217,7 +217,7 @@ round trip  | fromesccs | esccs  (+ original for comparison):
 var.EscapedStr:
   "{{ var.EscapedStr }}"
 with filter | fromesccs :
-  "\{{ var.EscapedStr | fromesccs \}}"
+  "{{ var.EscapedStr | fromesccs }}"
   "{{ var.EscapedStr }}"
 # ToDo: conversion below throws exception
 round trip | fromesccs | esccs  (+ original for comparison):

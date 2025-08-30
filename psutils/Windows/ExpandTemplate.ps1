@@ -455,7 +455,9 @@ function Filter-XmlDecode {
     return $s
 }
 
-# ========================= C-style escape/unescape =========================
+# ========================= C/C++ style escape/unescape =========================
+
+# Convert string to include C/C++-style escape sequences:
 function Escape-C {
     param([string]$s)
     $sb = New-Object System.Text.StringBuilder
@@ -481,6 +483,8 @@ function Escape-C {
     }
     return $sb.ToString()
 }
+
+# Convert string from C/C++-style escape sequences (old version, does not handle \x or octal):
 function Unescape-C {
     param([string]$s)
     $sb = New-Object System.Text.StringBuilder
@@ -526,7 +530,83 @@ function Unescape-C {
     return $sb.ToString()
 }
 
-# ========================= Java/C# variants =========================
+# Convert string from C/C++-style escape sequences:
+function Filter-FromEscC {
+    <#
+      .SYNOPSIS
+        Decodes C/C++-style escape sequences in a string.
+
+      .NOTES
+        Supported: \\, \', \", \?, \a, \b, \f, \n, \r, \t, \v, \0 / \oo / \ooo (octal 0–3 digits),
+                   \xH… (1–4 hex digits; continues up to 4).
+        For \x4142 this yields a single U+4142 character (as in C).
+    #>
+    param([Parameter(Mandatory)][string]$Value)
+
+    $sb = [System.Text.StringBuilder]::new()
+    $i = 0
+    while ($i -lt $Value.Length) {
+        $ch = $Value[$i]
+        if ($ch -ne '\') {
+            [void]$sb.Append($ch)
+            $i++
+            continue
+        }
+
+        $i++
+        if ($i -ge $Value.Length) { [void]$sb.Append('\'); break }
+        $esc = $Value[$i]
+
+        switch ($esc) {
+            'n' { [void]$sb.Append([char]0x0A); $i++ }
+            'r' { [void]$sb.Append([char]0x0D); $i++ }
+            't' { [void]$sb.Append([char]0x09); $i++ }
+            'v' { [void]$sb.Append([char]0x0B); $i++ }
+            'b' { [void]$sb.Append([char]0x08); $i++ }
+            'f' { [void]$sb.Append([char]0x0C); $i++ }
+            'a' { [void]$sb.Append([char]0x07); $i++ }
+            '"' { [void]$sb.Append('"');        $i++ }
+            "'" { [void]$sb.Append("'");         $i++ }
+            '\' { [void]$sb.Append('\');         $i++ }
+            'x' {
+                # \x followed by 1–4 hex digits (C keeps consuming while hex; we cap at 4)
+                $start = $i + 1
+                $len   = 0
+                while ($start + $len -lt $Value.Length -and $Value[$start + $len] -match '[0-9A-Fa-f]') {
+                    $len++
+                    if ($len -ge 4) { break }
+                }
+                if ($len -eq 0) { throw "Invalid \x escape at index $($i-1): missing hex digits." }
+                $hex  = $Value.Substring($start, $len)
+                $code = [Convert]::ToInt32($hex, 16)
+                [void]$sb.Append([char]$code)
+                $i += 1 + $len
+            }
+            { $_ -match '[0-7]' } {
+                # Octal: up to 3 digits, first already in $esc
+                $start = $i
+                $len   = 1
+                while ($len -lt 3 -and ($start + $len) -lt $Value.Length -and $Value[$start + $len] -match '^[0-7]$') {
+                    $len++
+                }
+                $oct  = $Value.Substring($start, $len)
+                $code = [Convert]::ToInt32($oct, 8)
+                [void]$sb.Append([char]$code)
+                $i += $len
+            }
+            default {
+                # Unknown escape -> keep the escaped char literally (C’s behavior is undefined; we keep it simple)
+                [void]$sb.Append($esc)
+                $i++
+            }
+        }
+    }
+    $sb.ToString()
+}
+
+
+# ========================= Java escape / unescape =========================
+
 function Escape-Java {
     param([string]$s)
     # Similar to C, but prefer \uXXXX for non-ASCII
@@ -599,6 +679,9 @@ function Convert-CodePointToString {
     return ([char]$hi).ToString() + ([char]$lo)
 }
 
+# ========================= C# escape / unescape =========================
+
+# Convert string to C#-style escape sequences:
 function Escape-Cs {
     param([string]$s)
     $sb = New-Object System.Text.StringBuilder
@@ -627,6 +710,8 @@ function Escape-Cs {
     return $sb.ToString()
 }
 
+
+# Convert string from C#-style escape sequences (old version, does not handle \x or octal):
 function Unescape-Cs {
     param([string]$s)
     $sb = New-Object System.Text.StringBuilder
@@ -661,9 +746,7 @@ function Unescape-Cs {
     return $sb.ToString()
 }
 
-
-
-
+# Convert string from C#-style escape sequences:
 function Filter-FromEscCs {
     <#
       .SYNOPSIS
@@ -760,18 +843,6 @@ function Filter-FromEscCs {
     }
     $sb.ToString()
 }
-
-
-
-
-
-
-
-
-
-
-
-
 
 # ---------------------------------------------------------------------------
 # FILTERS: path manipulation filters
@@ -1040,7 +1111,7 @@ function Apply-Filters {
             'fromescjava' { $Value = Unescape-Java    (As-String $Value) }
 
             'esccs'       { $Value = Escape-Cs        (As-String $Value) }
-            'fromesccs'   { $Value = Unescape-Cs      (As-String $Value) }
+            'fromesccs'   { $Value = Filter-FromEscCs (As-String $Value) }
 
             # -------------------- .reg specific ------------------------------
             'expandsz' {
