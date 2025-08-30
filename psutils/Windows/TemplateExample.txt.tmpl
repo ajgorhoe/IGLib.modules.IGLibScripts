@@ -221,7 +221,7 @@ with filter | fromesccs :
   "{{ var.EscapedStr }}"
 # ToDo: conversion below throws exception
 round trip | fromesccs | esccs  (+ original for comparison):
-  "\{{ var.EscapedStr | fromesccs | esccs \}}"
+  "{{ var.EscapedStr | fromesccs | esccs }}"
   "{{ var.EscapedStr }}"
 
 

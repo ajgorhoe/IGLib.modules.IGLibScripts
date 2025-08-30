@@ -537,9 +537,9 @@ function Filter-FromEscC {
         Decodes C/C++-style escape sequences in a string.
 
       .NOTES
-        Supported: \\, \', \", \?, \a, \b, \f, \n, \r, \t, \v, \0 / \oo / \ooo (octal 0–3 digits),
-                   \xH… (1–4 hex digits; continues up to 4).
-        For \x4142 this yields a single U+4142 character (as in C).
+        Supported: \\, \', \", \?, \a, \b, \f, \n, \r, \t, \v,
+                   \0 / \oo / \ooo (octal up to 3 digits),
+                   \xH… (1–4 hex digits).
     #>
     param([Parameter(Mandatory)][string]$Value)
 
@@ -557,7 +557,7 @@ function Filter-FromEscC {
         if ($i -ge $Value.Length) { [void]$sb.Append('\'); break }
         $esc = $Value[$i]
 
-        switch ($esc) {
+        switch -CaseSensitive ($esc) {
             'n' { [void]$sb.Append([char]0x0A); $i++ }
             'r' { [void]$sb.Append([char]0x0D); $i++ }
             't' { [void]$sb.Append([char]0x09); $i++ }
@@ -568,13 +568,12 @@ function Filter-FromEscC {
             '"' { [void]$sb.Append('"');        $i++ }
             "'" { [void]$sb.Append("'");         $i++ }
             '\' { [void]$sb.Append('\');         $i++ }
+
             'x' {
-                # \x followed by 1–4 hex digits (C keeps consuming while hex; we cap at 4)
-                $start = $i + 1
-                $len   = 0
+                # \x followed by 1–4 hex digits
+                $start = $i + 1; $len = 0
                 while ($start + $len -lt $Value.Length -and $Value[$start + $len] -match '[0-9A-Fa-f]') {
-                    $len++
-                    if ($len -ge 4) { break }
+                    $len++; if ($len -ge 4) { break }
                 }
                 if ($len -eq 0) { throw "Invalid \x escape at index $($i-1): missing hex digits." }
                 $hex  = $Value.Substring($start, $len)
@@ -582,10 +581,10 @@ function Filter-FromEscC {
                 [void]$sb.Append([char]$code)
                 $i += 1 + $len
             }
+
             { $_ -match '[0-7]' } {
                 # Octal: up to 3 digits, first already in $esc
-                $start = $i
-                $len   = 1
+                $start = $i; $len = 1
                 while ($len -lt 3 -and ($start + $len) -lt $Value.Length -and $Value[$start + $len] -match '^[0-7]$') {
                     $len++
                 }
@@ -594,8 +593,9 @@ function Filter-FromEscC {
                 [void]$sb.Append([char]$code)
                 $i += $len
             }
+
             default {
-                # Unknown escape -> keep the escaped char literally (C’s behavior is undefined; we keep it simple)
+                # Unknown escape -> keep escaped char literally (drop the backslash)
                 [void]$sb.Append($esc)
                 $i++
             }
@@ -756,9 +756,8 @@ function Filter-FromEscCs {
         Supported: \\, \', \", \a, \b, \f, \n, \r, \t, \v, \0,
                    \xH… (1–4 hex digits),
                    \uXXXX (exactly 4 hex digits),
-                   \UXXXXXXXX (exactly 8 hex digits, full Unicode code point; emits surrogate pair if needed).
-        C# does NOT support octal escapes; if you have them, we treat as literal for compatibility,
-        or you can enable the octal branch (commented) if you want to accept them too.
+                   \UXXXXXXXX (exactly 8 hex digits, full Unicode code point).
+        C# does not define octal escapes; unknown escapes are treated as literal char (without the backslash).
     #>
     param([Parameter(Mandatory)][string]$Value)
 
@@ -776,7 +775,7 @@ function Filter-FromEscCs {
         if ($i -ge $Value.Length) { [void]$sb.Append('\'); break }
         $esc = $Value[$i]
 
-        switch ($esc) {
+        switch -CaseSensitive ($esc) {
             'n' { [void]$sb.Append([char]0x0A); $i++ }
             'r' { [void]$sb.Append([char]0x0D); $i++ }
             't' { [void]$sb.Append([char]0x09); $i++ }
@@ -789,12 +788,10 @@ function Filter-FromEscCs {
             '\' { [void]$sb.Append('\');         $i++ }
 
             'x' {
-                # \x followed by 1–4 hex digits (C# permits 1–4)
-                $start = $i + 1
-                $len   = 0
+                # \x followed by 1–4 hex digits
+                $start = $i + 1; $len = 0
                 while ($start + $len -lt $Value.Length -and $Value[$start + $len] -match '[0-9A-Fa-f]') {
-                    $len++
-                    if ($len -ge 4) { break }
+                    $len++; if ($len -ge 4) { break }
                 }
                 if ($len -eq 0) { throw "Invalid \x escape at index $($i-1): missing hex digits." }
                 $hex  = $Value.Substring($start, $len)
@@ -814,7 +811,7 @@ function Filter-FromEscCs {
             }
 
             'U' {
-                # \UXXXXXXXX (exactly 8 hex digits, full Unicode code point)
+                # \UXXXXXXXX (exactly 8 hex digits)
                 if ($i + 8 -ge $Value.Length) { throw "Invalid \U escape at index $($i-1): requires 8 hex digits." }
                 $hex = $Value.Substring($i + 1, 8)
                 if ($hex -notmatch '^[0-9A-Fa-f]{8}$') { throw "Invalid \U escape at index $($i-1): '$hex'." }
@@ -833,9 +830,7 @@ function Filter-FromEscCs {
             }
 
             default {
-                # C# does NOT define octal escapes; keep the escaped char literally.
-                # If you want to accept octal as well (like the C decoder), you could
-                # copy the octal branch from Filter-FromEscC here.
+                # Unknown escape -> keep escaped char literally (drop the backslash)
                 [void]$sb.Append($esc)
                 $i++
             }
