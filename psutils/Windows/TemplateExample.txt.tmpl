@@ -203,24 +203,24 @@ round trip  | fromescjava| escjava  :
   "{{ var.EscapedStr | fromescjava| escjava  }}"
   "{{ var.EscapedStr }}"
 
-# TODO: conversion / filter fromesccs throws exception
-# C# -style escaping:
-var.EscapedStr:
+# C# -style escaping (simple string):
+var.EscapedStrSimple:
   "{{ var.EscapedStrSimple }}"
 with filter | fromesccs :
   "{{ var.EscapedStrSimple | fromesccs }}"
-round trip  | fromesccs| esccs  :
-  "\{{ var.EscapedStrSimple | fromesccs | esccs \}}"
+round trip  | fromesccs | esccs  (+ original for comparison):
+  "{{ var.EscapedStrSimple | fromesccs | esccs }}"
   "{{ var.EscapedStrSimple }}"
 
 # TODO: conversion / filter fromesccs throws exception
-# With simpler escaped string:
+# C# -style escaping with more complex string:
 var.EscapedStr:
   "{{ var.EscapedStr }}"
 with filter | fromesccs :
   "\{{ var.EscapedStr | fromesccs \}}"
+  "{{ var.EscapedStr }}"
 # ToDo: conversion below throws exception
-round trip | fromesccs | esccs  :
+round trip | fromesccs | esccs  (+ original for comparison):
   "\{{ var.EscapedStr | fromesccs | esccs \}}"
   "{{ var.EscapedStr }}"
 

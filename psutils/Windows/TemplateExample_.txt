@@ -207,25 +207,25 @@ round trip  | fromescjava| escjava  :
   "sq \'' dq \"" bsl \\\ nl \n\u000a cr \r\u000d ht \t\u0009 vt v bsp \b\u0008 ff \f\u000c null \u0000 nl \n\u000a A A sp   ht x09 Z x5A ! x21 weird x4142 \u263a \u263a \u2603 \u2603 \u03c0 \u03c0 A A gothicAhsa \ud800\udf30 \u00010330 rocket \ud83d\ude80 \u0001F680 cat \ud83d\udc08 \u0001F408"
   "sq \' dq \" bsl \\ nl \n cr \r ht \t vt \v bsp \b ff \f null \0 nl \012 A \101 sp \040 ht \x09 Z \x5A ! \x21 weird \x4142 ☺ \u263A ☃ \u2603 π \u03C0 A \u0041 gothicAhsa 𐌰 \U00010330 rocket 🚀 \U0001F680 cat 🐈 \U0001F408"
 
-# TODO: conversion / filter fromesccs throws exception
-# C# -style escaping:
-var.EscapedStr:
+# C# -style escaping (simple string):
+var.EscapedStrSimple:
   "sq \' dq \" bsl \\ nl \n cr \r ht \t vt \v bsp \b ff \f null \0 nl \012 A \101 sp \040 ht \x09 Z \x5A ! \x21 weird \x4142 ☺ \u263A ☃ "
 with filter | fromesccs :
   "sq ' dq " bsl \ nl 
  cr  ht 	 vt v bsp  ff  null 0 nl 012 A 101 sp 040 ht x09 Z x5A ! x21 weird x4142 ☺ ☺ ☃ "
-round trip  | fromesccs| esccs  :
-  "{{ var.EscapedStrSimple | fromesccs | esccs }}"
+round trip  | fromesccs | esccs  (+ original for comparison):
+  "sq \'' dq \"" bsl \\\ nl \n\u000a cr \r\u000d ht \t\u0009 vt v bsp \b\u0008 ff \f\u000c null 0 nl 012 A 101 sp 040 ht x09 Z x5A ! x21 weird x4142 \u263a \u263a \u2603 "
   "sq \' dq \" bsl \\ nl \n cr \r ht \t vt \v bsp \b ff \f null \0 nl \012 A \101 sp \040 ht \x09 Z \x5A ! \x21 weird \x4142 ☺ \u263A ☃ "
 
 # TODO: conversion / filter fromesccs throws exception
-# With simpler escaped string:
+# C# -style escaping with more complex string:
 var.EscapedStr:
   "sq \' dq \" bsl \\ nl \n cr \r ht \t vt \v bsp \b ff \f null \0 nl \012 A \101 sp \040 ht \x09 Z \x5A ! \x21 weird \x4142 ☺ \u263A ☃ \u2603 π \u03C0 A \u0041 gothicAhsa 𐌰 \U00010330 rocket 🚀 \U0001F680 cat 🐈 \U0001F408"
 with filter | fromesccs :
   "{{ var.EscapedStr | fromesccs }}"
+  "sq \' dq \" bsl \\ nl \n cr \r ht \t vt \v bsp \b ff \f null \0 nl \012 A \101 sp \040 ht \x09 Z \x5A ! \x21 weird \x4142 ☺ \u263A ☃ \u2603 π \u03C0 A \u0041 gothicAhsa 𐌰 \U00010330 rocket 🚀 \U0001F680 cat 🐈 \U0001F408"
 # ToDo: conversion below throws exception
-round trip | fromesccs | esccs  :
+round trip | fromesccs | esccs  (+ original for comparison):
   "{{ var.EscapedStr | fromesccs | esccs }}"
   "sq \' dq \" bsl \\ nl \n cr \r ht \t vt \v bsp \b ff \f null \0 nl \012 A \101 sp \040 ht \x09 Z \x5A ! \x21 weird \x4142 ☺ \u263A ☃ \u2603 π \u03C0 A \u0041 gothicAhsa 𐌰 \U00010330 rocket 🚀 \U0001F680 cat 🐈 \U0001F408"
 
