@@ -530,6 +530,68 @@ function Unescape-C {
     return $sb.ToString()
 }
 
+# Convert string to include C/C++-style escape sequences:
+function Filter-EscC {
+    <#
+      .SYNOPSIS
+        Escapes a string using C/C++-style sequences.
+
+      .NOTES
+        - Escapes: \\, \', \", \a, \b, \f, \n, \r, \t, \v, \0
+        - Control chars (<0x20 or 0x7F): \xHH (<=0xFF) else \uXXXX/\UXXXXXXXX
+        - Surrogate pairs are detected and rendered as \UXXXXXXXX.
+    #>
+    param([Parameter(Mandatory)][string]$Value)
+
+    $sb = [System.Text.StringBuilder]::new()
+    $i = 0
+    while ($i -lt $Value.Length) {
+        $ch = $Value[$i]
+
+        # Surrogate pair handling for full Unicode code points
+        if ([char]::IsHighSurrogate($ch) -and $i + 1 -lt $Value.Length -and [char]::IsLowSurrogate($Value[$i+1])) {
+            $cp = [char]::ConvertToUtf32($ch, $Value[$i+1])
+            [void]$sb.Append('\U')
+            [void]$sb.Append(('{0:X8}' -f $cp))
+            $i += 2
+            continue
+        }
+
+        $code = [int][char]$ch
+        switch ($code) {
+            92 { [void]$sb.Append('\'); [void]$sb.Append('\'); $i++; continue } # \
+            34 { [void]$sb.Append('\'); [void]$sb.Append('"'); $i++; continue } # "
+            39 { [void]$sb.Append('\'); [void]$sb.Append("'"); $i++; continue } # '
+
+            7  { [void]$sb.Append('\'); [void]$sb.Append('a'); $i++; continue }
+            8  { [void]$sb.Append('\'); [void]$sb.Append('b'); $i++; continue }
+            12 { [void]$sb.Append('\'); [void]$sb.Append('f'); $i++; continue }
+            10 { [void]$sb.Append('\'); [void]$sb.Append('n'); $i++; continue }
+            13 { [void]$sb.Append('\'); [void]$sb.Append('r'); $i++; continue }
+            9  { [void]$sb.Append('\'); [void]$sb.Append('t'); $i++; continue }
+            11 { [void]$sb.Append('\'); [void]$sb.Append('v'); $i++; continue }
+            0  { [void]$sb.Append('\'); [void]$sb.Append('0'); $i++; continue }
+        }
+
+        if ($code -lt 0x20 -or $code -eq 0x7F) {
+            if ($code -le 0xFF) {
+                [void]$sb.Append('\x')
+                [void]$sb.Append(('{0:X2}' -f $code))
+            } else {
+                [void]$sb.Append('\u')
+                [void]$sb.Append(('{0:X4}' -f $code))
+            }
+            $i++
+            continue
+        }
+
+        [void]$sb.Append($ch)
+        $i++
+    }
+    $sb.ToString()
+}
+
+
 # Convert string from C/C++-style escape sequences:
 function Filter-FromEscC {
     <#
@@ -670,6 +732,63 @@ function Unescape-Java {
     return $sb.ToString()
 }
 
+function Filter-EscJava {
+    <#
+      .SYNOPSIS
+        Escapes a string using Java-style sequences.
+
+      .NOTES
+        - Escapes: \\, \', \", \b, \t, \n, \f, \r
+        - Control/non-ASCII -> \uXXXX
+        - Supplementary code points -> two surrogate \uXXXX pairs (Java uses UTF-16)
+    #>
+    param([Parameter(Mandatory)][string]$Value)
+
+    $sb = [System.Text.StringBuilder]::new()
+    $i = 0
+    while ($i -lt $Value.Length) {
+        $ch = $Value[$i]
+
+        if ([char]::IsHighSurrogate($ch) -and $i + 1 -lt $Value.Length -and [char]::IsLowSurrogate($Value[$i+1])) {
+            # Java expects surrogate pair as two \uXXXX
+            $hi = [int][char]$ch
+            $lo = [int][char]$Value[$i+1]
+            [void]$sb.Append('\u')
+            [void]$sb.Append(('{0:X4}' -f $hi))
+            [void]$sb.Append('\u')
+            [void]$sb.Append(('{0:X4}' -f $lo))
+            $i += 2
+            continue
+        }
+
+        $code = [int][char]$ch
+        switch ($code) {
+            92 { [void]$sb.Append('\'); [void]$sb.Append('\'); $i++; continue } # \
+            34 { [void]$sb.Append('\'); [void]$sb.Append('"'); $i++; continue } # "
+            39 { [void]$sb.Append('\'); [void]$sb.Append("'"); $i++; continue } # '
+
+            8  { [void]$sb.Append('\'); [void]$sb.Append('b'); $i++; continue }
+            9  { [void]$sb.Append('\'); [void]$sb.Append('t'); $i++; continue }
+            10 { [void]$sb.Append('\'); [void]$sb.Append('n'); $i++; continue }
+            12 { [void]$sb.Append('\'); [void]$sb.Append('f'); $i++; continue }
+            13 { [void]$sb.Append('\'); [void]$sb.Append('r'); $i++; continue }
+            0  { [void]$sb.Append('\'); [void]$sb.Append('0'); $i++; continue }
+        }
+
+        if ($code -lt 0x20 -or $code -gt 0x7E) {
+            [void]$sb.Append('\u')
+            [void]$sb.Append(('{0:X4}' -f $code))
+            $i++
+            continue
+        }
+
+        [void]$sb.Append($ch)
+        $i++
+    }
+    $sb.ToString()
+}
+
+
 function Convert-CodePointToString {
     param([int]$cp)
     if ($cp -le 0xFFFF) { return [char]$cp }
@@ -745,6 +864,61 @@ function Unescape-Cs {
     }
     return $sb.ToString()
 }
+
+function Filter-EscCs {
+    <#
+      .SYNOPSIS
+        Escapes a string using C#-style sequences.
+
+      .NOTES
+        - Escapes: \\, \', \", \a, \b, \f, \n, \r, \t, \v, \0
+        - Non-printable/control -> \uXXXX
+        - Supplementary code points -> \UXXXXXXXX
+    #>
+    param([Parameter(Mandatory)][string]$Value)
+
+    $sb = [System.Text.StringBuilder]::new()
+    $i = 0
+    while ($i -lt $Value.Length) {
+        $ch = $Value[$i]
+
+        if ([char]::IsHighSurrogate($ch) -and $i + 1 -lt $Value.Length -and [char]::IsLowSurrogate($Value[$i+1])) {
+            $cp = [char]::ConvertToUtf32($ch, $Value[$i+1])
+            [void]$sb.Append('\U')
+            [void]$sb.Append(('{0:X8}' -f $cp))
+            $i += 2
+            continue
+        }
+
+        $code = [int][char]$ch
+        switch ($code) {
+            92 { [void]$sb.Append('\'); [void]$sb.Append('\'); $i++; continue } # \
+            34 { [void]$sb.Append('\'); [void]$sb.Append('"'); $i++; continue } # "
+            39 { [void]$sb.Append('\'); [void]$sb.Append("'"); $i++; continue } # '
+
+            7  { [void]$sb.Append('\'); [void]$sb.Append('a'); $i++; continue }
+            8  { [void]$sb.Append('\'); [void]$sb.Append('b'); $i++; continue }
+            12 { [void]$sb.Append('\'); [void]$sb.Append('f'); $i++; continue }
+            10 { [void]$sb.Append('\'); [void]$sb.Append('n'); $i++; continue }
+            13 { [void]$sb.Append('\'); [void]$sb.Append('r'); $i++; continue }
+            9  { [void]$sb.Append('\'); [void]$sb.Append('t'); $i++; continue }
+            11 { [void]$sb.Append('\'); [void]$sb.Append('v'); $i++; continue }
+            0  { [void]$sb.Append('\'); [void]$sb.Append('0'); $i++; continue }
+        }
+
+        if ($code -lt 0x20 -or $code -eq 0x7F) {
+            [void]$sb.Append('\u')
+            [void]$sb.Append(('{0:X4}' -f $code))
+            $i++
+            continue
+        }
+
+        [void]$sb.Append($ch)
+        $i++
+    }
+    $sb.ToString()
+}
+
 
 # Convert string from C#-style escape sequences:
 function Filter-FromEscCs {
@@ -1099,14 +1273,31 @@ function Apply-Filters {
             }
 
             # -------------------- Programming-language escapes ---------------
-            'escc'        { $Value = Escape-C         (As-String $Value) }
-            'fromescc'    { $Value = Unescape-C       (As-String $Value) }
+            'escc' { 
+              # $Value = Escape-C         (As-String $Value) 
+              $Value = Filter-EscC (As-String $Value)
+            }
+            'fromescc' { 
+                # $Value = Unescape-C       (As-String $Value) 
+                $Value = Filter-FromEscC (As-String $Value)
+            }
 
-            'escjava'     { $Value = Escape-Java      (As-String $Value) }
-            'fromescjava' { $Value = Unescape-Java    (As-String $Value) }
+            'escjava'     { 
+                # $Value = Escape-Java      (As-String $Value)
+                $Value = Filter-EscJava      (As-String $Value)
+            }
+            'fromescjava' { 
+                $Value = Unescape-Java    (As-String $Value) 
+                # $Value = Filter-FromEscJava    (As-String $Value) 
+           }
 
-            'esccs'       { $Value = Escape-Cs        (As-String $Value) }
-            'fromesccs'   { $Value = Filter-FromEscCs (As-String $Value) }
+            'esccs' { 
+                $Value = Escape-Cs (As-String $Value) 
+                $Value = Filter-EscCs (As-String $Value) 
+            }
+            'fromesccs'  { 
+                $Value = Filter-FromEscCs (As-String $Value) 
+            }
 
             # -------------------- .reg specific ------------------------------
             'expandsz' {
