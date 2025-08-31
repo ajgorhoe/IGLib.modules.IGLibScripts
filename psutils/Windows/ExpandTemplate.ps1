@@ -865,25 +865,30 @@ function Unescape-Cs {
     return $sb.ToString()
 }
 
+# Convert string to C#-style escape sequences:
+# Remove any previous definition to avoid mixing old logic
+Remove-Item function:Filter-EscCs -ErrorAction SilentlyContinue
+
 function Filter-EscCs {
     <#
       .SYNOPSIS
-        Escapes a string using C#-style sequences.
-
+        Escapes a string using C#-style sequences (\", \', \\, \0, \a, \b, \f, \n, \r, \t, \v).
       .NOTES
-        - Escapes: \\, \', \", \a, \b, \f, \n, \r, \t, \v, \0
-        - Non-printable/control -> \uXXXX
-        - Supplementary code points -> \UXXXXXXXX
+        - Short escapes handled first; each branch appends once and `continue`s.
+        - Other control chars (U+0000–001F, U+007F) -> \uXXXX
+        - Supplementary code points (> U+FFFF) -> \UXXXXXXXX
     #>
     param([Parameter(Mandatory)][string]$Value)
 
     $sb = [System.Text.StringBuilder]::new()
-    $i = 0
+    $i  = 0
+
     while ($i -lt $Value.Length) {
         $ch = $Value[$i]
 
-        if ([char]::IsHighSurrogate($ch) -and $i + 1 -lt $Value.Length -and [char]::IsLowSurrogate($Value[$i+1])) {
-            $cp = [char]::ConvertToUtf32($ch, $Value[$i+1])
+        # 1) Supplementary code points as one \UXXXXXXXX token
+        if ([char]::IsHighSurrogate($ch) -and $i + 1 -lt $Value.Length -and [char]::IsLowSurrogate($Value[$i + 1])) {
+            $cp = [char]::ConvertToUtf32($ch, $Value[$i + 1])
             [void]$sb.Append('\U')
             [void]$sb.Append(('{0:X8}' -f $cp))
             $i += 2
@@ -891,31 +896,34 @@ function Filter-EscCs {
         }
 
         $code = [int][char]$ch
-        switch ($code) {
-            92 { [void]$sb.Append('\'); [void]$sb.Append('\'); $i++; continue } # \
-            34 { [void]$sb.Append('\'); [void]$sb.Append('"'); $i++; continue } # "
-            39 { [void]$sb.Append('\'); [void]$sb.Append("'"); $i++; continue } # '
 
-            7  { [void]$sb.Append('\'); [void]$sb.Append('a'); $i++; continue }
-            8  { [void]$sb.Append('\'); [void]$sb.Append('b'); $i++; continue }
-            12 { [void]$sb.Append('\'); [void]$sb.Append('f'); $i++; continue }
-            10 { [void]$sb.Append('\'); [void]$sb.Append('n'); $i++; continue }
-            13 { [void]$sb.Append('\'); [void]$sb.Append('r'); $i++; continue }
-            9  { [void]$sb.Append('\'); [void]$sb.Append('t'); $i++; continue }
-            11 { [void]$sb.Append('\'); [void]$sb.Append('v'); $i++; continue }
-            0  { [void]$sb.Append('\'); [void]$sb.Append('0'); $i++; continue }
-        }
+        # 2) Short, explicit escapes — append and CONTINUE
+        if     ($code -eq 92) { [void]$sb.Append('\\'); $i++; continue } # backslash \
+        elseif ($code -eq 34) { [void]$sb.Append('\"'); $i++; continue } # double quote "
+        elseif ($code -eq 39) { [void]$sb.Append("\'"); $i++; continue } # single quote '
 
-        if ($code -lt 0x20 -or $code -eq 0x7F) {
+        elseif ($code -eq 0 ) { [void]$sb.Append('\0'); $i++; continue }
+        elseif ($code -eq 7 ) { [void]$sb.Append('\a'); $i++; continue }
+        elseif ($code -eq 8 ) { [void]$sb.Append('\b'); $i++; continue }
+        elseif ($code -eq 9 ) { [void]$sb.Append('\t'); $i++; continue }
+        elseif ($code -eq 10) { [void]$sb.Append('\n'); $i++; continue }
+        elseif ($code -eq 11) { [void]$sb.Append('\v'); $i++; continue }
+        elseif ($code -eq 12) { [void]$sb.Append('\f'); $i++; continue }
+        elseif ($code -eq 13) { [void]$sb.Append('\r'); $i++; continue }
+
+        # 3) Other control chars (or DEL) -> \uXXXX (only if NOT matched above)
+        elseif ($code -lt 0x20 -or $code -eq 0x7F) {
             [void]$sb.Append('\u')
             [void]$sb.Append(('{0:X4}' -f $code))
             $i++
             continue
         }
 
+        # 4) Normal character
         [void]$sb.Append($ch)
         $i++
     }
+
     $sb.ToString()
 }
 
@@ -1292,7 +1300,7 @@ function Apply-Filters {
            }
 
             'esccs' { 
-                $Value = Escape-Cs (As-String $Value) 
+                # $Value = Escape-Cs (As-String $Value) 
                 $Value = Filter-EscCs (As-String $Value) 
             }
             'fromesccs'  { 
