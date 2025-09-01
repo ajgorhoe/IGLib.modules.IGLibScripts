@@ -42,6 +42,11 @@ User-provided values (as variables) used in this template:
   PathUnix:          "~/doc/MyDoc.md"
   DirtyRelativePath: "../.\.\.//../users//\\/aa/./x.xml"
   DirtyAbsolutePath: "C:\users\\Uporabnik/.//..\Uporabnik/doc/\\/Mydoc.dox"
+  EscapedStr:        "sq \' dq \" bsl \\ nl \n cr \r ht \t vt \v bsp \b ff \f null \0 nl \012 A \101 sp \040 ht \x09 Z \x5A ! \x21 weird \x4142 ☺ \u263A ☃ \u2603 π \u03C0 A \u0041 gothicAhsa 𐌰 \U00010330 rocket 🚀 \U0001F680 cat 🐈 \U0001F408"
+  EscapedStrSimple:  "sq \' dq \" bsl \\ nl \n cr \r ht \t vt \v bsp \b ff \f null \0 nl \012 A \101 sp \040 ht \x09 Z \x5A ! \x21 weird \x4142 ☺ \u263A ☃ "
+  ForUrlEncoding:    "Café Münchën!.#.$.&. .'.(.).*.+.,./.:.;.=.?.@.[.]"
+  ForXMLEncoding:    ""Hello & Goodbye!"  5 < 6 & 7 > 4  <a id=e55>#e55</a>"
+
 
 # Simple placeholders to substitute user-provided values (via variables):
 The user-provided value of MyVarSimple is NorthEast. The quoted value 
@@ -153,6 +158,276 @@ with filter | pathos :
 with filter | pathosabs :
   "/c/users/Uporabnik/doc/Mydoc.dox"
 
+# ENCODING / DECODING, ESCAPING, COMPRESSION filters
+
+# These filters include urlencode / urldecode, xmlencode / xmldecode, 
+# base64 / frombase64, hex / fromhex, escc / fromescc, 
+# escjava / fromescjava, esccs / fromesccs
+# In some cases, input or output can be binary. Where output is binary, 
+# filters should be combined with filters that convert binary data to text,
+# such as base64 or hex. For example, gzip produced binary result, and can
+# be combined with base64 or hex, e.g. "| gzip | base64"; to restore to 
+# string, we then use "| frombase64 | gunzip".
+
+# URL encoding / decoding:
+var.ForUrlEncoding:
+  "Café Münchën!.#.$.&. .'.(.).*.+.,./.:.;.=.?.@.[.]"
+with filter | urlencode :
+  "Caf%C3%A9%20M%C3%BCnch%C3%ABn!.%23.%24.%26.%20.'.(.).*.%2B.%2C.%2F.%3A.%3B.%3D.%3F.%40.%5B.%5D"
+round trip  | urlencode | urldecode :
+  "Café Münchën!.#.$.&. .'.(.).*.+.,./.:.;.=.?.@.[.]"
+
+# XML / HTML encoding / decoding:
+var.ForXMLEncoding:
+  ""Hello & Goodbye!"  5 < 6 & 7 > 4  <a id=e55>#e55</a>"
+with filter | xmlencode :
+  "&quot;Hello &amp; Goodbye!&quot;  5 &lt; 6 &amp; 7 &gt; 4  &lt;a id=e55&gt;#e55&lt;/a&gt;"
+round trip  | xmlencode | xmldecode :
+  ""Hello & Goodbye!"  5 < 6 & 7 > 4  <a id=e55>#e55</a>"
+
+# ESCAPE SEQUENCES IN STRINGS:
+# These filters provide conversion from strings with escape sequences in 
+# different languages (C/C++, Java, C#) and back from strings to escaped 
+# strings.
+# WARNING: In some languages, conversion from strings to escaped strings is not
+# unique because some characters can be escaped in different ways or not 
+# escaped at all (e.g. in C#, due to forms \xH{1,4}, \uHHHH, \UHHHHHHHH).
+# Tests usually start from escaped string (due to ease of representation in 
+# PowerShell) and compare round-trip-filtered result (e.g. obtained with 
+# filters "| fromesccs | esccs") with the initial escaped string. However,
+# these strings are not necessarily equal even if all filters work correctly,
+# because escaped representations are not unique, and double (round-trip)
+# filters can start with one correct representation and end with another.
+# To improve detection of errors, we can start with escaped string, applying
+# unescaping, and then do the round trip with escaping and another unescaping,
+# then compare the first unescaped string with the one obtained by the
+# round-trip application of the additional pair of filters. Strings obtained
+# in this way should always be equal.
+
+# C/C++ -style escaping:
+var.EscapedStr:
+  "sq \' dq \" bsl \\ nl \n cr \r ht \t vt \v bsp \b ff \f null \0 nl \012 A \101 sp \040 ht \x09 Z \x5A ! \x21 weird \x4142 ☺ \u263A ☃ \u2603 π \u03C0 A \u0041 gothicAhsa 𐌰 \U00010330 rocket 🚀 \U0001F680 cat 🐈 \U0001F408"
+with filter | fromescc :
+  "sq ' dq " bsl \ nl 
+ cr  ht 	 vt  bsp  ff  null   nl 
+ A A sp   ht 	 Z Z ! ! weird 䅂 ☺ u263A ☃ u2603 π u03C0 A u0041 gothicAhsa 𐌰 U00010330 rocket 🚀 U0001F680 cat 🐈 U0001F408"
+round trip  | fromescc| escc  :
+  "sq \''dq \""bsl \\\nl \n\x0Acr \r\x0Dht \t\x09vt \v\x0Bbsp \b\x08ff \f\x0Cnull \0\x00nl \n\x0AA A sp   ht \t\x09Z Z ! ! weird 䅂 ☺ u263A ☃ u2603 π u03C0 A u0041 gothicAhsa \U00010330 U00010330 rocket \U0001F680 U0001F680 cat \U0001F408 U0001F408"
+  "sq \' dq \" bsl \\ nl \n cr \r ht \t vt \v bsp \b ff \f null \0 nl \012 A \101 sp \040 ht \x09 Z \x5A ! \x21 weird \x4142 ☺ \u263A ☃ \u2603 π \u03C0 A \u0041 gothicAhsa 𐌰 \U00010330 rocket 🚀 \U0001F680 cat 🐈 \U0001F408"
+
+# These should be the same - fromescc vs. round trip +1:
+  | fromescc    vs.
+   fromescc | escc | fromescc 
+  "sq ' dq " bsl \ nl 
+ cr  ht 	 vt  bsp  ff  null   nl 
+ A A sp   ht 	 Z Z ! ! weird 䅂 ☺ u263A ☃ u2603 π u03C0 A u0041 gothicAhsa 𐌰 U00010330 rocket 🚀 U0001F680 cat 🐈 U0001F408"
+  "sq ''dq ""bsl \
+l 
+¬r ht 		vt »sp ࣿ null   nl 
+ª A sp   ht 		Z Z ! ! weird 䅂 ☺ u263A ☃ u2603 π u03C0 A u0041 gothicAhsa U00010330 U00010330 rocket U0001F680 U0001F680 cat U0001F408 U0001F408"
+
+
+# Java -style escaping:
+var.EscapedStr:
+  "sq \' dq \" bsl \\ nl \n cr \r ht \t vt \v bsp \b ff \f null \0 nl \012 A \101 sp \040 ht \x09 Z \x5A ! \x21 weird \x4142 ☺ \u263A ☃ \u2603 π \u03C0 A \u0041 gothicAhsa 𐌰 \U00010330 rocket 🚀 \U0001F680 cat 🐈 \U0001F408"
+with filter | fromescjava :
+  "sq ' dq " bsl \ nl 
+ cr  ht 	 vt v bsp  ff  null   nl 
+ A A sp   ht x09 Z x5A ! x21 weird x4142 ☺ ☺ ☃ ☃ π π A A gothicAhsa 𐌰 0330 rocket 🚀 F680 cat 🐈 F408"
+round trip  | fromescjava| escjava  :
+  "sq \''dq \""bsl \\\nl \n\u000Acr \r\u000Dht \t\u0009vt v bsp \b\u0008ff \f\u000Cnull \0\u0000nl \n\u000AA A sp   ht x09 Z x5A ! x21 weird x4142 \u263A \u263A \u2603 \u2603 \u03C0 \u03C0 A A gothicAhsa \uD800\uDF30 \u00010330 rocket \uD83D\uDE80 \u0001F680 cat \uD83D\uDC08 \u0001F408"
+  "sq \' dq \" bsl \\ nl \n cr \r ht \t vt \v bsp \b ff \f null \0 nl \012 A \101 sp \040 ht \x09 Z \x5A ! \x21 weird \x4142 ☺ \u263A ☃ \u2603 π \u03C0 A \u0041 gothicAhsa 𐌰 \U00010330 rocket 🚀 \U0001F680 cat 🐈 \U0001F408"
+
+# These should be the same - fromescjava vs. round trip +1:
+  | fromescjava    vs.
+   fromescjava | escjava | fromescjava 
+  "sq ' dq " bsl \ nl 
+ cr  ht 	 vt v bsp  ff  null   nl 
+ A A sp   ht x09 Z x5A ! x21 weird x4142 ☺ ☺ ☃ ☃ π π A A gothicAhsa 𐌰 0330 rocket 🚀 F680 cat 🐈 F408"
+  "sq ''dq ""bsl \
+l 
+
+cr ht 		vt v bsp ff null   nl 
+
+A A sp   ht x09 Z x5A ! x21 weird x4142 ☺ ☺ ☃ ☃ π π A A gothicAhsa 𐌰 0330 rocket 🚀 F680 cat 🐈 F408"
+
+
+# C# -style escaping (simple string):
+var.EscapedStrSimple:
+  "sq \' dq \" bsl \\ nl \n cr \r ht \t vt \v bsp \b ff \f null \0 nl \012 A \101 sp \040 ht \x09 Z \x5A ! \x21 weird \x4142 ☺ \u263A ☃ "
+with filter | fromesccs :
+  "sq ' dq " bsl \ nl 
+ cr  ht 	 vt  bsp  ff  null   nl  12 A \101 sp  40 ht 	 Z Z ! ! weird 䅂 ☺ ☺ ☃ "
+round trip  | fromesccs | esccs  (+ original for comparison):
+  "sq \' dq \" bsl \\ nl \n cr \r ht \t vt \v bsp \b ff \f null \0 nl \012 A \\101 sp \040 ht \t Z Z ! ! weird \u4142 \u263A \u263A \u2603 "
+  "sq \' dq \" bsl \\ nl \n cr \r ht \t vt \v bsp \b ff \f null \0 nl \012 A \101 sp \040 ht \x09 Z \x5A ! \x21 weird \x4142 ☺ \u263A ☃ "
+
+# Round trip that starts with an escaped string may not result in
+# the initial string due to non-uniquess: in escaped strings, Documents
+# characters can be represented in multiple ways.
+# But these should be the same - fromesccs vs. round trip +1:
+  | fromesccs    vs.
+   fromesccs | esccs | fromesccs 
+  "sq ' dq " bsl \ nl 
+ cr  ht 	 vt  bsp  ff  null   nl  12 A \101 sp  40 ht 	 Z Z ! ! weird 䅂 ☺ ☺ ☃ "
+  "sq ' dq " bsl \ nl 
+ cr  ht 	 vt  bsp  ff  null   nl  12 A \101 sp  40 ht 	 Z Z ! ! weird 䅂 ☺ ☺ ☃ "
+
+# C# -style escaping with more complex string:
+var.EscapedStr:
+  "sq \' dq \" bsl \\ nl \n cr \r ht \t vt \v bsp \b ff \f null \0 nl \012 A \101 sp \040 ht \x09 Z \x5A ! \x21 weird \x4142 ☺ \u263A ☃ \u2603 π \u03C0 A \u0041 gothicAhsa 𐌰 \U00010330 rocket 🚀 \U0001F680 cat 🐈 \U0001F408"
+with filter | fromesccs :
+  "sq ' dq " bsl \ nl 
+ cr  ht 	 vt  bsp  ff  null   nl  12 A \101 sp  40 ht 	 Z Z ! ! weird 䅂 ☺ ☺ ☃ ☃ π π A A gothicAhsa 𐌰 𐌰 rocket 🚀 🚀 cat 🐈 🐈"
+  "sq \' dq \" bsl \\ nl \n cr \r ht \t vt \v bsp \b ff \f null \0 nl \012 A \101 sp \040 ht \x09 Z \x5A ! \x21 weird \x4142 ☺ \u263A ☃ \u2603 π \u03C0 A \u0041 gothicAhsa 𐌰 \U00010330 rocket 🚀 \U0001F680 cat 🐈 \U0001F408"
+# ToDo: conversion below throws exception
+round trip | fromesccs | esccs  (+ original for comparison):
+  "sq \' dq \" bsl \\ nl \n cr \r ht \t vt \v bsp \b ff \f null \0 nl \012 A \\101 sp \040 ht \t Z Z ! ! weird \u4142 \u263A \u263A \u2603 \u2603 \u03C0 \u03C0 A A gothicAhsa \U00010330 \U00010330 rocket \U0001F680 \U0001F680 cat \U0001F408 \U0001F408"
+  "sq \' dq \" bsl \\ nl \n cr \r ht \t vt \v bsp \b ff \f null \0 nl \012 A \101 sp \040 ht \x09 Z \x5A ! \x21 weird \x4142 ☺ \u263A ☃ \u2603 π \u03C0 A \u0041 gothicAhsa 𐌰 \U00010330 rocket 🚀 \U0001F680 cat 🐈 \U0001F408"
+
+# These should be the same - fromesccs vs. round trip +1:
+  | fromesccs    vs.
+   fromesccs | esccs | fromesccs 
+  "sq ' dq " bsl \ nl 
+ cr  ht 	 vt  bsp  ff  null   nl  12 A \101 sp  40 ht 	 Z Z ! ! weird 䅂 ☺ ☺ ☃ ☃ π π A A gothicAhsa 𐌰 𐌰 rocket 🚀 🚀 cat 🐈 🐈"
+  "sq ' dq " bsl \ nl 
+ cr  ht 	 vt  bsp  ff  null   nl  12 A \101 sp  40 ht 	 Z Z ! ! weird 䅂 ☺ ☺ ☃ ☃ π π A A gothicAhsa 𐌰 𐌰 rocket 🚀 🚀 cat 🐈 🐈"
+
+
+# Base64 encoding / decoding:
+var.EscapedStr:
+  "sq \' dq \" bsl \\ nl \n cr \r ht \t vt \v bsp \b ff \f null \0 nl \012 A \101 sp \040 ht \x09 Z \x5A ! \x21 weird \x4142 ☺ \u263A ☃ \u2603 π \u03C0 A \u0041 gothicAhsa 𐌰 \U00010330 rocket 🚀 \U0001F680 cat 🐈 \U0001F408"
+with filter | base64 :
+  "cwBxACAAXAAnACAAZABxACAAXAAiACAAYgBzAGwAIABcAFwAIABuAGwAIABcAG4AIABjAHIAIABcAHIAIABoAHQAIABcAHQAIAB2AHQAIABcAHYAIABiAHMAcAAgAFwAYgAgAGYAZgAgAFwAZgAgAG4AdQBsAGwAIABcADAAIABuAGwAIABcADAAMQAyACAAQQAgAFwAMQAwADEAIABzAHAAIABcADAANAAwACAAaAB0ACAAXAB4ADAAOQAgAFoAIABcAHgANQBBACAAIQAgAFwAeAAyADEAIAB3AGUAaQByAGQAIABcAHgANAAxADQAMgAgADomIABcAHUAMgA2ADMAQQAgAAMmIABcAHUAMgA2ADAAMwAgAMADIABcAHUAMAAzAEMAMAAgAEEAIABcAHUAMAAwADQAMQAgAGcAbwB0AGgAaQBjAEEAaABzAGEAIAAA2DDfIABcAFUAMAAwADAAMQAwADMAMwAwACAAcgBvAGMAawBlAHQAIAA92IDeIABcAFUAMAAwADAAMQBGADYAOAAwACAAYwBhAHQAIAA92AjcIABcAFUAMAAwADAAMQBGADQAMAA4AA=="
+# Round trip conversion to Byte[] (needs additional conversion to string with | utf16)
+round trip  | base64 | frombase64  (+ original for comparison):
+  "115 0 113 0 32 0 92 0 39 0 32 0 100 0 113 0 32 0 92 0 34 0 32 0 98 0 115 0 108 0 32 0 92 0 92 0 32 0 110 0 108 0 32 0 92 0 110 0 32 0 99 0 114 0 32 0 92 0 114 0 32 0 104 0 116 0 32 0 92 0 116 0 32 0 118 0 116 0 32 0 92 0 118 0 32 0 98 0 115 0 112 0 32 0 92 0 98 0 32 0 102 0 102 0 32 0 92 0 102 0 32 0 110 0 117 0 108 0 108 0 32 0 92 0 48 0 32 0 110 0 108 0 32 0 92 0 48 0 49 0 50 0 32 0 65 0 32 0 92 0 49 0 48 0 49 0 32 0 115 0 112 0 32 0 92 0 48 0 52 0 48 0 32 0 104 0 116 0 32 0 92 0 120 0 48 0 57 0 32 0 90 0 32 0 92 0 120 0 53 0 65 0 32 0 33 0 32 0 92 0 120 0 50 0 49 0 32 0 119 0 101 0 105 0 114 0 100 0 32 0 92 0 120 0 52 0 49 0 52 0 50 0 32 0 58 38 32 0 92 0 117 0 50 0 54 0 51 0 65 0 32 0 3 38 32 0 92 0 117 0 50 0 54 0 48 0 51 0 32 0 192 3 32 0 92 0 117 0 48 0 51 0 67 0 48 0 32 0 65 0 32 0 92 0 117 0 48 0 48 0 52 0 49 0 32 0 103 0 111 0 116 0 104 0 105 0 99 0 65 0 104 0 115 0 97 0 32 0 0 216 48 223 32 0 92 0 85 0 48 0 48 0 48 0 49 0 48 0 51 0 51 0 48 0 32 0 114 0 111 0 99 0 107 0 101 0 116 0 32 0 61 216 128 222 32 0 92 0 85 0 48 0 48 0 48 0 49 0 70 0 54 0 56 0 48 0 32 0 99 0 97 0 116 0 32 0 61 216 8 220 32 0 92 0 85 0 48 0 48 0 48 0 49 0 70 0 52 0 48 0 56 0"
+  "sq \' dq \" bsl \\ nl \n cr \r ht \t vt \v bsp \b ff \f null \0 nl \012 A \101 sp \040 ht \x09 Z \x5A ! \x21 weird \x4142 ☺ \u263A ☃ \u2603 π \u03C0 A \u0041 gothicAhsa 𐌰 \U00010330 rocket 🚀 \U0001F680 cat 🐈 \U0001F408"
+
+# Round trip conversions back to string:
+round trip  | base64 | strfrombase64  (+ original for comparison):
+  "sq \' dq \" bsl \\ nl \n cr \r ht \t vt \v bsp \b ff \f null \0 nl \012 A \101 sp \040 ht \x09 Z \x5A ! \x21 weird \x4142 ☺ \u263A ☃ \u2603 π \u03C0 A \u0041 gothicAhsa 𐌰 \U00010330 rocket 🚀 \U0001F680 cat 🐈 \U0001F408"
+  "sq \' dq \" bsl \\ nl \n cr \r ht \t vt \v bsp \b ff \f null \0 nl \012 A \101 sp \040 ht \x09 Z \x5A ! \x21 weird \x4142 ☺ \u263A ☃ \u2603 π \u03C0 A \u0041 gothicAhsa 𐌰 \U00010330 rocket 🚀 \U0001F680 cat 🐈 \U0001F408"
+round trip  | base64 | frombase64 | utf16  (+ original for comparison):
+  "sq \' dq \" bsl \\ nl \n cr \r ht \t vt \v bsp \b ff \f null \0 nl \012 A \101 sp \040 ht \x09 Z \x5A ! \x21 weird \x4142 ☺ \u263A ☃ \u2603 π \u03C0 A \u0041 gothicAhsa 𐌰 \U00010330 rocket 🚀 \U0001F680 cat 🐈 \U0001F408"
+  "sq \' dq \" bsl \\ nl \n cr \r ht \t vt \v bsp \b ff \f null \0 nl \012 A \101 sp \040 ht \x09 Z \x5A ! \x21 weird \x4142 ☺ \u263A ☃ \u2603 π \u03C0 A \u0041 gothicAhsa 𐌰 \U00010330 rocket 🚀 \U0001F680 cat 🐈 \U0001F408"
+round trip  | base64 | frombase64:"utf16"  (+ original for comparison):
+  "sq \' dq \" bsl \\ nl \n cr \r ht \t vt \v bsp \b ff \f null \0 nl \012 A \101 sp \040 ht \x09 Z \x5A ! \x21 weird \x4142 ☺ \u263A ☃ \u2603 π \u03C0 A \u0041 gothicAhsa 𐌰 \U00010330 rocket 🚀 \U0001F680 cat 🐈 \U0001F408"
+  "sq \' dq \" bsl \\ nl \n cr \r ht \t vt \v bsp \b ff \f null \0 nl \012 A \101 sp \040 ht \x09 Z \x5A ! \x21 weird \x4142 ☺ \u263A ☃ \u2603 π \u03C0 A \u0041 gothicAhsa 𐌰 \U00010330 rocket 🚀 \U0001F680 cat 🐈 \U0001F408"
+
+# Types of various results:
+Type after applying  | base64 :
+      System.String
+Type after applying | base64 | frombase64  (problematic before, should be Byte[]):
+      System.Byte[]
+Type after applying | base64 | frombase64 | utf16 :
+      System.String
+Type after applying | base64 | frombase64:"utf16" :
+      System.String
+Type after applying | base64 | strfrombase64 :
+      System.String
+
+with filter | base64 | strfrombase64 | base64 :
+  "cwBxACAAXAAnACAAZABxACAAXAAiACAAYgBzAGwAIABcAFwAIABuAGwAIABcAG4AIABjAHIAIABcAHIAIABoAHQAIABcAHQAIAB2AHQAIABcAHYAIABiAHMAcAAgAFwAYgAgAGYAZgAgAFwAZgAgAG4AdQBsAGwAIABcADAAIABuAGwAIABcADAAMQAyACAAQQAgAFwAMQAwADEAIABzAHAAIABcADAANAAwACAAaAB0ACAAXAB4ADAAOQAgAFoAIABcAHgANQBBACAAIQAgAFwAeAAyADEAIAB3AGUAaQByAGQAIABcAHgANAAxADQAMgAgADomIABcAHUAMgA2ADMAQQAgAAMmIABcAHUAMgA2ADAAMwAgAMADIABcAHUAMAAzAEMAMAAgAEEAIABcAHUAMAAwADQAMQAgAGcAbwB0AGgAaQBjAEEAaABzAGEAIAAA2DDfIABcAFUAMAAwADAAMQAwADMAMwAwACAAcgBvAGMAawBlAHQAIAA92IDeIABcAFUAMAAwADAAMQBGADYAOAAwACAAYwBhAHQAIAA92AjcIABcAFUAMAAwADAAMQBGADQAMAA4AA=="
+with filter | base64 | strfrombase64 | base64 :
+  "sq \' dq \" bsl \\ nl \n cr \r ht \t vt \v bsp \b ff \f null \0 nl \012 A \101 sp \040 ht \x09 Z \x5A ! \x21 weird \x4142 ☺ \u263A ☃ \u2603 π \u03C0 A \u0041 gothicAhsa 𐌰 \U00010330 rocket 🚀 \U0001F680 cat 🐈 \U0001F408"
+
+with filter | base64 | frombase64 | utf16 | base64 :
+  "cwBxACAAXAAnACAAZABxACAAXAAiACAAYgBzAGwAIABcAFwAIABuAGwAIABcAG4AIABjAHIAIABcAHIAIABoAHQAIABcAHQAIAB2AHQAIABcAHYAIABiAHMAcAAgAFwAYgAgAGYAZgAgAFwAZgAgAG4AdQBsAGwAIABcADAAIABuAGwAIABcADAAMQAyACAAQQAgAFwAMQAwADEAIABzAHAAIABcADAANAAwACAAaAB0ACAAXAB4ADAAOQAgAFoAIABcAHgANQBBACAAIQAgAFwAeAAyADEAIAB3AGUAaQByAGQAIABcAHgANAAxADQAMgAgADomIABcAHUAMgA2ADMAQQAgAAMmIABcAHUAMgA2ADAAMwAgAMADIABcAHUAMAAzAEMAMAAgAEEAIABcAHUAMAAwADQAMQAgAGcAbwB0AGgAaQBjAEEAaABzAGEAIAAA2DDfIABcAFUAMAAwADAAMQAwADMAMwAwACAAcgBvAGMAawBlAHQAIAA92IDeIABcAFUAMAAwADAAMQBGADYAOAAwACAAYwBhAHQAIAA92AjcIABcAFUAMAAwADAAMQBGADQAMAA4AA=="
+with filter | base64 | frombase64 | utf16 | base64 :
+  "sq \' dq \" bsl \\ nl \n cr \r ht \t vt \v bsp \b ff \f null \0 nl \012 A \101 sp \040 ht \x09 Z \x5A ! \x21 weird \x4142 ☺ \u263A ☃ \u2603 π \u03C0 A \u0041 gothicAhsa 𐌰 \U00010330 rocket 🚀 \U0001F680 cat 🐈 \U0001F408"
+
+
+# Hexadecimal encoding / decoding:
+var.EscapedStr:
+  "sq \' dq \" bsl \\ nl \n cr \r ht \t vt \v bsp \b ff \f null \0 nl \012 A \101 sp \040 ht \x09 Z \x5A ! \x21 weird \x4142 ☺ \u263A ☃ \u2603 π \u03C0 A \u0041 gothicAhsa 𐌰 \U00010330 rocket 🚀 \U0001F680 cat 🐈 \U0001F408"
+with filter | hex :
+  "7300710020005c00270020006400710020005c0022002000620073006c0020005c005c0020006e006c0020005c006e0020006300720020005c00720020006800740020005c00740020007600740020005c007600200062007300700020005c00620020006600660020005c00660020006e0075006c006c0020005c00300020006e006c0020005c003000310032002000410020005c0031003000310020007300700020005c0030003400300020006800740020005c0078003000390020005a0020005c007800350041002000210020005c0078003200310020007700650069007200640020005c007800340031003400320020003a2620005c00750032003600330041002000032620005c00750032003600300033002000c00320005c00750030003300430030002000410020005c0075003000300034003100200067006f0074006800690063004100680073006100200000d830df20005c00550030003000300031003000330033003000200072006f0063006b006500740020003dd880de20005c00550030003000300031004600360038003000200063006100740020003dd808dc20005c00550030003000300031004600340030003800"
+# Round trip conversion to Byte[] (needs additional conversion to string with | utf16)
+round trip  | hex | fromhex  (+ original for comparison):
+  "115 0 113 0 32 0 92 0 39 0 32 0 100 0 113 0 32 0 92 0 34 0 32 0 98 0 115 0 108 0 32 0 92 0 92 0 32 0 110 0 108 0 32 0 92 0 110 0 32 0 99 0 114 0 32 0 92 0 114 0 32 0 104 0 116 0 32 0 92 0 116 0 32 0 118 0 116 0 32 0 92 0 118 0 32 0 98 0 115 0 112 0 32 0 92 0 98 0 32 0 102 0 102 0 32 0 92 0 102 0 32 0 110 0 117 0 108 0 108 0 32 0 92 0 48 0 32 0 110 0 108 0 32 0 92 0 48 0 49 0 50 0 32 0 65 0 32 0 92 0 49 0 48 0 49 0 32 0 115 0 112 0 32 0 92 0 48 0 52 0 48 0 32 0 104 0 116 0 32 0 92 0 120 0 48 0 57 0 32 0 90 0 32 0 92 0 120 0 53 0 65 0 32 0 33 0 32 0 92 0 120 0 50 0 49 0 32 0 119 0 101 0 105 0 114 0 100 0 32 0 92 0 120 0 52 0 49 0 52 0 50 0 32 0 58 38 32 0 92 0 117 0 50 0 54 0 51 0 65 0 32 0 3 38 32 0 92 0 117 0 50 0 54 0 48 0 51 0 32 0 192 3 32 0 92 0 117 0 48 0 51 0 67 0 48 0 32 0 65 0 32 0 92 0 117 0 48 0 48 0 52 0 49 0 32 0 103 0 111 0 116 0 104 0 105 0 99 0 65 0 104 0 115 0 97 0 32 0 0 216 48 223 32 0 92 0 85 0 48 0 48 0 48 0 49 0 48 0 51 0 51 0 48 0 32 0 114 0 111 0 99 0 107 0 101 0 116 0 32 0 61 216 128 222 32 0 92 0 85 0 48 0 48 0 48 0 49 0 70 0 54 0 56 0 48 0 32 0 99 0 97 0 116 0 32 0 61 216 8 220 32 0 92 0 85 0 48 0 48 0 48 0 49 0 70 0 52 0 48 0 56 0"
+  "sq \' dq \" bsl \\ nl \n cr \r ht \t vt \v bsp \b ff \f null \0 nl \012 A \101 sp \040 ht \x09 Z \x5A ! \x21 weird \x4142 ☺ \u263A ☃ \u2603 π \u03C0 A \u0041 gothicAhsa 𐌰 \U00010330 rocket 🚀 \U0001F680 cat 🐈 \U0001F408"
+
+# Round trip conversions back to string:
+round trip  | hex | strfromhex  (+ original for comparison):
+  "sq \' dq \" bsl \\ nl \n cr \r ht \t vt \v bsp \b ff \f null \0 nl \012 A \101 sp \040 ht \x09 Z \x5A ! \x21 weird \x4142 ☺ \u263A ☃ \u2603 π \u03C0 A \u0041 gothicAhsa 𐌰 \U00010330 rocket 🚀 \U0001F680 cat 🐈 \U0001F408"
+  "sq \' dq \" bsl \\ nl \n cr \r ht \t vt \v bsp \b ff \f null \0 nl \012 A \101 sp \040 ht \x09 Z \x5A ! \x21 weird \x4142 ☺ \u263A ☃ \u2603 π \u03C0 A \u0041 gothicAhsa 𐌰 \U00010330 rocket 🚀 \U0001F680 cat 🐈 \U0001F408"
+round trip  | hex | fromhex | utf16  (+ original for comparison):
+  "sq \' dq \" bsl \\ nl \n cr \r ht \t vt \v bsp \b ff \f null \0 nl \012 A \101 sp \040 ht \x09 Z \x5A ! \x21 weird \x4142 ☺ \u263A ☃ \u2603 π \u03C0 A \u0041 gothicAhsa 𐌰 \U00010330 rocket 🚀 \U0001F680 cat 🐈 \U0001F408"
+  "sq \' dq \" bsl \\ nl \n cr \r ht \t vt \v bsp \b ff \f null \0 nl \012 A \101 sp \040 ht \x09 Z \x5A ! \x21 weird \x4142 ☺ \u263A ☃ \u2603 π \u03C0 A \u0041 gothicAhsa 𐌰 \U00010330 rocket 🚀 \U0001F680 cat 🐈 \U0001F408"
+round trip  | hex | fromhex:"utf16"  (+ original for comparison):
+  "sq \' dq \" bsl \\ nl \n cr \r ht \t vt \v bsp \b ff \f null \0 nl \012 A \101 sp \040 ht \x09 Z \x5A ! \x21 weird \x4142 ☺ \u263A ☃ \u2603 π \u03C0 A \u0041 gothicAhsa 𐌰 \U00010330 rocket 🚀 \U0001F680 cat 🐈 \U0001F408"
+  "sq \' dq \" bsl \\ nl \n cr \r ht \t vt \v bsp \b ff \f null \0 nl \012 A \101 sp \040 ht \x09 Z \x5A ! \x21 weird \x4142 ☺ \u263A ☃ \u2603 π \u03C0 A \u0041 gothicAhsa 𐌰 \U00010330 rocket 🚀 \U0001F680 cat 🐈 \U0001F408"
+
+# Types of various results:
+Type after applying  | hex :
+      System.String
+Type after applying | hex | fromhex  (problematic before, should be Byte[]):
+      System.Byte[]
+Type after applying | hex | fromhex | utf16 :
+      System.String
+Type after applying | hex | fromhex:"utf16" :
+      System.String
+Type after applying | hex | strfromhex :
+      System.String
+
+# COMPRESSION / decompression (gzip and gunzip):
+
+# gzip / gunzip of a simple string:
+var.PathWin:
+  "C:\Program Files (x86)\Microsoft SQL Server\"
+with filter | base64 :
+  "UQB3AEEANgBBAEYAdwBBAFUAQQBCAHkAQQBHADgAQQBaAHcAQgB5AEEARwBFAEEAYgBRAEEAZwBBAEUAWQBBAGEAUQBCAHMAQQBHAFUAQQBjAHcAQQBnAEEAQwBnAEEAZQBBAEEANABBAEQAWQBBAEsAUQBCAGMAQQBFADAAQQBhAFEAQgBqAEEASABJAEEAYgB3AEIAegBBAEcAOABBAFoAZwBCADAAQQBDAEEAQQBVAHcAQgBSAEEARQB3AEEASQBBAEIAVABBAEcAVQBBAGMAZwBCADIAQQBHAFUAQQBjAGcAQgBjAEEAQQA9AD0A"
+with filter | gzip | base64 :
+  "H4sIAAAAAAAEAHNmsGKIYQhgKGLIZ0gHkokMuQwKDG4MmQw5DKkMxUC2BkMFgwWDGYMmUJ0vUDwZrLYYiNMYSoDywQyBDD5gOhUoUwYmYxgA0Nf1rVgAAAA="
+# Round trip conversion to Byte[] (needs additional conversion to string
+# with | utf16)
+round trip | gzip | gunzip (+ original for comparison):
+  "67 0 58 0 92 0 80 0 114 0 111 0 103 0 114 0 97 0 109 0 32 0 70 0 105 0 108 0 101 0 115 0 32 0 40 0 120 0 56 0 54 0 41 0 92 0 77 0 105 0 99 0 114 0 111 0 115 0 111 0 102 0 116 0 32 0 83 0 81 0 76 0 32 0 83 0 101 0 114 0 118 0 101 0 114 0 92 0"
+  "C:\Program Files (x86)\Microsoft SQL Server\"
+
+# Round trip conversions - zip and back to string:
+round trip | gzip | strgunzip  (+ original for comparison):
+  "C:\Program Files (x86)\Microsoft SQL Server\"
+  "C:\Program Files (x86)\Microsoft SQL Server\"
+round trip | gzip | gunzip | utf16  (+ original for comparison):
+  "C:\Program Files (x86)\Microsoft SQL Server\"
+  "C:\Program Files (x86)\Microsoft SQL Server\"
+round trip | gzip | gunzip:"utf16"  (+ original for comparison):
+  "C:\Program Files (x86)\Microsoft SQL Server\"
+  "C:\Program Files (x86)\Microsoft SQL Server\"
+
+# gzip / gunzip of more complex string (EscapedStr, includes UTF pictographs
+# like emojis, even outside the Basic Multilingual Plane)
+var.EscapedStr:
+  "sq \' dq \" bsl \\ nl \n cr \r ht \t vt \v bsp \b ff \f null \0 nl \012 A \101 sp \040 ht \x09 Z \x5A ! \x21 weird \x4142 ☺ \u263A ☃ \u2603 π \u03C0 A \u0041 gothicAhsa 𐌰 \U00010330 rocket 🚀 \U0001F680 cat 🐈 \U0001F408"
+with filter | base64 :
+  "cwBxACAAXAAnACAAZABxACAAXAAiACAAYgBzAGwAIABcAFwAIABuAGwAIABcAG4AIABjAHIAIABcAHIAIABoAHQAIABcAHQAIAB2AHQAIABcAHYAIABiAHMAcAAgAFwAYgAgAGYAZgAgAFwAZgAgAG4AdQBsAGwAIABcADAAIABuAGwAIABcADAAMQAyACAAQQAgAFwAMQAwADEAIABzAHAAIABcADAANAAwACAAaAB0ACAAXAB4ADAAOQAgAFoAIABcAHgANQBBACAAIQAgAFwAeAAyADEAIAB3AGUAaQByAGQAIABcAHgANAAxADQAMgAgADomIABcAHUAMgA2ADMAQQAgAAMmIABcAHUAMgA2ADAAMwAgAMADIABcAHUAMAAzAEMAMAAgAEEAIABcAHUAMAAwADQAMQAgAGcAbwB0AGgAaQBjAEEAaABzAGEAIAAA2DDfIABcAFUAMAAwADAAMQAwADMAMwAwACAAcgBvAGMAawBlAHQAIAA92IDeIABcAFUAMAAwADAAMQBGADYAOAAwACAAYwBhAHQAIAA92AjcIABcAFUAMAAwADAAMQBGADQAMAA4AA=="
+#with filter | gzip | base64 :
+  "H4sIAAAAAAAEAF1Qyw7BUBScxMZnlAXbixIkFiLxBzZiQz0qxPu19Gk+owvhV8yZXoI0mcxM58w57R5bBBigSBx7nieOsMdSakBceb4iRtiJG8Y4iBuePD/56Y3UiDjlY3yqpiO70jb31exQQpmsLVWSDj4tDqHS730XqgZZ36uq5nJelTV7xgRzXjn2bkg31I5mwZwjeQ0VTWa+HEcvwC2TOqY62p1eZo5TV4AZ1rwn5paIb2NeO6SLxD0t2VPS6VsqfKxjx4kIC15m39FKro/fZJf760pG7Eoz2ft/xv5FHS/D6ABsugEAAA=="
+ Round trip conversion to Byte[] (needs additional conversion to string
+# with | utf16)
+round trip | gzip | gunzip (+ original for comparison):
+  "115 0 113 0 32 0 92 0 39 0 32 0 100 0 113 0 32 0 92 0 34 0 32 0 98 0 115 0 108 0 32 0 92 0 92 0 32 0 110 0 108 0 32 0 92 0 110 0 32 0 99 0 114 0 32 0 92 0 114 0 32 0 104 0 116 0 32 0 92 0 116 0 32 0 118 0 116 0 32 0 92 0 118 0 32 0 98 0 115 0 112 0 32 0 92 0 98 0 32 0 102 0 102 0 32 0 92 0 102 0 32 0 110 0 117 0 108 0 108 0 32 0 92 0 48 0 32 0 110 0 108 0 32 0 92 0 48 0 49 0 50 0 32 0 65 0 32 0 92 0 49 0 48 0 49 0 32 0 115 0 112 0 32 0 92 0 48 0 52 0 48 0 32 0 104 0 116 0 32 0 92 0 120 0 48 0 57 0 32 0 90 0 32 0 92 0 120 0 53 0 65 0 32 0 33 0 32 0 92 0 120 0 50 0 49 0 32 0 119 0 101 0 105 0 114 0 100 0 32 0 92 0 120 0 52 0 49 0 52 0 50 0 32 0 58 38 32 0 92 0 117 0 50 0 54 0 51 0 65 0 32 0 3 38 32 0 92 0 117 0 50 0 54 0 48 0 51 0 32 0 192 3 32 0 92 0 117 0 48 0 51 0 67 0 48 0 32 0 65 0 32 0 92 0 117 0 48 0 48 0 52 0 49 0 32 0 103 0 111 0 116 0 104 0 105 0 99 0 65 0 104 0 115 0 97 0 32 0 0 216 48 223 32 0 92 0 85 0 48 0 48 0 48 0 49 0 48 0 51 0 51 0 48 0 32 0 114 0 111 0 99 0 107 0 101 0 116 0 32 0 61 216 128 222 32 0 92 0 85 0 48 0 48 0 48 0 49 0 70 0 54 0 56 0 48 0 32 0 99 0 97 0 116 0 32 0 61 216 8 220 32 0 92 0 85 0 48 0 48 0 48 0 49 0 70 0 52 0 48 0 56 0"
+  "sq \' dq \" bsl \\ nl \n cr \r ht \t vt \v bsp \b ff \f null \0 nl \012 A \101 sp \040 ht \x09 Z \x5A ! \x21 weird \x4142 ☺ \u263A ☃ \u2603 π \u03C0 A \u0041 gothicAhsa 𐌰 \U00010330 rocket 🚀 \U0001F680 cat 🐈 \U0001F408"
+
+# Round trip conversions - zip and back to string:
+round trip | gzip | strgunzip  (+ original for comparison):
+  "sq \' dq \" bsl \\ nl \n cr \r ht \t vt \v bsp \b ff \f null \0 nl \012 A \101 sp \040 ht \x09 Z \x5A ! \x21 weird \x4142 ☺ \u263A ☃ \u2603 π \u03C0 A \u0041 gothicAhsa 𐌰 \U00010330 rocket 🚀 \U0001F680 cat 🐈 \U0001F408"
+  "sq \' dq \" bsl \\ nl \n cr \r ht \t vt \v bsp \b ff \f null \0 nl \012 A \101 sp \040 ht \x09 Z \x5A ! \x21 weird \x4142 ☺ \u263A ☃ \u2603 π \u03C0 A \u0041 gothicAhsa 𐌰 \U00010330 rocket 🚀 \U0001F680 cat 🐈 \U0001F408"
+round trip | gzip | gunzip | utf16  (+ original for comparison):
+  "sq \' dq \" bsl \\ nl \n cr \r ht \t vt \v bsp \b ff \f null \0 nl \012 A \101 sp \040 ht \x09 Z \x5A ! \x21 weird \x4142 ☺ \u263A ☃ \u2603 π \u03C0 A \u0041 gothicAhsa 𐌰 \U00010330 rocket 🚀 \U0001F680 cat 🐈 \U0001F408"
+  "sq \' dq \" bsl \\ nl \n cr \r ht \t vt \v bsp \b ff \f null \0 nl \012 A \101 sp \040 ht \x09 Z \x5A ! \x21 weird \x4142 ☺ \u263A ☃ \u2603 π \u03C0 A \u0041 gothicAhsa 𐌰 \U00010330 rocket 🚀 \U0001F680 cat 🐈 \U0001F408"
+round trip | gzip | gunzip:"utf16"  (+ original for comparison):
+  "sq \' dq \" bsl \\ nl \n cr \r ht \t vt \v bsp \b ff \f null \0 nl \012 A \101 sp \040 ht \x09 Z \x5A ! \x21 weird \x4142 ☺ \u263A ☃ \u2603 π \u03C0 A \u0041 gothicAhsa 𐌰 \U00010330 rocket 🚀 \U0001F680 cat 🐈 \U0001F408"
+  "sq \' dq \" bsl \\ nl \n cr \r ht \t vt \v bsp \b ff \f null \0 nl \012 A \101 sp \040 ht \x09 Z \x5A ! \x21 weird \x4142 ☺ \u263A ☃ \u2603 π \u03C0 A \u0041 gothicAhsa 𐌰 \U00010330 rocket 🚀 \U0001F680 cat 🐈 \U0001F408"
+
+# The gunzip filter with additional argument "utf8" is NOT implemented
+# (and there are currently no plans to implement it), and woulld throw:
+round trip | gzip | gunzip:"utf8"  (+ original for comparison):
+  "{{ var.EscapedStr | gzip | gunzip:"utf8" \}}"
+  "{{ var.EscapedStr }}"
+
 # MULTIPLE FILTERS:
 
 # Multiple filters can be applied to the initial string in order to produce
@@ -218,6 +493,10 @@ with newlines also between pipes (at various places):
 #   PathUnix = ~/doc/MyDoc.md
 #   DirtyRelativePath = "../.\.\.//../users//\\/aa/./x.xml"
 #   DirtyAbsolutePath = "C:\users\\Uporabnik/.//..\Uporabnik/doc/\\/Mydoc.dox"
+#   EscapedStr = "sq \' dq \`" bsl \\ nl \n cr \r ht \t vt \v bsp \b ff \f null \0 nl \012 A \101 sp \040 ht \x09 Z \x5A ! \x21 weird \x4142 â˜º \u263A â˜ƒ \u2603 Ï€ \u03C0 A \u0041 gothicAhsa ðŒ° \U00010330 rocket ðŸš€ \U0001F680 cat ðŸˆ \U0001F408"
+#   EscapedStrSimple = "sq \' dq \`" bsl \\ nl \n cr \r ht \t vt \v bsp \b ff \f null \0 nl \012 A \101 sp \040 ht \x09 Z \x5A ! \x21 weird \x4142 â˜º \u263A â˜ƒ "
+#   ForUrlEncoding = "CafÃ© MÃ¼nchÃ«n!.#.$.&. .'.(.).*.+.,./.:.;.=.?.@.[.]"
+#   ForXMLEncoding = "`"Hello & Goodbye!`"  5 < 6 & 7 > 4  <a id=e55>#e55</a>"
 
 
 

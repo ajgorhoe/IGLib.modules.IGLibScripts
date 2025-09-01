@@ -320,8 +320,708 @@ function Parse-VarPairs {
     return $ht
 }
 
+# returns true if $v is a byte array
+function Is-ByteVector {
+    param([object]$v)
+    if ($v -is [byte[]]) { return $true }
+    if ($v -is [System.Array]) {
+        $et = $v.GetType().GetElementType()
+        if ($et) { return ($et -eq [byte]) }
+        # object[] with byte elements
+        if ($v.Length -gt 0 -and $v[0] -is [byte]) { return $true }
+    }
+    return $false
+}
+
 # ---------------------------------------------------------------------------
-# Helpers: path manipulation filters
+# FILTERS: encode / decode, compression, escape filters
+# These functions implement standard encoding, compression and escaping 
+# filters, such as base64/frombase64, hex/fromhex, gzip/gunzip,
+# urlencode/urldecode, xmlencode/xmldecode, escc/fromescc (C),
+# escjava/fromescjava (Java), esccs/fromesccs (C#).
+# ---------------------------------------------------------------------------
+
+# ========================= Helpers: string/bytes =========================
+
+function As-String {
+    param([Parameter(Mandatory)] [object]$Value)
+    if ($Value -is [byte[]]) { return [System.Text.Encoding]::Unicode.GetString($Value) }
+    return [string]$Value
+}
+function As-Bytes {
+    param([Parameter(Mandatory)] [object]$Value)
+    if ($Value -is [byte[]]) { return $Value }
+    $s = [string]$Value
+    return [System.Text.Encoding]::Unicode.GetBytes($s)
+}
+
+# ========================= Base64 =========================
+function Filter-Base64   { param($v) return [System.Convert]::ToBase64String((As-Bytes $v)) }
+
+function Filter-FromBase64 {
+    [CmdletBinding()]
+    param([Parameter(Mandatory)][string]$Value)
+    try {
+        [byte[]]$bytes = [Convert]::FromBase64String($Value)
+        Write-Output -NoEnumerate $bytes   # <— critical
+    } catch {
+        throw "frombase64: invalid Base64 input ($($_.Exception.Message))."
+    }
+}
+
+# ========================= Hex (lowercase) =========================
+function Filter-Hex {
+    param($v)
+    $bytes = As-Bytes $v
+    return (($bytes | ForEach-Object { $_.ToString('x2') }) -join '')
+}
+
+function Filter-FromHex {
+    [CmdletBinding()]
+    param([Parameter(Mandatory)][string]$Value)
+    $hex = ($Value -replace '\s+', '')
+    if ($hex.Length % 2 -ne 0) { throw "fromhex: hex string length must be even." }
+
+    $list = New-Object System.Collections.Generic.List[byte]
+    for ($i = 0; $i -lt $hex.Length; $i += 2) {
+        try {
+            $b = [Convert]::ToByte($hex.Substring($i,2), 16)
+        } catch {
+            throw "fromhex: invalid hex at position $i."
+        }
+        [void]$list.Add($b)
+    }
+    [byte[]]$bytes = $list.ToArray()
+    Write-Output -NoEnumerate $bytes       # critical to return byte[] as-is (instead of enumerating bytes, resulting in object[]
+}
+
+# ========================= GZip =========================
+
+function Filter-Gzip {
+    [CmdletBinding()]
+    param([Parameter(Mandatory)][string]$Value)
+    $enc   = [Text.Encoding]::Unicode
+    $input = $enc.GetBytes($Value)
+
+    $msOut = New-Object System.IO.MemoryStream
+    $gz    = New-Object System.IO.Compression.GZipStream($msOut, [IO.Compression.CompressionLevel]::Optimal, $true)
+    $gz.Write($input, 0, $input.Length)
+    $gz.Dispose()
+    [byte[]]$bytes = $msOut.ToArray()
+    $msOut.Dispose()
+    Write-Output -NoEnumerate $bytes       # critical to return byte[] as-is (instead of enumerating bytes, resulting in object[])
+}
+
+function Filter-Gunzip {
+    param($v)
+    $inBytes = As-Bytes $v
+    $msIn  = New-Object System.IO.MemoryStream(,$inBytes)
+    $gz    = New-Object System.IO.Compression.GzipStream($msIn, [System.IO.Compression.CompressionMode]::Decompress)
+    $msOut = New-Object System.IO.MemoryStream
+    $gz.CopyTo($msOut)
+    $gz.Dispose()
+    $outBytes = $msOut.ToArray()
+    ## Return TEXT (Unicode) by default (old way, not consistent with new 
+    ## filters guidelines):
+    # return [System.Text.Encoding]::Unicode.GetString($outBytes)
+    # Return unzipped value as byte[] (will need utf16 filter to get string):
+    Write-Output -NoEnumerate $outBytes   # critical to return byte[] as-is (instead of enumerating bytes, resulting in object[]
+}
+
+# ========================= URL encode/decode =========================
+function Filter-UrlEncode  { param($v) return [System.Uri]::EscapeDataString((As-String $v)) }
+function Filter-UrlDecode  { param($v) return [System.Uri]::UnescapeDataString((As-String $v)) }
+
+# ========================= XML encode/decode =========================
+function Filter-XmlEncode {
+    param($v)
+    $s = As-String $v
+    $esc = [System.Security.SecurityElement]::Escape($s)  # &,<,>,"
+    return $esc -replace "'", '&apos;'
+}
+function Filter-XmlDecode {
+    param($v)
+    $s = As-String $v
+    # Basic named entities
+    $s = $s -replace '&lt;','<' -replace '&gt;','>' -replace '&quot;','"' -replace '&apos;',"'"
+    $s = $s -replace '&amp;','&'
+    # Numeric: decimal and hex: &#123; or &#x7B;
+    $s = [System.Text.RegularExpressions.Regex]::Replace($s, '&#(\d+);', {
+        param($m) [char]([int]$m.Groups[1].Value)
+    })
+    $s = [System.Text.RegularExpressions.Regex]::Replace($s, '&#x([0-9A-Fa-f]+);', {
+        param($m) [char]([Convert]::ToInt32($m.Groups[1].Value,16))
+    })
+    return $s
+}
+
+# ========================= C/C++ style escape/unescape =========================
+
+# Convert string to include C/C++-style escape sequences:
+function Escape-C {
+    param([string]$s)
+    $sb = New-Object System.Text.StringBuilder
+    foreach ($ch in $s.ToCharArray()) {
+        $code = [int]$ch
+        switch ($ch) {
+            "`t" { [void]$sb.Append('\t'); continue }
+            "`n" { [void]$sb.Append('\n'); continue }
+            "`r" { [void]$sb.Append('\r'); continue }
+            "`b" { [void]$sb.Append('\b'); continue }
+            "`f" { [void]$sb.Append('\f'); continue }
+            [char]0x0B { [void]$sb.Append('\v'); continue } # vertical tab
+            [char]0x07 { [void]$sb.Append('\a'); continue } # bell
+            '"'  { [void]$sb.Append('\"'); continue }
+            "'"  { [void]$sb.Append("\'"); continue }
+            '\'  { [void]$sb.Append("\\"); continue }
+        }
+        if ($code -lt 0x20 -or $code -eq 0x7F) {
+            [void]$sb.Append('\x' + $code.ToString('x2'))
+        } else {
+            [void]$sb.Append($ch)
+        }
+    }
+    return $sb.ToString()
+}
+
+# Convert string from C/C++-style escape sequences (old version, does not handle \x or octal):
+function Unescape-C {
+    param([string]$s)
+    $sb = New-Object System.Text.StringBuilder
+    for ($i=0; $i -lt $s.Length; $i++) {
+        $c = $s[$i]
+        if ($c -ne '\') { [void]$sb.Append($c); continue }
+        # escape seq
+        if ($i + 1 -ge $s.Length) { [void]$sb.Append('\'); break }
+        $i++
+        switch ($s[$i]) {
+            'n' { [void]$sb.Append("`n") }
+            'r' { [void]$sb.Append("`r") }
+            't' { [void]$sb.Append("`t") }
+            'b' { [void]$sb.Append("`b") }
+            'f' { [void]$sb.Append("`f") }
+            'v' { [void]$sb.Append([char]0x0B) }
+            'a' { [void]$sb.Append([char]0x07) }
+            '"' { [void]$sb.Append('"') }
+            "'" { [void]$sb.Append("'") }
+            '\' { [void]$sb.Append('\') }
+            'x' {
+                # hex (consume up to 2 hex digits)
+                $hex = ''
+                for ($k=0; $k -lt 2 -and ($i+1) -lt $s.Length -and $s[$i+1] -match '[0-9A-Fa-f]'; $k++) {
+                    $i++; $hex += $s[$i]
+                }
+                if ($hex.Length -gt 0) { [void]$sb.Append([char]([Convert]::ToInt32($hex,16))) }
+            }
+            default {
+                # Octal \ooo (up to 3 digits) or literal
+                if ($s[$i] -match '[0-7]') {
+                    $oct = $s[$i]
+                    for ($k=0; $k -lt 2 -and ($i+1) -lt $s.Length -and $s[$i+1] -match '[0-7]'; $k++) {
+                        $i++; $oct += $s[$i]
+                    }
+                    [void]$sb.Append([char]([Convert]::ToInt32($oct,8)))
+                } else {
+                    [void]$sb.Append($s[$i])
+                }
+            }
+        }
+    }
+    return $sb.ToString()
+}
+
+# Convert string to include C/C++-style escape sequences:
+function Filter-EscC {
+    <#
+      .SYNOPSIS
+        Escapes a string using C/C++-style sequences.
+
+      .NOTES
+        - Escapes: \\, \', \", \a, \b, \f, \n, \r, \t, \v, \0
+        - Control chars (<0x20 or 0x7F): \xHH (<=0xFF) else \uXXXX/\UXXXXXXXX
+        - Surrogate pairs are detected and rendered as \UXXXXXXXX.
+    #>
+    param([Parameter(Mandatory)][string]$Value)
+
+    $sb = [System.Text.StringBuilder]::new()
+    $i = 0
+    while ($i -lt $Value.Length) {
+        $ch = $Value[$i]
+
+        # Surrogate pair handling for full Unicode code points
+        if ([char]::IsHighSurrogate($ch) -and $i + 1 -lt $Value.Length -and [char]::IsLowSurrogate($Value[$i+1])) {
+            $cp = [char]::ConvertToUtf32($ch, $Value[$i+1])
+            [void]$sb.Append('\U')
+            [void]$sb.Append(('{0:X8}' -f $cp))
+            $i += 2
+            continue
+        }
+
+        $code = [int][char]$ch
+        switch ($code) {
+            92 { [void]$sb.Append('\'); [void]$sb.Append('\'); $i++; continue } # \
+            34 { [void]$sb.Append('\'); [void]$sb.Append('"'); $i++; continue } # "
+            39 { [void]$sb.Append('\'); [void]$sb.Append("'"); $i++; continue } # '
+
+            7  { [void]$sb.Append('\'); [void]$sb.Append('a'); $i++; continue }
+            8  { [void]$sb.Append('\'); [void]$sb.Append('b'); $i++; continue }
+            12 { [void]$sb.Append('\'); [void]$sb.Append('f'); $i++; continue }
+            10 { [void]$sb.Append('\'); [void]$sb.Append('n'); $i++; continue }
+            13 { [void]$sb.Append('\'); [void]$sb.Append('r'); $i++; continue }
+            9  { [void]$sb.Append('\'); [void]$sb.Append('t'); $i++; continue }
+            11 { [void]$sb.Append('\'); [void]$sb.Append('v'); $i++; continue }
+            0  { [void]$sb.Append('\'); [void]$sb.Append('0'); $i++; continue }
+        }
+
+        if ($code -lt 0x20 -or $code -eq 0x7F) {
+            if ($code -le 0xFF) {
+                [void]$sb.Append('\x')
+                [void]$sb.Append(('{0:X2}' -f $code))
+            } else {
+                [void]$sb.Append('\u')
+                [void]$sb.Append(('{0:X4}' -f $code))
+            }
+            $i++
+            continue
+        }
+
+        [void]$sb.Append($ch)
+        $i++
+    }
+    $sb.ToString()
+}
+
+
+# Convert string from C/C++-style escape sequences:
+function Filter-FromEscC {
+    <#
+      .SYNOPSIS
+        Decodes C/C++-style escape sequences in a string.
+
+      .NOTES
+        Supported: \\, \', \", \?, \a, \b, \f, \n, \r, \t, \v,
+                   \0 / \oo / \ooo (octal up to 3 digits),
+                   \xH… (1–4 hex digits).
+    #>
+    param([Parameter(Mandatory)][string]$Value)
+
+    $sb = [System.Text.StringBuilder]::new()
+    $i = 0
+    while ($i -lt $Value.Length) {
+        $ch = $Value[$i]
+        if ($ch -ne '\') {
+            [void]$sb.Append($ch)
+            $i++
+            continue
+        }
+
+        $i++
+        if ($i -ge $Value.Length) { [void]$sb.Append('\'); break }
+        $esc = $Value[$i]
+
+        switch -CaseSensitive ($esc) {
+            'n' { [void]$sb.Append([char]0x0A); $i++ }
+            'r' { [void]$sb.Append([char]0x0D); $i++ }
+            't' { [void]$sb.Append([char]0x09); $i++ }
+            'v' { [void]$sb.Append([char]0x0B); $i++ }
+            'b' { [void]$sb.Append([char]0x08); $i++ }
+            'f' { [void]$sb.Append([char]0x0C); $i++ }
+            'a' { [void]$sb.Append([char]0x07); $i++ }
+            '"' { [void]$sb.Append('"');        $i++ }
+            "'" { [void]$sb.Append("'");         $i++ }
+            '\' { [void]$sb.Append('\');         $i++ }
+
+            'x' {
+                # \x followed by 1–4 hex digits
+                $start = $i + 1; $len = 0
+                while ($start + $len -lt $Value.Length -and $Value[$start + $len] -match '[0-9A-Fa-f]') {
+                    $len++; if ($len -ge 4) { break }
+                }
+                if ($len -eq 0) { throw "Invalid \x escape at index $($i-1): missing hex digits." }
+                $hex  = $Value.Substring($start, $len)
+                $code = [Convert]::ToInt32($hex, 16)
+                [void]$sb.Append([char]$code)
+                $i += 1 + $len
+            }
+
+            { $_ -match '[0-7]' } {
+                # Octal: up to 3 digits, first already in $esc
+                $start = $i; $len = 1
+                while ($len -lt 3 -and ($start + $len) -lt $Value.Length -and $Value[$start + $len] -match '^[0-7]$') {
+                    $len++
+                }
+                $oct  = $Value.Substring($start, $len)
+                $code = [Convert]::ToInt32($oct, 8)
+                [void]$sb.Append([char]$code)
+                $i += $len
+            }
+
+            default {
+                # Unknown escape -> keep escaped char literally (drop the backslash)
+                [void]$sb.Append($esc)
+                $i++
+            }
+        }
+    }
+    $sb.ToString()
+}
+
+
+# ========================= Java escape / unescape =========================
+
+function Escape-Java {
+    param([string]$s)
+    # Similar to C, but prefer \uXXXX for non-ASCII
+    $sb = New-Object System.Text.StringBuilder
+    foreach ($ch in $s.ToCharArray()) {
+        switch ($ch) {
+            "`t" { [void]$sb.Append('\t'); continue }
+            "`n" { [void]$sb.Append('\n'); continue }
+            "`r" { [void]$sb.Append('\r'); continue }
+            "`b" { [void]$sb.Append('\b'); continue }
+            "`f" { [void]$sb.Append('\f'); continue }
+            '"'  { [void]$sb.Append('\"'); continue }
+            "'"  { [void]$sb.Append("\'"); continue }
+            '\'  { [void]$sb.Append("\\"); continue }
+        }
+        $code = [int]$ch
+        if ($code -lt 0x20 -or $code -gt 0x7E) {
+            [void]$sb.Append('\u' + $code.ToString('x4'))
+        } else {
+            [void]$sb.Append($ch)
+        }
+    }
+    return $sb.ToString()
+}
+function Unescape-Java {
+    param([string]$s)
+    $sb = New-Object System.Text.StringBuilder
+    for ($i=0; $i -lt $s.Length; $i++) {
+        $c = $s[$i]
+        if ($c -ne '\') { [void]$sb.Append($c); continue }
+        if ($i + 1 -ge $s.Length) { [void]$sb.Append('\'); break }
+        $i++
+        switch ($s[$i]) {
+            't' { [void]$sb.Append("`t") }
+            'n' { [void]$sb.Append("`n") }
+            'r' { [void]$sb.Append("`r") }
+            'b' { [void]$sb.Append("`b") }
+            'f' { [void]$sb.Append("`f") }
+            '"' { [void]$sb.Append('"') }
+            "'" { [void]$sb.Append("'") }
+            '\' { [void]$sb.Append('\') }
+            'u' {
+                if ($i + 4 -ge $s.Length) { break }
+                $hex = $s.Substring($i+1,4); $i += 4
+                [void]$sb.Append([char]([Convert]::ToInt32($hex,16)))
+            }
+            default {
+                # Java also accepts octal escapes \0..\377
+                if ($s[$i] -match '[0-7]') {
+                    $oct = $s[$i]
+                    for ($k=0; $k -lt 2 -and ($i+1) -lt $s.Length -and $s[$i+1] -match '[0-7]'; $k++) {
+                        $i++; $oct += $s[$i]
+                    }
+                    [void]$sb.Append([char]([Convert]::ToInt32($oct,8)))
+                } else {
+                    [void]$sb.Append($s[$i])
+                }
+            }
+        }
+    }
+    return $sb.ToString()
+}
+
+function Filter-EscJava {
+    <#
+      .SYNOPSIS
+        Escapes a string using Java-style sequences.
+
+      .NOTES
+        - Escapes: \\, \', \", \b, \t, \n, \f, \r
+        - Control/non-ASCII -> \uXXXX
+        - Supplementary code points -> two surrogate \uXXXX pairs (Java uses UTF-16)
+    #>
+    param([Parameter(Mandatory)][string]$Value)
+
+    $sb = [System.Text.StringBuilder]::new()
+    $i = 0
+    while ($i -lt $Value.Length) {
+        $ch = $Value[$i]
+
+        if ([char]::IsHighSurrogate($ch) -and $i + 1 -lt $Value.Length -and [char]::IsLowSurrogate($Value[$i+1])) {
+            # Java expects surrogate pair as two \uXXXX
+            $hi = [int][char]$ch
+            $lo = [int][char]$Value[$i+1]
+            [void]$sb.Append('\u')
+            [void]$sb.Append(('{0:X4}' -f $hi))
+            [void]$sb.Append('\u')
+            [void]$sb.Append(('{0:X4}' -f $lo))
+            $i += 2
+            continue
+        }
+
+        $code = [int][char]$ch
+        switch ($code) {
+            92 { [void]$sb.Append('\'); [void]$sb.Append('\'); $i++; continue } # \
+            34 { [void]$sb.Append('\'); [void]$sb.Append('"'); $i++; continue } # "
+            39 { [void]$sb.Append('\'); [void]$sb.Append("'"); $i++; continue } # '
+
+            8  { [void]$sb.Append('\'); [void]$sb.Append('b'); $i++; continue }
+            9  { [void]$sb.Append('\'); [void]$sb.Append('t'); $i++; continue }
+            10 { [void]$sb.Append('\'); [void]$sb.Append('n'); $i++; continue }
+            12 { [void]$sb.Append('\'); [void]$sb.Append('f'); $i++; continue }
+            13 { [void]$sb.Append('\'); [void]$sb.Append('r'); $i++; continue }
+            0  { [void]$sb.Append('\'); [void]$sb.Append('0'); $i++; continue }
+        }
+
+        if ($code -lt 0x20 -or $code -gt 0x7E) {
+            [void]$sb.Append('\u')
+            [void]$sb.Append(('{0:X4}' -f $code))
+            $i++
+            continue
+        }
+
+        [void]$sb.Append($ch)
+        $i++
+    }
+    $sb.ToString()
+}
+
+
+function Convert-CodePointToString {
+    param([int]$cp)
+    if ($cp -le 0xFFFF) { return [char]$cp }
+    $cp -= 0x10000
+    $hi = 0xD800 + ($cp -shr 10)
+    $lo = 0xDC00 + ($cp -band 0x3FF)
+    return ([char]$hi).ToString() + ([char]$lo)
+}
+
+# ========================= C# escape / unescape =========================
+
+# Convert string to C#-style escape sequences:
+function Escape-Cs {
+    param([string]$s)
+    $sb = New-Object System.Text.StringBuilder
+    foreach ($ch in $s.ToCharArray()) {
+        switch ($ch) {
+            "`t" { [void]$sb.Append('\t'); continue }
+            "`n" { [void]$sb.Append('\n'); continue }
+            "`r" { [void]$sb.Append('\r'); continue }
+            "`b" { [void]$sb.Append('\b'); continue }
+            "`f" { [void]$sb.Append('\f'); continue }
+            '"'  { [void]$sb.Append('\"'); continue }
+            "'"  { [void]$sb.Append("\'"); continue }
+            '\'  { [void]$sb.Append("\\"); continue }
+        }
+        $code = [int]$ch
+        if ($code -lt 0x20 -or $code -gt 0x7E) {
+            if ($code -le 0xFFFF) {
+                [void]$sb.Append('\u' + $code.ToString('x4'))
+            } else {
+                [void]$sb.Append('\U' + $code.ToString('x8'))
+            }
+        } else {
+            [void]$sb.Append($ch)
+        }
+    }
+    return $sb.ToString()
+}
+
+
+# Convert string from C#-style escape sequences (old version, does not handle \x or octal):
+function Unescape-Cs {
+    param([string]$s)
+    $sb = New-Object System.Text.StringBuilder
+    for ($i=0; $i -lt $s.Length; $i++) {
+        $c = $s[$i]
+        if ($c -ne '\') { [void]$sb.Append($c); continue }
+        if ($i + 1 -ge $s.Length) { [void]$sb.Append('\'); break }
+        $i++
+        switch ($s[$i]) {
+            't' { [void]$sb.Append("`t") }
+            'n' { [void]$sb.Append("`n") }
+            'r' { [void]$sb.Append("`r") }
+            'b' { [void]$sb.Append("`b") }
+            'f' { [void]$sb.Append("`f") }
+            '"' { [void]$sb.Append('"') }
+            "'" { [void]$sb.Append("'") }
+            '\' { [void]$sb.Append('\') }
+            'u' {
+                if ($i + 4 -ge $s.Length) { break }
+                $hex = $s.Substring($i+1,4); $i += 4
+                [void]$sb.Append([char]([Convert]::ToInt32($hex,16)))
+            }
+            'U' {
+                if ($i + 8 -ge $s.Length) { break }
+                $hex = $s.Substring($i+1,8); $i += 8
+                $cp  = [Convert]::ToInt32($hex,16)
+                [void]$sb.Append( (Convert-CodePointToString $cp) )
+            }
+            default { [void]$sb.Append($s[$i]) }
+        }
+    }
+    return $sb.ToString()
+}
+
+# Convert string to C#-style escape sequences:
+function Filter-EscCs {
+    <#
+      C#-style escape:
+        - Short escapes for \n \r \t \v \b \f \0 \\ \" \'
+        - Printable ASCII → literal
+        - Other BMP → \uXXXX
+        - Supplementary → \UXXXXXXXX
+      Uses labeled loop so each char is emitted exactly once.
+    #>
+    [CmdletBinding()]
+    param([Parameter(Mandatory)][string]$Text)
+
+    $sb  = New-Object System.Text.StringBuilder
+    $len = $Text.Length
+    $i   = 0
+
+    :outer while ($i -lt $len) {
+        $ch = $Text[$i]
+
+        # Surrogate pair → \UXXXXXXXX
+        if ([char]::IsHighSurrogate($ch) -and $i + 1 -lt $len -and [char]::IsLowSurrogate($Text[$i+1])) {
+            $high   = [uint32][char]$ch
+            $low    = [uint32][char]$Text[$i+1]
+            $scalar = 0x10000 + (($high - 0xD800) -shl 10) + ($low - 0xDC00)
+            [void]$sb.Append(('\U{0}' -f $scalar.ToString('X8')))
+            $i += 2
+            continue outer
+        }
+
+        $code = [int][char]$ch
+        switch ($code) {
+            10 { [void]$sb.Append('\n');  $i++; continue outer }  # LF
+            13 { [void]$sb.Append('\r');  $i++; continue outer }  # CR
+            9  { [void]$sb.Append('\t');  $i++; continue outer }  # HT
+            11 { [void]$sb.Append('\v');  $i++; continue outer }  # VT
+            8  { [void]$sb.Append('\b');  $i++; continue outer }  # BS
+            12 { [void]$sb.Append('\f');  $i++; continue outer }  # FF
+            0  { [void]$sb.Append('\0');  $i++; continue outer }  # NUL
+            34 { [void]$sb.Append('\"');  $i++; continue outer }  # "
+            39 { [void]$sb.Append("\'");  $i++; continue outer }  # '
+            92 { [void]$sb.Append('\\');  $i++; continue outer }  # \
+        }
+
+        if ($code -lt 0x20 -or $code -eq 0x7F) {
+            [void]$sb.Append(('\u{0}' -f $code.ToString('X4')))
+            $i++; continue outer
+        }
+
+        if ($code -lt 0x80) {
+            [void]$sb.Append([char]$code)
+            $i++; continue outer
+        }
+
+        [void]$sb.Append(('\u{0}' -f $code.ToString('X4')))
+        $i++; continue outer
+    }
+
+    $sb.ToString()
+}
+
+
+
+# Convert string from C#-style escape sequences:
+function Filter-FromEscCs {
+    <#
+      C#-style unescape:
+        \\ \' \" \0 \a \b \f \n \r \t \v
+        \xH{1,4}   -> one UTF-16 code unit (greedy)
+        \uHHHH     -> one UTF-16 code unit (exact 4)
+        \UHHHHHHHH -> Unicode scalar value (surrogate pair if > 0xFFFF)
+      Octal (\012 etc.) is not a C# escape → left as literal "\012".
+    #>
+    [CmdletBinding()]
+    param([Parameter(Mandatory)][string]$Text)
+
+    $sb  = New-Object System.Text.StringBuilder
+    $len = $Text.Length
+    $i   = 0
+
+    :outer while ($i -lt $len) {
+        $ch = $Text[$i]
+        if ($ch -ne '\') { [void]$sb.Append($ch); $i++; continue outer }
+
+        if ($i + 1 -ge $len) { [void]$sb.Append('\'); break }
+        $i++
+        $esc = $Text[$i]
+
+        switch -CaseSensitive ($esc) {
+            'a' { [void]$sb.Append([char]7)  ; $i++; continue outer }
+            'b' { [void]$sb.Append([char]8)  ; $i++; continue outer }
+            'f' { [void]$sb.Append([char]12) ; $i++; continue outer }
+            'n' { [void]$sb.Append([char]10) ; $i++; continue outer }
+            'r' { [void]$sb.Append([char]13) ; $i++; continue outer }
+            't' { [void]$sb.Append([char]9)  ; $i++; continue outer }
+            'v' { [void]$sb.Append([char]11) ; $i++; continue outer }
+            '0' { [void]$sb.Append([char]0)  ; $i++; continue outer }
+            '"' { [void]$sb.Append('"')      ; $i++; continue outer }
+            "'" { [void]$sb.Append("'")      ; $i++; continue outer }
+            '\' { [void]$sb.Append('\')      ; $i++; continue outer }
+
+            'x' {
+                $i++
+                $start  = $i
+                $digits = 0
+                while ($i -lt $len -and $digits -lt 4 -and [System.Uri]::IsHexDigit($Text[$i])) { $digits++; $i++ }
+                if ($digits -eq 0) {
+                    [void]$sb.Append('\'); [void]$sb.Append('x')
+                } else {
+                    $unit = [Convert]::ToInt32($Text.Substring($start,$digits),16)
+                    [void]$sb.Append([char]$unit)
+                }
+                continue outer
+            }
+
+            'u' {
+                if ($i + 4 -ge $len) { [void]$sb.Append('\'); [void]$sb.Append('u'); $i++; continue outer }
+                $hex = $Text.Substring($i+1,4)
+                if ($hex -notmatch '^[0-9A-Fa-f]{4}$') { [void]$sb.Append('\'); [void]$sb.Append("u$hex"); $i+=5; continue outer }
+                $unit = [Convert]::ToInt32($hex,16)
+                [void]$sb.Append([char]$unit)
+                $i += 5
+                continue outer
+            }
+
+            'U' {
+                if ($i + 8 -ge $len) { [void]$sb.Append('\'); [void]$sb.Append('U'); $i++; continue outer }
+                $hex = $Text.Substring($i+1,8)
+                if ($hex -notmatch '^[0-9A-Fa-f]{8}$') { [void]$sb.Append('\'); [void]$sb.Append("U$hex"); $i+=9; continue outer }
+                [uint32]$scalar = [Convert]::ToUInt32($hex,16)
+                if ($scalar -le 0xFFFF) {
+                    [void]$sb.Append([char]$scalar)
+                } else {
+                    $tmp  = $scalar - 0x10000
+                    $high = 0xD800 + ($tmp -shr 10)
+                    $low  = 0xDC00 + ($tmp -band 0x3FF)
+                    [void]$sb.Append([char]$high)
+                    [void]$sb.Append([char]$low)
+                }
+                $i += 9
+                continue outer
+            }
+
+            default {
+                # Not a recognized C# escape (e.g., \012): keep literally
+                [void]$sb.Append('\'); [void]$sb.Append($esc); $i++; continue outer
+            }
+        }
+    }
+
+    $sb.ToString()
+}
+
+
+
+# ---------------------------------------------------------------------------
+# FILTERS: path manipulation filters
 # Conversion to Windows or Linux paths, canonization w.r. the current OS.
 # ---------------------------------------------------------------------------
 
@@ -425,90 +1125,201 @@ function Apply-Filters {
       [string] Transformed value.
     #>
     param(
-        [string]   $Value,
+        [object]   $Value,     # can be string or [byte[]] between filters
         [object[]] $Pipeline
     )
 
     foreach ($f in $Pipeline) {
-      # --- BEGIN minimal patch: normalize access for hashtable/PSCustomObject ---
-      # Read the filter name, first-arg, and full-args in a way that works for hashtables too.
-      $__isHash = ($f -is [hashtable])
 
-      # Name
-      $name = if ($__isHash) { [string]$f['name'] } else { [string]$f.name }
+        # ---- Normalize access for hashtable or PSCustomObject ----
+        $isHash = ($f -is [hashtable])
 
-      # First arg (compat with older single-arg code)
-      $arg  = if ($__isHash) { $f['arg'] } else { $f.arg }
+        $name = if ($isHash) { [string]$f['name'] } else { [string]$f.name }
+        $arg  = if ($isHash) { $f['arg'] }         else { $f.arg }
 
-      # Full args array
-      $__args = @()
-      if ($__isHash) {
-          if ($f.ContainsKey('args') -and $f['args']) {
-              $__args = @($f['args'])   # make sure it's an array
-          } elseif ($null -ne $arg) {
-              $__args = @($arg)
-          }
-      } else {
-          if ($f.PSObject.Properties['args'] -and $f.args) {
-              $__args = $f.args
-          } elseif ($null -ne $arg) {
-              $__args = @($arg)
-          }
-      }
-      # --- END minimal patch ---
+        # multi-arg support (e.g., replace:"old":"new")
+        $args = @()
+        if ($isHash) {
+            if ($f.ContainsKey('args') -and $f['args']) { $args = @($f['args']) }
+            elseif ($null -ne $arg) { $args = @($arg) }
+        } else {
+            if ($f.PSObject.Properties['args'] -and $f.args) { $args = $f.args }
+            elseif ($null -ne $arg) { $args = @($arg) }
+        }
 
-          Write-Host ("    filter: {0}" -f $name)
-          Write-Host ("      arg  : {0}" -f $arg)
-          Write-Host ("      args : {0}" -f ($__args -join ', '))
+        switch ($name.ToLowerInvariant()) {
 
-        switch ($name) {
-            'trim'       { $Value = $Value.Trim() }
-            'upper'      { $Value = $Value.ToUpper() }
-            'lower'      { $Value = $Value.ToLower() }
-            'regq'       { $Value = $Value -replace '"', '\"' }
-            'regesc'     { $Value = $Value -replace '\\', '\\' -replace '"', '\"' }
-            'quote'      { $Value = '"' + $Value + '"' }
-            'append'     { $Value = $Value + ($(if ($null -ne $arg) { $arg } else { '' })) }
-            'prepend'    {
-                $Value = ($(if ($null -ne $f.arg) { $f.arg } else { '' })) + $Value
-            }
-            'pathappend' { 
-              $Value = $Value + ($(if ($null -ne $arg) { $arg } else { '' })) 
-            }
+            # -------------------- Basic string transforms --------------------
+            'trim'   { $Value = (As-String $Value).Trim() }
+            'upper'  { $Value = (As-String $Value).ToUpper() }
+            'lower'  { $Value = (As-String $Value).ToLower() }
+
+            # -------------------- Quoting / escaping (text) ------------------
+            'quote'      { $Value = '"' + (As-String $Value) + '"' }
             'pathquote'  {
-                # Quote only if not already quoted (tolerates surrounding whitespace)
-                if ($Value -notmatch '^\s*".*"\s*$') { $Value = '"' + $Value + '"' }
+                $s = As-String $Value
+                if ($s -notmatch '^\s*".*"\s*$') { $s = '"' + $s + '"' }
+                $Value = $s
             }
-            'pathwin' { $Value = To-WindowsPathPreserveRelative $Value }
-            'pathlinux' { $Value = To-LinuxPathPreserveRelative $Value }
-            'pathos' { $Value = To-OSPathPreserveRelative $Value }
-            'pathwinabs' { $Value = To-WindowsPathAbsolute $Value }
-            'pathlinuxabs' { $Value = To-LinuxPathAbsolute $Value }
-            'pathosabs' { $Value = To-OSPathAbsolute $Value }
-            'addarg'     { $Value = $Value + ' "' + ($(if ($null -ne $arg) { $arg } else { '' })) + '"' }
-            'default'    {
-                if ([string]::IsNullOrWhiteSpace($Value)) {
-                    $Value = ($(if ($null -ne $f.arg) { $f.arg } else { '' }))
+            'regq'    { $Value = (As-String $Value) -replace '"','\"' }
+            'regesc'  { $Value = ((As-String $Value) -replace '\\','\\') -replace '"','\"' }
+
+            # -------------------- Path normalization (your helpers) ----------
+            'pathwin'     { $Value = To-WindowsPathPreserveRelative (As-String $Value) }
+            'pathlinux'   { $Value = To-LinuxPathPreserveRelative   (As-String $Value) }
+            'pathos'      { $Value = To-OSPathPreserveRelative      (As-String $Value) }
+            'pathwinabs'  { $Value = To-WindowsPathAbsolute         (As-String $Value) }
+            'pathlinuxabs'{ $Value = To-LinuxPathAbsolute           (As-String $Value) }
+            'pathosabs'   { $Value = To-OSPathAbsolute              (As-String $Value) }
+
+            # -------------------- String composition -------------------------
+            'prepend'     { $Value = ($(if ($null -ne $arg) { $arg } else { '' })) + (As-String $Value) }
+            'append'      { $Value = (As-String $Value) + ($(if ($null -ne $arg) { $arg } else { '' })) }
+            'default'     {
+                $s = As-String $Value
+                if ([string]::IsNullOrWhiteSpace($s)) {
+                    $Value = ($(if ($null -ne $arg) { $arg } else { '' }))
+                } else {
+                    $Value = $s
                 }
             }
-            'replace' {
-                if ($__args.Count -lt 2) {
-                    throw 'replace filter requires two arguments: replace:"old":"new"'
-                }
-                $old = $__args[0]
-                $new = $__args[1]
-                $Value = $Value.Replace($old, $new)  # literal replacement, not regex
+            'replace'     {
+                if ($args.Count -lt 2) { throw 'replace filter requires two arguments: replace:"old":"new"' }
+                $old = $args[0]; $new = $args[1]
+                $Value = (As-String $Value).Replace($old, $new)   # literal, not regex
             }
+            'pathappend'  { $Value = (As-String $Value) + ($(if ($null -ne $arg) { $arg } else { '' })) }
+            'addarg'      { $Value = (As-String $Value) + ' "' + ($(if ($null -ne $arg) { $arg } else { '' })) + '"' }
+
+            # ----------------- Bytes-to-text and vice versa -------------------
+            # Decode byte[] -> string using UTF-16LE (.NET "Unicode" string)
+            'utf16' { 
+                # expects byte[]
+                $Value = [System.Text.Encoding]::Unicode.GetString($value)
+            }
+            # Decode byte[] -> string using UTF-8
+            'utf8' {
+                $bytes = As-Bytes $Value
+                $Value = [System.Text.Encoding]::UTF8.GetString($bytes)
+            }
+            # Force string -> byte[] using UTF-16LE (symmetry helper):
+            'bytes' {
+                $Value = As-Bytes $Value   # already returns Unicode bytes
+            }
+            # Returns type of the value (for debugging purposes)
+            'type' {
+              $Value = ($Value).GetType().FullName
+            }
+            
+            # -------------------- Text encodings ------------------------------
+            'urlencode'   { $Value = Filter-UrlEncode (As-String $Value) }
+            'urldecode'   { $Value = Filter-UrlDecode (As-String $Value) }
+
+            'xmlencode'   { $Value = Filter-XmlEncode (As-String $Value) }
+            'xmldecode'   { $Value = Filter-XmlDecode (As-String $Value) }
+
+            # -------------------- Binary/text codecs -------------------------
+            
+            # Compress string or byte[] → byte[] with gzip
+            'gzip'        { $Value = Filter-Gzip      $Value }  # -> byte[]
+            # Unzip byte[] → string (UTF-16LE, .NET "Unicode" string):
+            'strgunzip'   { $Value = [Text.Encoding]::Unicode.GetString( (Filter-Gunzip $Value) ) }  # byte[] -> byte[] -> string
+            # Uncompress byte[] → byte[] with gzip (needs additional utf16 filter to get string):
+            'gunzip' { 
+              $bytes = Filter-Gunzip    $Value 
+                if ($args.Count -gt 0) {
+                    switch ($args[0].ToLower()) {
+                        'utf16'  { $Value = [Text.Encoding]::Unicode.GetString($bytes) }
+                        default  { throw "gunzip: unknown decode '$($args[0])' (use utf16)" }
+                    }
+                } else {
+                    $Value = $bytes  # binary mode (for chaining into utf16, base64, etc.)
+                }
+            }
+
+            # Encode string or byte[] → base64 string
+            'base64'      { $Value = Filter-Base64    $Value }  # bytes or string -> base64 string
+            # Decode base64 → string (UTF-16LE, .NET "Unicode" string)
+            'strfrombase64' { $Value = [Text.Encoding]::Unicode.GetString( (Filter-FromBase64 $Value) ) }
+            # Decode base64 → Byte[], with optional filters for final conversion to
+            # encoded string:
+            'frombase64' {
+                $bytes = Filter-FromBase64 $Value
+                if ($args.Count -gt 0) {
+                    switch ($args[0].ToLower()) {
+                        'utf16'  { $Value = [Text.Encoding]::Unicode.GetString($bytes) }
+                        'utf8'   { $Value = [Text.Encoding]::UTF8.GetString($bytes) }
+                        'ascii'  { $Value = [Text.Encoding]::ASCII.GetString($bytes) }
+                        'latin1' { $Value = [Text.Encoding]::GetEncoding(28591).GetString($bytes) }
+                        default  { throw "frombase64: unknown decode '$($args[0])' (use utf16|utf8|ascii|latin1)" }
+                    }
+                } else {
+                    $Value = $bytes  # binary mode (for chaining into gzip, etc.)
+                }
+            }
+
+            # Encode string or byte[] → hex lowercase string
+            'hex'         { $Value = Filter-Hex       $Value }  # bytes or string -> hex string
+            # Decode hex → string (UTF-16LE, .NET "Unicode" string)
+            'strfromhex'    { $Value = [Text.Encoding]::Unicode.GetString( (Filter-FromHex     $Value) ) }            
+            # Decode hex → Byte[], with optional filters for final conversion to
+            # encoded string:
+            'fromhex' {
+                $bytes = Filter-FromHex $Value
+                if ($args.Count -gt 0) {
+                    switch ($args[0].ToLower()) {
+                        'utf16'  { $Value = [Text.Encoding]::Unicode.GetString($bytes) }
+                        'utf8'   { $Value = [Text.Encoding]::UTF8.GetString($bytes) }
+                        'ascii'  { $Value = [Text.Encoding]::ASCII.GetString($bytes) }
+                        'latin1' { $Value = [Text.Encoding]::GetEncoding(28591).GetString($bytes) }
+                        default  { throw "fromhex: unknown decode '$($args[0])' (use utf16|utf8|ascii|latin1)" }
+                    }
+                } else {
+                    $Value = $bytes
+                }
+            }
+
+            # -------------------- Programming-language escapes ---------------
+            'escc' { 
+              # $Value = Escape-C         (As-String $Value) 
+              $Value = Filter-EscC (As-String $Value)
+            }
+            'fromescc' { 
+                # $Value = Unescape-C       (As-String $Value) 
+                $Value = Filter-FromEscC (As-String $Value)
+            }
+
+            'escjava'     { 
+                # $Value = Escape-Java      (As-String $Value)
+                $Value = Filter-EscJava      (As-String $Value)
+            }
+            'fromescjava' { 
+                $Value = Unescape-Java    (As-String $Value) 
+                # $Value = Filter-FromEscJava    (As-String $Value) 
+           }
+
+            'esccs' { 
+                # $Value = Escape-Cs (As-String $Value) 
+                $Value = Filter-EscCs (As-String $Value) 
+            }
+            'fromesccs'  { 
+                $Value = Filter-FromEscCs (As-String $Value) 
+            }
+
+            # -------------------- .reg specific ------------------------------
             'expandsz' {
-                # Encode as REG_EXPAND_SZ in .reg hex(2) form (UTF-16LE, null-terminated)
-                $bytes = [System.Text.Encoding]::Unicode.GetBytes($Value + [char]0)
+                $s     = As-String $Value
+                $bytes = [System.Text.Encoding]::Unicode.GetBytes($s + [char]0)
                 $hex   = ($bytes | ForEach-Object { $_.ToString('x2') }) -join ','
                 $Value = 'hex(2):' + $hex
             }
 
-            default     { throw "Unknown filter '${name}'." }
+            default {
+                throw "Unknown filter '${name}'."
+            }
         }
     }
+
     return $Value
 }
 
@@ -718,6 +1529,15 @@ $expanded = [System.Text.RegularExpressions.Regex]::Replace(
             Write-Host "  Unfiltered value:`n  $val0"
             $out  = Apply-Filters -Value $val0 -Pipeline $ph.filters
             Write-Host "  Final value:`n  $out"
+            if (-not $out -is [string]) {
+                Write-Warning "  Final value is not a string:"
+                Write-Host "  ${out}"
+                Write-Host "  Type: $($out.GetType().FullName))"
+            }
+            # If a pipeline ends as byte[], force the template author to finish with base64/hex/gunzip/etc.
+            if (Is-ByteVector $out) {
+                throw "Placeholder resulted in binary data. Add a final text-producing filter (e.g., base64, hex, gunzip, utf16)."
+            }            
             return $out
         } catch {
             $errors.Add("Error in placeholder '{{ ${expr} }}': $($_.Exception.Message)")
