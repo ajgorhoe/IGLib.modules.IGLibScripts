@@ -949,12 +949,11 @@ function Filter-FromEscCs {
         $ch = $Text[$i]
         if ($ch -ne '\') { [void]$sb.Append($ch); $i++; continue outer }
 
-        # backslash
         if ($i + 1 -ge $len) { [void]$sb.Append('\'); break }
         $i++
         $esc = $Text[$i]
 
-        switch ($esc) {
+        switch -CaseSensitive ($esc) {
             'a' { [void]$sb.Append([char]7)  ; $i++; continue outer }
             'b' { [void]$sb.Append([char]8)  ; $i++; continue outer }
             'f' { [void]$sb.Append([char]12) ; $i++; continue outer }
@@ -973,7 +972,6 @@ function Filter-FromEscCs {
                 $digits = 0
                 while ($i -lt $len -and $digits -lt 4 -and [System.Uri]::IsHexDigit($Text[$i])) { $digits++; $i++ }
                 if ($digits -eq 0) {
-                    # malformed → keep literally
                     [void]$sb.Append('\'); [void]$sb.Append('x')
                 } else {
                     $unit = [Convert]::ToInt32($Text.Substring($start,$digits),16)

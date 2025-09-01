@@ -185,6 +185,25 @@ with filter | xmlencode :
 round trip  | xmlencode | xmldecode :
   ""Hello & Goodbye!"  5 < 6 & 7 > 4  <a id=e55>#e55</a>"
 
+# ESCAPE SEQUENCES IN STRINGS:
+# These filters provide conversion from strings with escape sequences in 
+# different languages (C/C++, Java, C#) and back from strings to escaped 
+# strings.
+# WARNING: In some languages, conversion from strings to escaped strings is not
+# unique because some characters can be escaped in different ways or not 
+# escaped at all (e.g. in C#, due to forms \xH{1,4}, \uHHHH, \UHHHHHHHH).
+# Tests usually start from escaped string (due to ease of representation in 
+# PowerShell) and compare round-trip-filtered result (e.g. obtained with 
+# filters "| fromesccs | esccs") with the initial escaped string. However,
+# these strings are not necessarily equal even if all filters work correctly,
+# because escaped representations are not unique, and double (round-trip)
+# filters can start with one correct representation and end with another.
+# To improve detection of errors, we can start with escaped string, applying
+# unescaping, and then do the round trip with escaping and another unescaping,
+# then compare the first unescaped string with the one obtained by the
+# round-trip application of the additional pair of filters. Strings obtained
+# in this way should always be equal.
+
 # C/C++ -style escaping:
 var.EscapedStr:
   "sq \' dq \" bsl \\ nl \n cr \r ht \t vt \v bsp \b ff \f null \0 nl \012 A \101 sp \040 ht \x09 Z \x5A ! \x21 weird \x4142 ☺ \u263A ☃ \u2603 π \u03C0 A \u0041 gothicAhsa 𐌰 \U00010330 rocket 🚀 \U0001F680 cat 🐈 \U0001F408"
@@ -196,6 +215,18 @@ round trip  | fromescc| escc  :
   "sq \''dq \""bsl \\\nl \n\x0Acr \r\x0Dht \t\x09vt \v\x0Bbsp \b\x08ff \f\x0Cnull \0\x00nl \n\x0AA A sp   ht \t\x09Z Z ! ! weird 䅂 ☺ u263A ☃ u2603 π u03C0 A u0041 gothicAhsa \U00010330 U00010330 rocket \U0001F680 U0001F680 cat \U0001F408 U0001F408"
   "sq \' dq \" bsl \\ nl \n cr \r ht \t vt \v bsp \b ff \f null \0 nl \012 A \101 sp \040 ht \x09 Z \x5A ! \x21 weird \x4142 ☺ \u263A ☃ \u2603 π \u03C0 A \u0041 gothicAhsa 𐌰 \U00010330 rocket 🚀 \U0001F680 cat 🐈 \U0001F408"
 
+# These should be the same - fromescc vs. round trip +1:
+  | fromescc    vs.
+   fromescc | escc | fromescc 
+  "sq ' dq " bsl \ nl 
+ cr  ht 	 vt  bsp  ff  null   nl 
+ A A sp   ht 	 Z Z ! ! weird 䅂 ☺ u263A ☃ u2603 π u03C0 A u0041 gothicAhsa 𐌰 U00010330 rocket 🚀 U0001F680 cat 🐈 U0001F408"
+  "sq ''dq ""bsl \
+l 
+¬r ht 		vt »sp ࣿ null   nl 
+ª A sp   ht 		Z Z ! ! weird 䅂 ☺ u263A ☃ u2603 π u03C0 A u0041 gothicAhsa U00010330 U00010330 rocket U0001F680 U0001F680 cat U0001F408 U0001F408"
+
+
 # Java -style escaping:
 var.EscapedStr:
   "sq \' dq \" bsl \\ nl \n cr \r ht \t vt \v bsp \b ff \f null \0 nl \012 A \101 sp \040 ht \x09 Z \x5A ! \x21 weird \x4142 ☺ \u263A ☃ \u2603 π \u03C0 A \u0041 gothicAhsa 𐌰 \U00010330 rocket 🚀 \U0001F680 cat 🐈 \U0001F408"
@@ -206,6 +237,20 @@ with filter | fromescjava :
 round trip  | fromescjava| escjava  :
   "sq \''dq \""bsl \\\nl \n\u000Acr \r\u000Dht \t\u0009vt v bsp \b\u0008ff \f\u000Cnull \0\u0000nl \n\u000AA A sp   ht x09 Z x5A ! x21 weird x4142 \u263A \u263A \u2603 \u2603 \u03C0 \u03C0 A A gothicAhsa \uD800\uDF30 \u00010330 rocket \uD83D\uDE80 \u0001F680 cat \uD83D\uDC08 \u0001F408"
   "sq \' dq \" bsl \\ nl \n cr \r ht \t vt \v bsp \b ff \f null \0 nl \012 A \101 sp \040 ht \x09 Z \x5A ! \x21 weird \x4142 ☺ \u263A ☃ \u2603 π \u03C0 A \u0041 gothicAhsa 𐌰 \U00010330 rocket 🚀 \U0001F680 cat 🐈 \U0001F408"
+
+# These should be the same - fromescjava vs. round trip +1:
+  | fromescjava    vs.
+   fromescjava | escjava | fromescjava 
+  "sq ' dq " bsl \ nl 
+ cr  ht 	 vt v bsp  ff  null   nl 
+ A A sp   ht x09 Z x5A ! x21 weird x4142 ☺ ☺ ☃ ☃ π π A A gothicAhsa 𐌰 0330 rocket 🚀 F680 cat 🐈 F408"
+  "sq ''dq ""bsl \
+l 
+
+cr ht 		vt v bsp ff null   nl 
+
+A A sp   ht x09 Z x5A ! x21 weird x4142 ☺ ☺ ☃ ☃ π π A A gothicAhsa 𐌰 0330 rocket 🚀 F680 cat 🐈 F408"
+
 
 # C# -style escaping (simple string):
 var.EscapedStrSimple:
@@ -228,28 +273,25 @@ round trip  | fromesccs | esccs  (+ original for comparison):
   "sq ' dq " bsl \ nl 
  cr  ht 	 vt  bsp  ff  null   nl  12 A \101 sp  40 ht 	 Z Z ! ! weird 䅂 ☺ ☺ ☃ "
 
-
-
-# TODO: conversion / filter fromesccs throws exception
 # C# -style escaping with more complex string:
 var.EscapedStr:
   "sq \' dq \" bsl \\ nl \n cr \r ht \t vt \v bsp \b ff \f null \0 nl \012 A \101 sp \040 ht \x09 Z \x5A ! \x21 weird \x4142 ☺ \u263A ☃ \u2603 π \u03C0 A \u0041 gothicAhsa 𐌰 \U00010330 rocket 🚀 \U0001F680 cat 🐈 \U0001F408"
 with filter | fromesccs :
   "sq ' dq " bsl \ nl 
- cr  ht 	 vt  bsp  ff  null   nl  12 A \101 sp  40 ht 	 Z Z ! ! weird 䅂 ☺ ☺ ☃ ☃ π π A A gothicAhsa 𐌰 0330 rocket 🚀 F680 cat 🐈 F408"
+ cr  ht 	 vt  bsp  ff  null   nl  12 A \101 sp  40 ht 	 Z Z ! ! weird 䅂 ☺ ☺ ☃ ☃ π π A A gothicAhsa 𐌰 𐌰 rocket 🚀 🚀 cat 🐈 🐈"
   "sq \' dq \" bsl \\ nl \n cr \r ht \t vt \v bsp \b ff \f null \0 nl \012 A \101 sp \040 ht \x09 Z \x5A ! \x21 weird \x4142 ☺ \u263A ☃ \u2603 π \u03C0 A \u0041 gothicAhsa 𐌰 \U00010330 rocket 🚀 \U0001F680 cat 🐈 \U0001F408"
 # ToDo: conversion below throws exception
 round trip | fromesccs | esccs  (+ original for comparison):
-  "sq \' dq \" bsl \\ nl \n cr \r ht \t vt \v bsp \b ff \f null \0 nl \012 A \\101 sp \040 ht \t Z Z ! ! weird \u4142 \u263A \u263A \u2603 \u2603 \u03C0 \u03C0 A A gothicAhsa \U00010330 \u00010330 rocket \U0001F680 \u0001F680 cat \U0001F408 \u0001F408"
+  "sq \' dq \" bsl \\ nl \n cr \r ht \t vt \v bsp \b ff \f null \0 nl \012 A \\101 sp \040 ht \t Z Z ! ! weird \u4142 \u263A \u263A \u2603 \u2603 \u03C0 \u03C0 A A gothicAhsa \U00010330 \U00010330 rocket \U0001F680 \U0001F680 cat \U0001F408 \U0001F408"
   "sq \' dq \" bsl \\ nl \n cr \r ht \t vt \v bsp \b ff \f null \0 nl \012 A \101 sp \040 ht \x09 Z \x5A ! \x21 weird \x4142 ☺ \u263A ☃ \u2603 π \u03C0 A \u0041 gothicAhsa 𐌰 \U00010330 rocket 🚀 \U0001F680 cat 🐈 \U0001F408"
 
 # These should be the same - fromesccs vs. round trip +1:
   | fromesccs    vs.
    fromesccs | esccs | fromesccs 
   "sq ' dq " bsl \ nl 
- cr  ht 	 vt  bsp  ff  null   nl  12 A \101 sp  40 ht 	 Z Z ! ! weird 䅂 ☺ ☺ ☃ ☃ π π A A gothicAhsa 𐌰 0330 rocket 🚀 F680 cat 🐈 F408"
+ cr  ht 	 vt  bsp  ff  null   nl  12 A \101 sp  40 ht 	 Z Z ! ! weird 䅂 ☺ ☺ ☃ ☃ π π A A gothicAhsa 𐌰 𐌰 rocket 🚀 🚀 cat 🐈 🐈"
   "sq ' dq " bsl \ nl 
- cr  ht 	 vt  bsp  ff  null   nl  12 A \101 sp  40 ht 	 Z Z ! ! weird 䅂 ☺ ☺ ☃ ☃ π π A A gothicAhsa 0330 0330 rocket F680 F680 cat F408 F408"
+ cr  ht 	 vt  bsp  ff  null   nl  12 A \101 sp  40 ht 	 Z Z ! ! weird 䅂 ☺ ☺ ☃ ☃ π π A A gothicAhsa 𐌰 𐌰 rocket 🚀 🚀 cat 🐈 🐈"
 
 
 # Base64 encoding / decoding:

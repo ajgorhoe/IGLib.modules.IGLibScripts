@@ -185,6 +185,25 @@ with filter | xmlencode :
 round trip  | xmlencode | xmldecode :
   "{{ var.ForXMLEncoding | xmlencode | xmldecode }}"
 
+# ESCAPE SEQUENCES IN STRINGS:
+# These filters provide conversion from strings with escape sequences in 
+# different languages (C/C++, Java, C#) and back from strings to escaped 
+# strings.
+# WARNING: In some languages, conversion from strings to escaped strings is not
+# unique because some characters can be escaped in different ways or not 
+# escaped at all (e.g. in C#, due to forms \xH{1,4}, \uHHHH, \UHHHHHHHH).
+# Tests usually start from escaped string (due to ease of representation in 
+# PowerShell) and compare round-trip-filtered result (e.g. obtained with 
+# filters "| fromesccs | esccs") with the initial escaped string. However,
+# these strings are not necessarily equal even if all filters work correctly,
+# because escaped representations are not unique, and double (round-trip)
+# filters can start with one correct representation and end with another.
+# To improve detection of errors, we can start with escaped string, applying
+# unescaping, and then do the round trip with escaping and another unescaping,
+# then compare the first unescaped string with the one obtained by the
+# round-trip application of the additional pair of filters. Strings obtained
+# in this way should always be equal.
+
 # C/C++ -style escaping:
 var.EscapedStr:
   "{{ var.EscapedStr }}"
@@ -194,6 +213,13 @@ round trip  | fromescc| escc  :
   "{{ var.EscapedStr | fromescc| escc  }}"
   "{{ var.EscapedStr }}"
 
+# These should be the same - fromescc vs. round trip +1:
+  | fromescc    vs.
+   fromescc | escc | fromescc 
+  "{{ var.EscapedStr | fromescc }}"
+  "{{ var.EscapedStr | fromescc | escc| fromescc }}"
+
+
 # Java -style escaping:
 var.EscapedStr:
   "{{ var.EscapedStr }}"
@@ -202,6 +228,13 @@ with filter | fromescjava :
 round trip  | fromescjava| escjava  :
   "{{ var.EscapedStr | fromescjava| escjava  }}"
   "{{ var.EscapedStr }}"
+
+# These should be the same - fromescjava vs. round trip +1:
+  | fromescjava    vs.
+   fromescjava | escjava | fromescjava 
+  "{{ var.EscapedStr | fromescjava }}"
+  "{{ var.EscapedStr | fromescjava | escjava| fromescjava }}"
+
 
 # C# -style escaping (simple string):
 var.EscapedStrSimple:
@@ -221,9 +254,6 @@ round trip  | fromesccs | esccs  (+ original for comparison):
   "{{ var.EscapedStrSimple | fromesccs }}"
   "{{ var.EscapedStrSimple | fromesccs | esccs| fromesccs }}"
 
-
-
-# TODO: conversion / filter fromesccs throws exception
 # C# -style escaping with more complex string:
 var.EscapedStr:
   "{{ var.EscapedStr }}"
