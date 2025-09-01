@@ -212,6 +212,17 @@ round trip  | fromesccs | esccs  (+ original for comparison):
   "{{ var.EscapedStrSimple | fromesccs | esccs }}"
   "{{ var.EscapedStrSimple }}"
 
+# Round trip that starts with an escaped string may not result in
+# the initial string due to non-uniquess: in escaped strings, Documents
+# characters can be represented in multiple ways.
+# But these should be the same - fromesccs vs. round trip +1:
+  | fromesccs    vs.
+   fromesccs | esccs | fromesccs 
+  "{{ var.EscapedStrSimple | fromesccs }}"
+  "{{ var.EscapedStrSimple | fromesccs | esccs| fromesccs }}"
+
+
+
 # TODO: conversion / filter fromesccs throws exception
 # C# -style escaping with more complex string:
 var.EscapedStr:
@@ -223,6 +234,12 @@ with filter | fromesccs :
 round trip | fromesccs | esccs  (+ original for comparison):
   "{{ var.EscapedStr | fromesccs | esccs }}"
   "{{ var.EscapedStr }}"
+
+# These should be the same - fromesccs vs. round trip +1:
+  | fromesccs    vs.
+   fromesccs | esccs | fromesccs 
+  "{{ var.EscapedStr | fromesccs }}"
+  "{{ var.EscapedStr | fromesccs | esccs| fromesccs }}"
 
 
 # Base64 encoding / decoding:
