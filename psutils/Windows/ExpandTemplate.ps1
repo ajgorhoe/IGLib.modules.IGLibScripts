@@ -669,6 +669,7 @@ function Filter-FromEscC {
 
 # ========================= Java escape / unescape =========================
 
+# Convert string to include Java-style escape sequences:
 function Escape-Java {
     param([string]$s)
     # Similar to C, but prefer \uXXXX for non-ASCII
@@ -693,6 +694,8 @@ function Escape-Java {
     }
     return $sb.ToString()
 }
+
+# Convert string from including Java-style escape sequences to literal (old version):
 function Unescape-Java {
     param([string]$s)
     $sb = New-Object System.Text.StringBuilder
@@ -732,61 +735,136 @@ function Unescape-Java {
     return $sb.ToString()
 }
 
+# Convert literal strings to include Java-style escape sequences:
 function Filter-EscJava {
-    <#
-      .SYNOPSIS
-        Escapes a string using Java-style sequences.
+    [CmdletBinding()]
+    param([Parameter(Mandatory)][string]$Text)
 
-      .NOTES
-        - Escapes: \\, \', \", \b, \t, \n, \f, \r
-        - Control/non-ASCII -> \uXXXX
-        - Supplementary code points -> two surrogate \uXXXX pairs (Java uses UTF-16)
-    #>
-    param([Parameter(Mandatory)][string]$Value)
+    $sb = New-Object System.Text.StringBuilder
 
-    $sb = [System.Text.StringBuilder]::new()
-    $i = 0
-    while ($i -lt $Value.Length) {
-        $ch = $Value[$i]
+    # Emit one UTF-16 code unit as Java \uXXXX
+    function _Emit-U { param([int]$unit) [void]$sb.Append(('\u{0:X4}' -f $unit)) }
 
-        if ([char]::IsHighSurrogate($ch) -and $i + 1 -lt $Value.Length -and [char]::IsLowSurrogate($Value[$i+1])) {
-            # Java expects surrogate pair as two \uXXXX
-            $hi = [int][char]$ch
-            $lo = [int][char]$Value[$i+1]
-            [void]$sb.Append('\u')
-            [void]$sb.Append(('{0:X4}' -f $hi))
-            [void]$sb.Append('\u')
-            [void]$sb.Append(('{0:X4}' -f $lo))
-            $i += 2
-            continue
+    $enum = [System.Globalization.StringInfo]::GetTextElementEnumerator($Text)
+    while ($enum.MoveNext()) {
+        $te = $enum.GetTextElement()
+
+        # Scalar codepoint of this text element (handles BMP and surrogate pairs)
+        $cp = [char]::ConvertToUtf32($te, 0)
+
+        if ($cp -le 0xFFFF) {
+            # Single UTF-16 unit (BMP)
+            $ch = [char]$cp
+            switch ($ch) {
+                '"'  { [void]$sb.Append('\"'); continue }
+                "'"  { [void]$sb.Append("\'"); continue }
+                '\'  { [void]$sb.Append('\\'); continue }
+                "`b" { [void]$sb.Append('\b'); continue }
+                "`t" { [void]$sb.Append('\t'); continue }
+                "`n" { [void]$sb.Append('\n'); continue }
+                "`f" { [void]$sb.Append('\f'); continue }
+                "`r" { [void]$sb.Append('\r'); continue }
+                default {
+                    # Keep printable ASCII literal; escape control/non-ASCII as \uXXXX
+                    $code = [int]$ch
+                    if ([char]::IsControl($ch) -or $code -lt 0x20 -or $code -gt 0x7E) {
+                        _Emit-U $code
+                    } else {
+                        [void]$sb.Append($ch)
+                    }
+                }
+            }
+        } else {
+            # Supplementary plane: emit surrogate pair as two \uXXXX (Java canonical form)
+            $tmp  = $cp - 0x10000
+            $high = 0xD800 + ($tmp -shr 10)
+            $low  = 0xDC00 + ($tmp -band 0x3FF)
+            _Emit-U $high
+            _Emit-U $low
         }
-
-        $code = [int][char]$ch
-        switch ($code) {
-            92 { [void]$sb.Append('\'); [void]$sb.Append('\'); $i++; continue } # \
-            34 { [void]$sb.Append('\'); [void]$sb.Append('"'); $i++; continue } # "
-            39 { [void]$sb.Append('\'); [void]$sb.Append("'"); $i++; continue } # '
-
-            8  { [void]$sb.Append('\'); [void]$sb.Append('b'); $i++; continue }
-            9  { [void]$sb.Append('\'); [void]$sb.Append('t'); $i++; continue }
-            10 { [void]$sb.Append('\'); [void]$sb.Append('n'); $i++; continue }
-            12 { [void]$sb.Append('\'); [void]$sb.Append('f'); $i++; continue }
-            13 { [void]$sb.Append('\'); [void]$sb.Append('r'); $i++; continue }
-            0  { [void]$sb.Append('\'); [void]$sb.Append('0'); $i++; continue }
-        }
-
-        if ($code -lt 0x20 -or $code -gt 0x7E) {
-            [void]$sb.Append('\u')
-            [void]$sb.Append(('{0:X4}' -f $code))
-            $i++
-            continue
-        }
-
-        [void]$sb.Append($ch)
-        $i++
     }
+
     $sb.ToString()
 }
+
+# Convert strings including Java-style escape sequences to literal form:
+function Filter-FromEscJava {
+    [CmdletBinding()]
+    param([Parameter(Mandatory)][string]$Text)
+
+    $sb  = New-Object System.Text.StringBuilder
+    $len = $Text.Length
+    $i   = 0
+
+    :outer while ($i -lt $len) {
+        $ch = $Text[$i]
+        if ($ch -ne '\') { [void]$sb.Append($ch); $i++; continue outer }
+
+        if ($i + 1 -ge $len) { [void]$sb.Append('\'); break }
+        $i++
+        $esc = $Text[$i]
+
+        switch -CaseSensitive ($esc) {
+            'b' { [void]$sb.Append([char]8)  ; $i++; continue outer }
+            't' { [void]$sb.Append([char]9)  ; $i++; continue outer }
+            'n' { [void]$sb.Append([char]10) ; $i++; continue outer }
+            'f' { [void]$sb.Append([char]12) ; $i++; continue outer }
+            'r' { [void]$sb.Append([char]13) ; $i++; continue outer }
+            '"' { [void]$sb.Append('"')      ; $i++; continue outer }
+            "'" { [void]$sb.Append("'")      ; $i++; continue outer }
+            '\' { [void]$sb.Append('\')      ; $i++; continue outer }
+
+            # \uXXXX — exactly 4 hex digits per Java spec
+            'u' {
+                if ($i + 4 -ge $len) { [void]$sb.Append('\'); [void]$sb.Append('u'); $i++; continue outer }
+                $hex = $Text.Substring($i+1,4)
+                if ($hex -notmatch '^[0-9A-Fa-f]{4}$') {
+                    [void]$sb.Append('\'); [void]$sb.Append("u$hex"); $i += 5; continue outer
+                }
+                $unit = [Convert]::ToInt32($hex,16)
+                [void]$sb.Append([char]$unit)
+                $i += 5
+
+                # If we appended a high surrogate and the next thing is \uDCxx, append it (pair)
+                if ($unit -ge 0xD800 -and $unit -le 0xDBFF) {
+                    if ($i + 5 -le $len -and $Text[$i] -eq '\' -and $Text[$i+1] -eq 'u') {
+                        $hex2 = $Text.Substring($i+2,4)
+                        if ($hex2 -match '^[0-9A-Fa-f]{4}$') {
+                            $unit2 = [Convert]::ToInt32($hex2,16)
+                            if ($unit2 -ge 0xDC00 -and $unit2 -le 0xDFFF) {
+                                [void]$sb.Append([char]$unit2)
+                                $i += 6
+                            }
+                        }
+                    }
+                }
+                continue outer
+            }
+
+            # Legacy Java octal escapes: \0 .. \377 (up to 3 octal digits)
+            { $_ -ge '0' -and $_ -le '7' } {
+                $start  = $i
+                $digits = 1
+                while ($digits -lt 3 -and $i + 1 -lt $len -and $Text[$i+1] -ge '0' -and $Text[$i+1] -le '7') {
+                    $i++; $digits++
+                }
+                $oct = $Text.Substring($start, $digits)
+                $val = [Convert]::ToInt32($oct, 8)
+                [void]$sb.Append([char]$val)
+                $i++
+                continue outer
+            }
+
+            default {
+                # Not a recognized Java escape — keep literally
+                [void]$sb.Append('\'); [void]$sb.Append($esc); $i++; continue outer
+            }
+        }
+    }
+
+    $sb.ToString()
+}
+
 
 
 function Convert-CodePointToString {
@@ -800,7 +878,7 @@ function Convert-CodePointToString {
 
 # ========================= C# escape / unescape =========================
 
-# Convert string to C#-style escape sequences:
+# Convert literal string to include C#-style escape sequences:
 function Escape-Cs {
     param([string]$s)
     $sb = New-Object System.Text.StringBuilder
@@ -830,7 +908,7 @@ function Escape-Cs {
 }
 
 
-# Convert string from C#-style escape sequences (old version, does not handle \x or octal):
+# Convert string from including C#-style escape sequences to literal form (old version):
 function Unescape-Cs {
     param([string]$s)
     $sb = New-Object System.Text.StringBuilder
@@ -865,85 +943,73 @@ function Unescape-Cs {
     return $sb.ToString()
 }
 
-# Convert string to C#-style escape sequences:
-function Filter-EscCs {
-    <#
-      C#-style escape:
-        - Short escapes for \n \r \t \v \b \f \0 \\ \" \'
-        - Printable ASCII → literal
-        - Other BMP → \uXXXX
-        - Supplementary → \UXXXXXXXX
-      Uses labeled loop so each char is emitted exactly once.
-    #>
+# Convert literal string to include C#-style escape sequences:
+function Filter-EscC {
     [CmdletBinding()]
     param([Parameter(Mandatory)][string]$Text)
 
-    $sb  = New-Object System.Text.StringBuilder
-    $len = $Text.Length
-    $i   = 0
+    $sb = New-Object System.Text.StringBuilder
 
-    :outer while ($i -lt $len) {
-        $ch = $Text[$i]
+    function _Emit-X2 { param([int]$val) [void]$sb.Append(('\x{0:X2}' -f ($val -band 0xFF))) }
+    function _Emit-U4 { param([int]$val) [void]$sb.Append(('\u{0:X4}' -f ($val -band 0xFFFF))) }
+    function _Emit-U8 { param([int]$val) [void]$sb.Append(('\U{0:X8}' -f ($val -band 0xFFFFFFFF))) }
 
-        # Surrogate pair → \UXXXXXXXX
-        if ([char]::IsHighSurrogate($ch) -and $i + 1 -lt $len -and [char]::IsLowSurrogate($Text[$i+1])) {
-            $high   = [uint32][char]$ch
-            $low    = [uint32][char]$Text[$i+1]
-            $scalar = 0x10000 + (($high - 0xD800) -shl 10) + ($low - 0xDC00)
-            [void]$sb.Append(('\U{0}' -f $scalar.ToString('X8')))
-            $i += 2
-            continue outer
+    $teEnum = [System.Globalization.StringInfo]::GetTextElementEnumerator($Text)
+    while ($teEnum.MoveNext()) {
+        $te = $teEnum.GetTextElement()
+        $cp = [char]::ConvertToUtf32($te, 0)
+
+        if ($cp -le 0xFFFF) {
+            $ch = [char]$cp
+            switch ($ch) {
+                "`a" { [void]$sb.Append('\a'); continue } # 0x07
+                "`b" { [void]$sb.Append('\b'); continue } # 0x08
+                "`t" { [void]$sb.Append('\t'); continue } # 0x09
+                "`n" { [void]$sb.Append('\n'); continue } # 0x0A
+                "`v" { [void]$sb.Append('\v'); continue } # 0x0B
+                "`f" { [void]$sb.Append('\f'); continue } # 0x0C
+                "`r" { [void]$sb.Append('\r'); continue } # 0x0D
+                '"'  { [void]$sb.Append('\"'); continue }
+                "'"  { [void]$sb.Append("\'"); continue }
+                '\'  { [void]$sb.Append('\\'); continue }
+                default {
+                    $code = [int]$ch
+                    # printable ASCII range?
+                    if ($code -ge 0x20 -and $code -le 0x7E) {
+                        [void]$sb.Append($ch)
+                    } elseif ($code -le 0x1F -or $code -eq 0x7F) {
+                        # other control -> \xHH (2 hex digits)
+                        _Emit-X2 $code
+                    } else {
+                        # non-ASCII: prefer \uXXXX for BMP
+                        _Emit-U4 $code
+                    }
+                }
+            }
+        } else {
+            # Supplementary plane: C supports \UXXXXXXXX (canonical)
+            _Emit-U8 $cp
         }
-
-        $code = [int][char]$ch
-        switch ($code) {
-            10 { [void]$sb.Append('\n');  $i++; continue outer }  # LF
-            13 { [void]$sb.Append('\r');  $i++; continue outer }  # CR
-            9  { [void]$sb.Append('\t');  $i++; continue outer }  # HT
-            11 { [void]$sb.Append('\v');  $i++; continue outer }  # VT
-            8  { [void]$sb.Append('\b');  $i++; continue outer }  # BS
-            12 { [void]$sb.Append('\f');  $i++; continue outer }  # FF
-            0  { [void]$sb.Append('\0');  $i++; continue outer }  # NUL
-            34 { [void]$sb.Append('\"');  $i++; continue outer }  # "
-            39 { [void]$sb.Append("\'");  $i++; continue outer }  # '
-            92 { [void]$sb.Append('\\');  $i++; continue outer }  # \
-        }
-
-        if ($code -lt 0x20 -or $code -eq 0x7F) {
-            [void]$sb.Append(('\u{0}' -f $code.ToString('X4')))
-            $i++; continue outer
-        }
-
-        if ($code -lt 0x80) {
-            [void]$sb.Append([char]$code)
-            $i++; continue outer
-        }
-
-        [void]$sb.Append(('\u{0}' -f $code.ToString('X4')))
-        $i++; continue outer
     }
 
     $sb.ToString()
 }
 
-
-
-# Convert string from C#-style escape sequences:
-function Filter-FromEscCs {
-    <#
-      C#-style unescape:
-        \\ \' \" \0 \a \b \f \n \r \t \v
-        \xH{1,4}   -> one UTF-16 code unit (greedy)
-        \uHHHH     -> one UTF-16 code unit (exact 4)
-        \UHHHHHHHH -> Unicode scalar value (surrogate pair if > 0xFFFF)
-      Octal (\012 etc.) is not a C# escape → left as literal "\012".
-    #>
+# Convert string including C#-style escape sequences to literal form:
+function Filter-FromEscC {
     [CmdletBinding()]
     param([Parameter(Mandatory)][string]$Text)
 
     $sb  = New-Object System.Text.StringBuilder
     $len = $Text.Length
     $i   = 0
+
+    function _HexVal([char]$c) {
+        if     ($c -ge '0' -and $c -le '9') { return [int]$c - [int]'0' }
+        elseif ($c -ge 'a' -and $c -le 'f') { return 10 + ([int]$c - [int]'a') }
+        elseif ($c -ge 'A' -and $c -le 'F') { return 10 + ([int]$c - [int]'A') }
+        else { return -1 }
+    }
 
     :outer while ($i -lt $len) {
         $ch = $Text[$i]
@@ -954,62 +1020,88 @@ function Filter-FromEscCs {
         $esc = $Text[$i]
 
         switch -CaseSensitive ($esc) {
-            'a' { [void]$sb.Append([char]7)  ; $i++; continue outer }
+            'a' { [void]$sb.Append([char]7)  ; $i++; continue outer }  # bell
             'b' { [void]$sb.Append([char]8)  ; $i++; continue outer }
-            'f' { [void]$sb.Append([char]12) ; $i++; continue outer }
-            'n' { [void]$sb.Append([char]10) ; $i++; continue outer }
-            'r' { [void]$sb.Append([char]13) ; $i++; continue outer }
             't' { [void]$sb.Append([char]9)  ; $i++; continue outer }
+            'n' { [void]$sb.Append([char]10) ; $i++; continue outer }
             'v' { [void]$sb.Append([char]11) ; $i++; continue outer }
-            '0' { [void]$sb.Append([char]0)  ; $i++; continue outer }
+            'f' { [void]$sb.Append([char]12) ; $i++; continue outer }
+            'r' { [void]$sb.Append([char]13) ; $i++; continue outer }
             '"' { [void]$sb.Append('"')      ; $i++; continue outer }
             "'" { [void]$sb.Append("'")      ; $i++; continue outer }
             '\' { [void]$sb.Append('\')      ; $i++; continue outer }
 
+            # \x... — variable-length hex, at least one hex digit
             'x' {
                 $i++
-                $start  = $i
+                if ($i -ge $len) { [void]$sb.Append('\x'); break }
+                $val = 0
                 $digits = 0
-                while ($i -lt $len -and $digits -lt 4 -and [System.Uri]::IsHexDigit($Text[$i])) { $digits++; $i++ }
+                while ($i -lt $len) {
+                    $h = _HexVal $Text[$i]
+                    if ($h -lt 0) { break }
+                    $val = (($val -shl 4) -bor $h)
+                    $digits++
+                    $i++
+                }
                 if ($digits -eq 0) {
-                    [void]$sb.Append('\'); [void]$sb.Append('x')
+                    # not a valid \x escape -> keep literally
+                    [void]$sb.Append('\x')
                 } else {
-                    $unit = [Convert]::ToInt32($Text.Substring($start,$digits),16)
-                    [void]$sb.Append([char]$unit)
+                    # Convert parsed scalar (truncate to valid Unicode range)
+                    if ($val -gt 0x10FFFF) { $val = 0xFFFD }
+                    [void]$sb.Append([char]::ConvertFromUtf32($val))
                 }
                 continue outer
             }
 
+            # \uXXXX — exactly 4 hex digits
             'u' {
-                if ($i + 4 -ge $len) { [void]$sb.Append('\'); [void]$sb.Append('u'); $i++; continue outer }
+                if ($i + 4 -ge $len) { [void]$sb.Append('\u'); $i++; continue outer }
                 $hex = $Text.Substring($i+1,4)
-                if ($hex -notmatch '^[0-9A-Fa-f]{4}$') { [void]$sb.Append('\'); [void]$sb.Append("u$hex"); $i+=5; continue outer }
-                $unit = [Convert]::ToInt32($hex,16)
-                [void]$sb.Append([char]$unit)
+                if ($hex -notmatch '^[0-9A-Fa-f]{4}$') {
+                    [void]$sb.Append('\'); [void]$sb.Append("u$hex")
+                    $i += 5
+                    continue outer
+                }
+                $val = [Convert]::ToInt32($hex,16)
+                [void]$sb.Append([char]$val)
                 $i += 5
                 continue outer
             }
 
+            # \UXXXXXXXX — exactly 8 hex digits
             'U' {
-                if ($i + 8 -ge $len) { [void]$sb.Append('\'); [void]$sb.Append('U'); $i++; continue outer }
+                if ($i + 8 -ge $len) { [void]$sb.Append('\U'); $i++; continue outer }
                 $hex = $Text.Substring($i+1,8)
-                if ($hex -notmatch '^[0-9A-Fa-f]{8}$') { [void]$sb.Append('\'); [void]$sb.Append("U$hex"); $i+=9; continue outer }
-                [uint32]$scalar = [Convert]::ToUInt32($hex,16)
-                if ($scalar -le 0xFFFF) {
-                    [void]$sb.Append([char]$scalar)
-                } else {
-                    $tmp  = $scalar - 0x10000
-                    $high = 0xD800 + ($tmp -shr 10)
-                    $low  = 0xDC00 + ($tmp -band 0x3FF)
-                    [void]$sb.Append([char]$high)
-                    [void]$sb.Append([char]$low)
+                if ($hex -notmatch '^[0-9A-Fa-f]{8}$') {
+                    [void]$sb.Append('\'); [void]$sb.Append("U$hex")
+                    $i += 9
+                    continue outer
                 }
+                $val = [Convert]::ToInt32($hex,16)
+                if ($val -gt 0x10FFFF) { $val = 0xFFFD }
+                [void]$sb.Append([char]::ConvertFromUtf32($val))
                 $i += 9
                 continue outer
             }
 
+            # Octal \0..\777 (up to 3 digits, first already in $esc)
+            { $_ -ge '0' -and $_ -le '7' } {
+                $start = $i
+                $digits = 1
+                while ($digits -lt 3 -and $i + 1 -lt $len -and $Text[$i+1] -ge '0' -and $Text[$i+1] -le '7') {
+                    $i++; $digits++
+                }
+                $oct = $Text.Substring($start, $digits)
+                $val = [Convert]::ToInt32($oct, 8)
+                [void]$sb.Append([char]$val)
+                $i++
+                continue outer
+            }
+
             default {
-                # Not a recognized C# escape (e.g., \012): keep literally
+                # Unknown escape — preserve literally
                 [void]$sb.Append('\'); [void]$sb.Append($esc); $i++; continue outer
             }
         }
@@ -1294,8 +1386,8 @@ function Apply-Filters {
                 $Value = Filter-EscJava      (As-String $Value)
             }
             'fromescjava' { 
-                $Value = Unescape-Java    (As-String $Value) 
-                # $Value = Filter-FromEscJava    (As-String $Value) 
+                # $Value = Unescape-Java    (As-String $Value) 
+                $Value = Filter-FromEscJava  (As-String $Value) 
            }
 
             'esccs' { 
