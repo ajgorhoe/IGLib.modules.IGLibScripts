@@ -551,12 +551,11 @@ function Filter-EscC {
     while ($i -lt $len) {
         $c = [int][char]$Text[$i]
 
-        # Handle surrogate pairs manually (no System.Text.Rune)
+        # surrogate pair handling (unchanged)
         if ($c -ge 0xD800 -and $c -le 0xDBFF -and ($i + 1) -lt $len) {
             $c2 = [int][char]$Text[$i+1]
             if ($c2 -ge 0xDC00 -and $c2 -le 0xDFFF) {
                 $v  = (($c - 0xD800) -shl 10) + ($c2 - 0xDC00) + 0x10000
-                # For C style we can emit \UXXXXXXXX (or leave as literal). We choose escape for portability.
                 Append-UnicodeEscape $sb $v
                 $i += 2
                 continue
@@ -574,19 +573,22 @@ function Filter-EscC {
             0x22 { [void]$sb.Append('\"'); $i++; continue } # "
             0x27 { [void]$sb.Append("\'"); $i++; continue } # '
             0x3F { [void]$sb.Append('\?'); $i++; continue } # ?
-            0x5C { [void]$sb.Append('\\'); $i++; continue } # backslash
+            0x5C { [void]$sb.Append('\\'); $i++; continue } # \
 
             default {
                 if ($c -lt 0x20 -or $c -eq 0x7F) {
-                    # Control char -> \xHH
-                    [void]$sb.Append('\x')
-                    [void]$sb.Append($c.ToString('X2'))
+                    if ($c -eq 0x00) {
+                        # Prefer canonical \0 for NUL
+                        [void]$sb.Append('\0')
+                    } else {
+                        # Other control chars fall back to \xHH
+                        [void]$sb.Append('\x')
+                        [void]$sb.Append($c.ToString('X2'))
+                    }
                 } elseif ($c -le 0x7E) {
-                    # Printable ASCII
-                    [void]$sb.Append([char]$c)
+                    [void]$sb.Append([char]$c)       # printable ASCII
                 } else {
-                    # Non-ASCII BMP: \uXXXX
-                    Append-UnicodeEscape $sb $c
+                    Append-UnicodeEscape $sb $c       # non-ASCII BMP -> \uXXXX
                 }
                 $i++
             }
