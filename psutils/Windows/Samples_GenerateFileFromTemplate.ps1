@@ -56,8 +56,8 @@ $ForXMLEncoding = "`"Hello & Goodbye!`"  5 < 6 & 7 > 4  <a id=e55>#e55</a>"
 
 
 # Run the template engine on the partial template file:
-./ExpandTemplatePartial.ps1 -Template TemplateExamplePartial.txt.tmpl  `
-  -Output TemplateExample.txt  `
+./ExpandTemplate.ps1 -Template TemplateExamplePartial.txt.tmpl  `
+  -Output TemplateExamplePartial.txt  `
   -Var @( "MyVarSimple=$MyVarSimple", "MyVarLong=$MyVarLong",
     "PathWin=$PathWin", "PathUnix=$PathUnix",
     "DirtyRelativePath=$DirtyRelativePath", "DirtyAbsolutePath=$DirtyAbsolutePath",
@@ -65,6 +65,8 @@ $ForXMLEncoding = "`"Hello & Goodbye!`"  5 < 6 & 7 > 4  <a id=e55>#e55</a>"
     "ForUrlEncoding=$ForUrlEncoding", "ForXMLEncoding=$ForXMLEncoding" )
 
 
+
+    
 # Quicck test for C/c++ escaping/unescaping filters:
 
 function Test-CStyleEscapes {
