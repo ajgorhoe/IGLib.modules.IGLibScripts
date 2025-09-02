@@ -69,6 +69,20 @@ function Filter-EscC {
 function Filter-FromEscC {
     param([Parameter(Mandatory)][string]$Text)
 
+    # --- PRE-PASS: normalize \UXXXXXXXX to real Unicode (surrogate pairs as needed) ---
+    $Text = [System.Text.RegularExpressions.Regex]::Replace(
+        $Text,
+        '\\U([0-9A-Fa-f]{8})',
+        { param($m)
+            $hex = $m.Groups[1].Value
+            $cp  = [Convert]::ToInt32($hex, 16)
+            if ($cp -gt 0x10FFFF -or ($cp -ge 0xD800 -and $cp -le 0xDFFF)) {
+                throw "Invalid Unicode code point U+$($hex.ToUpper())."
+            }
+            [System.Char]::ConvertFromUtf32($cp)
+        }
+    )
+
     $sb  = [System.Text.StringBuilder]::new()
     $i   = 0
     $len = $Text.Length
@@ -125,7 +139,7 @@ function Filter-FromEscC {
                     if (($j - $start) -ge 8) { break }
                     $j++
                 }
-                if ($j -eq $start) { throw "Invalid \x escape at index ${i}: expected 1+ hex digits." }
+                if ($j -eq $start) { throw "Invalid \x escape at index $i: expected 1+ hex digits." }
                 $hex = $Text.Substring($start, $j - $start)
                 $val = Parse-Hex $hex
                 Append-CodePoint $sb $val
@@ -135,7 +149,7 @@ function Filter-FromEscC {
 
             'u' {
                 # \uXXXX (exactly 4 hex)
-                if (($i + 4) -ge $len) { throw "Invalid \u escape at index ${i}: expected 4 hex digits." }
+                if (($i + 4) -ge $len) { throw "Invalid \u escape at index $i: expected 4 hex digits." }
                 $hex = $Text.Substring($i + 1, 4)
                 if ($hex -notmatch '^[0-9A-Fa-f]{4}$') { throw "Invalid \u escape digits '$hex' at index $i." }
                 $val = Parse-Hex $hex
@@ -145,16 +159,9 @@ function Filter-FromEscC {
             }
 
             'U' {
-                # \UXXXXXXXX (exactly 8 hex, full code point)
-                if (($i + 8) -ge $len) { throw "Invalid \U escape at index ${i}: expected 8 hex digits." }
-                $hex = $Text.Substring($i + 1, 8)
-                if ($hex -notmatch '^[0-9A-Fa-f]{8}$') { throw "Invalid \U escape digits '$hex' at index $i." }
-                $cp = [Convert]::ToInt32($hex, 16)
-                if ($cp -gt 0x10FFFF -or ($cp -ge 0xD800 -and $cp -le 0xDFFF)) {
-                    throw "Invalid Unicode code point U+$($hex.ToUpper())."
-                }
-                [void]$sb.Append([System.Char]::ConvertFromUtf32($cp))
-                $i += 9
+                # \UXXXXXXXX already normalized by pre-pass; keep as literal in case one slipped through
+                [void]$sb.Append('U')
+                $i++
                 continue
             }
 
@@ -172,6 +179,7 @@ function Filter-FromEscC {
                     $i = $start + $digits
                     continue
                 }
+
                 # Unknown escape => take next char literally
                 [void]$sb.Append($esc)
                 $i++
