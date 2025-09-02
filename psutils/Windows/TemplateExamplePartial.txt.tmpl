@@ -1,0 +1,15 @@
+
+# C/C++ -style escaping:
+var.EscapedStr:
+  "{{ var.EscapedStr }}"
+with filter | fromescc :
+  "{{ var.EscapedStr | fromescc }}"
+round trip  | fromescc| escc  :
+  "{{ var.EscapedStr | fromescc| escc  }}"
+  "{{ var.EscapedStr }}"
+
+# These should be the same - fromescc vs. round trip +1:
+  | fromescc    vs.
+   fromescc | escc | fromescc 
+  "{{ var.EscapedStr | fromescc }}"
+  "{{ var.EscapedStr | fromescc | escc| fromescc }}"
