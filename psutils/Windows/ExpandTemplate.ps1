@@ -530,7 +530,13 @@ function Unescape-C {
     return $sb.ToString()
 }
 
-# Convert literal string to a string with C/C++-style escape sequences:
+# Convert a literal string to a C/C++-style escaped string.
+# Rules:
+#   - Standard short escapes: \0 \a \b \t \n \v \f \r \" \' \? \\
+#   - Other control chars (and DEL 0x7F): \u00HH (fixed-length, unambiguous)
+#   - Printable ASCII (0x20..0x7E except the ones above): literal
+#   - Non-ASCII BMP (<= 0xFFFF): \uXXXX
+#   - Non-BMP (> 0xFFFF): \UXXXXXXXX (surrogate pair form)
 function Filter-EscC {
     param([Parameter(Mandatory)][string]$Text)
 
@@ -551,46 +557,49 @@ function Filter-EscC {
     while ($i -lt $len) {
         $c = [int][char]$Text[$i]
 
-        # surrogate pair handling (unchanged)
+        # Detect surrogate pair (no System.Text.Rune dependency)
         if ($c -ge 0xD800 -and $c -le 0xDBFF -and ($i + 1) -lt $len) {
             $c2 = [int][char]$Text[$i+1]
             if ($c2 -ge 0xDC00 -and $c2 -le 0xDFFF) {
-                $v  = (($c - 0xD800) -shl 10) + ($c2 - 0xDC00) + 0x10000
-                Append-UnicodeEscape $sb $v
+                $cp = (($c - 0xD800) -shl 10) + ($c2 - 0xDC00) + 0x10000
+                Append-UnicodeEscape $sb $cp
                 $i += 2
                 continue
             }
         }
 
         switch ($c) {
-            0x07 { [void]$sb.Append('\a'); $i++; continue }
-            0x08 { [void]$sb.Append('\b'); $i++; continue }
-            0x09 { [void]$sb.Append('\t'); $i++; continue }
-            0x0A { [void]$sb.Append('\n'); $i++; continue }
-            0x0B { [void]$sb.Append('\v'); $i++; continue }
-            0x0C { [void]$sb.Append('\f'); $i++; continue }
-            0x0D { [void]$sb.Append('\r'); $i++; continue }
-            0x22 { [void]$sb.Append('\"'); $i++; continue } # "
-            0x27 { [void]$sb.Append("\'"); $i++; continue } # '
-            0x3F { [void]$sb.Append('\?'); $i++; continue } # ?
-            0x5C { [void]$sb.Append('\\'); $i++; continue } # \
+            0x00 { [void]$sb.Append('\0');  $i++; continue }
+            0x07 { [void]$sb.Append('\a');  $i++; continue }
+            0x08 { [void]$sb.Append('\b');  $i++; continue }
+            0x09 { [void]$sb.Append('\t');  $i++; continue }
+            0x0A { [void]$sb.Append('\n');  $i++; continue }
+            0x0B { [void]$sb.Append('\v');  $i++; continue }
+            0x0C { [void]$sb.Append('\f');  $i++; continue }
+            0x0D { [void]$sb.Append('\r');  $i++; continue }
+            0x22 { [void]$sb.Append('\"');  $i++; continue } # "
+            0x27 { [void]$sb.Append("\'");  $i++; continue } # '
+            0x3F { [void]$sb.Append('\?');  $i++; continue } # ?
+            0x5C { [void]$sb.Append('\\');  $i++; continue } # backslash
 
             default {
                 if ($c -lt 0x20 -or $c -eq 0x7F) {
-                    if ($c -eq 0x00) {
-                        # Prefer canonical \0 for NUL
-                        [void]$sb.Append('\0')
-                    } else {
-                        # Other control chars fall back to \xHH
-                        [void]$sb.Append('\x')
-                        [void]$sb.Append($c.ToString('X2'))
-                    }
-                } elseif ($c -le 0x7E) {
-                    [void]$sb.Append([char]$c)       # printable ASCII
-                } else {
-                    Append-UnicodeEscape $sb $c       # non-ASCII BMP -> \uXXXX
+                    # Other control chars → canonical, fixed-length \u00HH
+                    [void]$sb.Append('\u')
+                    # build 4 hex digits with leading zeros for the low byte
+                    [void]$sb.Append(('00' + $c.ToString('X2'))[-4..-1] -join '')
+                    $i++
                 }
-                $i++
+                elseif ($c -le 0x7E) {
+                    # Printable ASCII
+                    [void]$sb.Append([char]$c)
+                    $i++
+                }
+                else {
+                    # Non-ASCII → \uXXXX or \UXXXXXXXX
+                    Append-UnicodeEscape $sb $c
+                    $i++
+                }
             }
         }
     }

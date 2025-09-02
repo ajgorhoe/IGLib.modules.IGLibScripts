@@ -41,7 +41,7 @@ $PathWin = "C:\Program Files (x86)\Microsoft SQL Server\"
 $PathUnix = "~/doc/MyDoc.md"
 $DirtyRelativePath = "../.\.\.//../users//\\/aa/./x.xml"
 $DirtyAbsolutePath = "C:\users\\Uporabnik/.//..\Uporabnik/doc/\\/Mydoc.dox"
-$EscapedStr = "sq \' dq \`" bsl \\ nl \n cr \r ht \t vt \v bsp \b ff \f null \0 nl \012 A \101 sp \040 ht \x09 Z \x5A ! \x21 weird \x4142 ☺ \u263A ☃ \u2603 π \u03C0 A \u0041 gothicAhsa 𐌰 \U00010330 rocket 🚀 \U0001F680 cat 🐈 \U0001F408"
+$EscapedStr = "sq \' dq \`" bsl \\ nl \n cr \r ht \t vt \v bsp \b ff \f null \0 nl \012 ETX \x03 ACK \x06 DEL \x7F A \101 sp \040 ht \x09 Z \x5A ! \x21 weird \x4142 ☺ \u263A ☃ \u2603 π \u03C0 A \u0041 gothicAhsa 𐌰 \U00010330 rocket 🚀 \U0001F680 cat 🐈 \U0001F408"
 $EscapedStrSimple = "sq \' dq \`" bsl \\ nl \n cr \r ht \t vt \v bsp \b ff \f null \0 nl \012 A \101 sp \040 ht \x09 Z \x5A ! \x21 weird \x4142 ☺ \u263A ☃ "
 $ForUrlEncoding = "Café Münchën!.#.$.&. .'.(.).*.+.,./.:.;.=.?.@.[.]"
 $ForXMLEncoding = "`"Hello & Goodbye!`"  5 < 6 & 7 > 4  <a id=e55>#e55</a>"
@@ -53,6 +53,10 @@ $ForXMLEncoding = "`"Hello & Goodbye!`"  5 < 6 & 7 > 4  <a id=e55>#e55</a>"
     "DirtyRelativePath=$DirtyRelativePath", "DirtyAbsolutePath=$DirtyAbsolutePath",
     "EscapedStr=$EscapedStr", "EscapedStrSimple=$EscapedStrSimple", 
     "ForUrlEncoding=$ForUrlEncoding", "ForXMLEncoding=$ForXMLEncoding" )
+
+
+
+
 
 
 # Run the template engine on the partial template file:
@@ -67,7 +71,7 @@ $ForXMLEncoding = "`"Hello & Goodbye!`"  5 < 6 & 7 > 4  <a id=e55>#e55</a>"
 
 
     
-# Quicck test for C/c++ escaping/unescaping filters:
+# Quick test for C/c++ escaping/unescaping filters:
 
 function Test-CStyleEscapes {
     param(
