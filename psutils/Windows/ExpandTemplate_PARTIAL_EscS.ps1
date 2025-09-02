@@ -153,11 +153,33 @@ function Filter-FromEscC {
             }
 
             'U' {
-                # \UXXXXXXXX (exactly 8 hex)
-                if ($i + 8 -ge $len) { throw "Invalid \U escape at index ${i}: expected 8 hex digits." }
+                # \UXXXXXXXX — exactly 8 hex digits (Unicode scalar)
+                if ($i + 8 -ge $len) {
+                    throw "Invalid \U escape at index ${i}: expected 8 hex digits."
+                }
+
                 $hex = $Text.Substring($i + 1, 8)
-                $val = Parse-Hex $hex
-                Append-CodePoint $sb $val
+
+                # Strictly enforce 8 hex digits for robustness
+                if ($hex -notmatch '^[0-9A-Fa-f]{8}$') {
+                    throw "Invalid \U escape at index ${i}: '$hex' is not 8 hex digits."
+                }
+
+                $cp = [Convert]::ToInt32($hex, 16)
+
+                # Unicode scalar validation: 0..10FFFF, excluding surrogate range
+                if ($cp -lt 0 -or $cp -gt 0x10FFFF) {
+                    throw "Invalid Unicode code point U+$($hex.ToUpper()) at index ${i}."
+                }
+                if ($cp -ge 0xD800 -and $cp -le 0xDFFF) {
+                    # Surrogates are not valid Unicode scalars; treat as literal escape to avoid corrupting text
+                    [void]$sb.Append('\U')
+                    [void]$sb.Append($hex)
+                    $i += 9
+                    continue
+                }
+
+                Append-CodePoint $sb $cp
                 $i += 9
                 continue
             }
