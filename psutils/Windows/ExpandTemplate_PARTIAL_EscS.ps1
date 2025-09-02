@@ -88,24 +88,16 @@ function Filter-FromEscC {
         if ($cp -le 0xFFFF) {
             [void]$B.Append([char]$cp)
         } else {
-            # explicit surrogate math (no bit masks with shifts that could get tricky)
-            $v  = $cp - 0x10000
-            $hi = 0xD800 + ($v -shr 10)           # top 10 bits
-            $lo = 0xDC00 + ($v -band 0x3FF)       # low 10 bits
-            [void]$B.Append([char]$hi)
-            [void]$B.Append([char]$lo)
+            $pair = [System.Char]::ConvertFromUtf32($cp)
+            [void]$B.Append($pair)
         }
     }
 
     while ($i -lt $len) {
         $ch = $Text[$i]
-        if ($ch -ne '\') {
-            [void]$sb.Append($ch)
-            $i++; continue
-        }
+        if ($ch -ne '\') { [void]$sb.Append($ch); $i++; continue }
 
         if ($i + 1 -ge $len) { [void]$sb.Append('\'); break }
-
         $i++
         $esc = $Text[$i]
 
@@ -123,7 +115,7 @@ function Filter-FromEscC {
             '\' { [void]$sb.Append('\');       $i++; continue }
 
             'x' {
-                # \xHH... : 1–8 hex digits
+                # \xHH... : 1–8 hex digits (greedy)
                 $start = $i + 1
                 $j = $start
                 while ($j -lt $len -and (
@@ -133,7 +125,7 @@ function Filter-FromEscC {
                     if (($j - $start) -ge 8) { break }
                     $j++
                 }
-                if ($j -eq $start) { throw "Invalid \\x escape at index ${i}: expected 1+ hex digits." }
+                if ($j -eq $start) { throw "Invalid \x escape at index $i: expected 1+ hex digits." }
                 $hex = $Text.Substring($start, $j - $start)
                 $val = Parse-Hex $hex
                 Append-CodePoint $sb $val
@@ -143,8 +135,9 @@ function Filter-FromEscC {
 
             'u' {
                 # \uXXXX (exactly 4 hex)
-                if ($i + 4 -ge $len) { throw "Invalid \\u escape at index ${i}: expected 4 hex digits." }
+                if (($i + 4) -ge $len) { throw "Invalid \u escape at index $i: expected 4 hex digits." }
                 $hex = $Text.Substring($i + 1, 4)
+                if ($hex -notmatch '^[0-9A-Fa-f]{4}$') { throw "Invalid \u escape digits '$hex' at index $i." }
                 $val = Parse-Hex $hex
                 Append-CodePoint $sb $val
                 $i += 5
@@ -152,23 +145,16 @@ function Filter-FromEscC {
             }
 
             'U' {
-                # \UXXXXXXXX (exactly 8 hex) — robust scan to avoid falling through to octal/default paths
-                if ($i + 8 -ge $len) { throw "Invalid \\U escape at index ${i}: expected 8 hex digits." }
-                $hex = ''
-                for ($k = 1; $k -le 8; $k++) {
-                    $hch = $Text[$i + $k]
-                    $isHex =
-                        (($hch -ge '0' -and $hch -le '9') -or
-                         ($hch -ge 'a' -and $hch -le 'f') -or
-                         ($hch -ge 'A' -and $hch -le 'F'))
-                    if (-not $isHex) {
-                        throw "Invalid \\U escape at index ${i}: non-hex character '$hch'."
-                    }
-                    $hex += $hch
+                # \UXXXXXXXX (exactly 8 hex, full code point)
+                if (($i + 8) -ge $len) { throw "Invalid \U escape at index $i: expected 8 hex digits." }
+                $hex = $Text.Substring($i + 1, 8)
+                if ($hex -notmatch '^[0-9A-Fa-f]{8}$') { throw "Invalid \U escape digits '$hex' at index $i." }
+                $cp = [Convert]::ToInt32($hex, 16)
+                if ($cp -gt 0x10FFFF -or ($cp -ge 0xD800 -and $cp -le 0xDFFF)) {
+                    throw "Invalid Unicode code point U+$($hex.ToUpper())."
                 }
-                $val = Parse-Hex $hex
-                Append-CodePoint $sb $val
-                $i += 9   # past 'U' + 8 hex digits
+                [void]$sb.Append([System.Char]::ConvertFromUtf32($cp))
+                $i += 9
                 continue
             }
 
@@ -186,8 +172,7 @@ function Filter-FromEscC {
                     $i = $start + $digits
                     continue
                 }
-
-                # Unknown escape => treat as literal next char
+                # Unknown escape => take next char literally
                 [void]$sb.Append($esc)
                 $i++
                 continue
