@@ -86,13 +86,12 @@ function Filter-FromEscC {
 
     function Append-CodePoint([System.Text.StringBuilder]$B, [int]$cp) {
         if ($cp -le 0xFFFF) {
-            # BMP
             [void]$B.Append([char]$cp)
         } else {
-            # Encode surrogate pair (no System.Text.Rune needed)
+            # explicit surrogate math (no bit masks with shifts that could get tricky)
             $v  = $cp - 0x10000
-            $hi = 0xD800 + (($v -band 0xFFC00) -shr 10)
-            $lo = 0xDC00 + ($v -band 0x3FF)
+            $hi = 0xD800 + ($v -shr 10)           # top 10 bits
+            $lo = 0xDC00 + ($v -band 0x3FF)       # low 10 bits
             [void]$B.Append([char]$hi)
             [void]$B.Append([char]$lo)
         }
@@ -124,7 +123,7 @@ function Filter-FromEscC {
             '\' { [void]$sb.Append('\');       $i++; continue }
 
             'x' {
-                # \xHH... : 1–8 hex digits (C allows variable length)
+                # \xHH... : 1–8 hex digits
                 $start = $i + 1
                 $j = $start
                 while ($j -lt $len -and (
@@ -134,7 +133,7 @@ function Filter-FromEscC {
                     if (($j - $start) -ge 8) { break }
                     $j++
                 }
-                if ($j -eq $start) { throw "Invalid \x escape at index ${i}: expected 1+ hex digits." }
+                if ($j -eq $start) { throw "Invalid \\x escape at index ${i}: expected 1+ hex digits." }
                 $hex = $Text.Substring($start, $j - $start)
                 $val = Parse-Hex $hex
                 Append-CodePoint $sb $val
@@ -144,7 +143,7 @@ function Filter-FromEscC {
 
             'u' {
                 # \uXXXX (exactly 4 hex)
-                if ($i + 4 -ge $len) { throw "Invalid \u escape at index ${i}: expected 4 hex digits." }
+                if ($i + 4 -ge $len) { throw "Invalid \\u escape at index ${i}: expected 4 hex digits." }
                 $hex = $Text.Substring($i + 1, 4)
                 $val = Parse-Hex $hex
                 Append-CodePoint $sb $val
@@ -153,40 +152,23 @@ function Filter-FromEscC {
             }
 
             'U' {
-                # \UXXXXXXXX  — exactly 8 hex digits (C/C++ wide escape)
-                # At this point $i points at 'U' (we already consumed the backslash).
-                if ($i + 8 -ge $len) {
-                    # Not enough characters to form 8 hex digits: treat as literal "\U"
-                    [void]$sb.Append('\U')
-                    $i++
-                    continue
+                # \UXXXXXXXX (exactly 8 hex) — robust scan to avoid falling through to octal/default paths
+                if ($i + 8 -ge $len) { throw "Invalid \\U escape at index ${i}: expected 8 hex digits." }
+                $hex = ''
+                for ($k = 1; $k -le 8; $k++) {
+                    $hch = $Text[$i + $k]
+                    $isHex =
+                        (($hch -ge '0' -and $hch -le '9') -or
+                         ($hch -ge 'a' -and $hch -le 'f') -or
+                         ($hch -ge 'A' -and $hch -le 'F'))
+                    if (-not $isHex) {
+                        throw "Invalid \\U escape at index ${i}: non-hex character '$hch'."
+                    }
+                    $hex += $hch
                 }
-
-                # Grab the next 8 chars and verify they are hex
-                $hex = $Text.Substring($i + 1, 8)
-                if ($hex -notmatch '^[0-9A-Fa-f]{8}$') {
-                    # Invalid hex: treat as literal "\U"
-                    [void]$sb.Append('\U')
-                    $i++
-                    continue
-                }
-
-                # Parse the 8 hex digits as a 32-bit value (covers up to U+10FFFF)
-                $cp = [uint32]::Parse($hex, [System.Globalization.NumberStyles]::AllowHexSpecifier)
-
-                # Append the codepoint (BMP or surrogate pair)
-                if ($cp -le 0xFFFF) {
-                    [void]$sb.Append([char]$cp)
-                } else {
-                    $v  = $cp - 0x10000
-                    $hi = 0xD800 + (($v -band 0x3FF000) -shr 10)
-                    $lo = 0xDC00 + ($v -band 0x3FF)
-                    [void]$sb.Append([char]$hi)
-                    [void]$sb.Append([char]$lo)
-                }
-
-                # We consumed: 'U' + 8 hex digits → advance by 9 from current $i
-                $i += 9
+                $val = Parse-Hex $hex
+                Append-CodePoint $sb $val
+                $i += 9   # past 'U' + 8 hex digits
                 continue
             }
 
