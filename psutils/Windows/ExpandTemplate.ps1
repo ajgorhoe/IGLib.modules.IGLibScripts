@@ -530,7 +530,7 @@ function Unescape-C {
     return $sb.ToString()
 }
 
-# Convert string to include C/C++-style escape sequences:
+# Convert literal string to a string with C/C++-style escape sequences:
 function Filter-EscC {
     param([Parameter(Mandatory)][string]$Text)
 
@@ -597,7 +597,7 @@ function Filter-EscC {
 }
 
 
-# Convert string from C/C++-style escape sequences:
+# Convert string including C/C++-style escape sequences to literal string:
 function Filter-FromEscC {
     param([Parameter(Mandatory)][string]$Text)
 
