@@ -210,9 +210,9 @@ var.EscapedStr:
 with filter | fromescc :
   "sq ' dq " bsl \ nl 
  cr  ht 	 vt  bsp  ff  null   nl 
- A A sp   ht 	 Z Z ! ! weird 䅂 ☺ ☺ ☃ ☃ π π A A gothicAhsa 𐌰 0330 rocket 🚀 F680 cat 🐈 F408"
+ A A sp   ht 	 Z Z ! ! weird 䅂 ☺ ☺ ☃ ☃ π π A A gothicAhsa 𐌰 𐌰 rocket 🚀 🚀 cat 🐈 🐈"
 round trip  | fromescc| escc  :
-  "sq \' dq \" bsl \\ nl \n cr \r ht \t vt \v bsp \b ff \f null \x00 nl \n A A sp   ht \t Z Z ! ! weird \u4142 \u263A \u263A \u2603 \u2603 \u03C0 \u03C0 A A gothicAhsa \U00010330 \x010330 rocket \U0001F680 \x01F680 cat \U0001F408 \x01F408"
+  "sq \' dq \" bsl \\ nl \n cr \r ht \t vt \v bsp \b ff \f null \0 nl \n A A sp   ht \t Z Z ! ! weird \u4142 \u263A \u263A \u2603 \u2603 \u03C0 \u03C0 A A gothicAhsa \U00010330 \U00010330 rocket \U0001F680 \U0001F680 cat \U0001F408 \U0001F408"
   "sq \' dq \" bsl \\ nl \n cr \r ht \t vt \v bsp \b ff \f null \0 nl \012 A \101 sp \040 ht \x09 Z \x5A ! \x21 weird \x4142 ☺ \u263A ☃ \u2603 π \u03C0 A \u0041 gothicAhsa 𐌰 \U00010330 rocket 🚀 \U0001F680 cat 🐈 \U0001F408"
 
 # These should be the same - fromescc vs. round trip +1:
@@ -220,10 +220,10 @@ round trip  | fromescc| escc  :
    fromescc | escc | fromescc 
   "sq ' dq " bsl \ nl 
  cr  ht 	 vt  bsp  ff  null   nl 
- A A sp   ht 	 Z Z ! ! weird 䅂 ☺ ☺ ☃ ☃ π π A A gothicAhsa 𐌰 0330 rocket 🚀 F680 cat 🐈 F408"
+ A A sp   ht 	 Z Z ! ! weird 䅂 ☺ ☺ ☃ ☃ π π A A gothicAhsa 𐌰 𐌰 rocket 🚀 🚀 cat 🐈 🐈"
   "sq ' dq " bsl \ nl 
  cr  ht 	 vt  bsp  ff  null   nl 
- A A sp   ht 	 Z Z ! ! weird 䅂 ☺ ☺ ☃ ☃ π π A A gothicAhsa 0330 𐌰 rocket F680 🚀 cat F408 🐈"
+ A A sp   ht 	 Z Z ! ! weird 䅂 ☺ ☺ ☃ ☃ π π A A gothicAhsa 𐌰 𐌰 rocket 🚀 🚀 cat 🐈 🐈"
 
 
 # Java -style escaping:
