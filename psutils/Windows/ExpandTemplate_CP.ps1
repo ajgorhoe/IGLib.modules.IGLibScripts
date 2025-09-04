@@ -118,6 +118,18 @@ param(
     [switch] $Strict
 )
 
+
+
+# Toggle verbose diagnostics from helper functions
+$script:ET_Debug = $true  # set $false to silence
+function ET-Log { 
+    param([string]$msg)
+    if ($script:ETVerbose) { Write-Host $msg -ForegroundColor DarkGray }
+}
+
+
+
+
 function Write-HashTable {
     param(
         [hashtable]$Table
@@ -1267,9 +1279,14 @@ function Apply-Filters {
     )
 
     if ($null -eq $Value) {
-    throw "Filter pipeline received null input. Check the placeholder head (var/env) resolves correctly."
-}
+        ET-Log "Apply-Filters: received NULL before any filter."
+        throw "Filter pipeline received null input. Check the placeholder head (var/env) resolves correctly."
+    }
+    ET-Log "Apply-Filters: BEGIN (type in: $($Value.GetType().FullName))"
+
     foreach ($f in $Pipeline) {
+        # Debug log to help trace issues with parsing filters
+        ET-Log "Apply-Filters: BEGIN (type in: $($Value.GetType().FullName))"
 
         # ---- Normalize access for hashtable or PSCustomObject ----
         $isHash = ($f -is [hashtable])
@@ -1458,8 +1475,9 @@ function Apply-Filters {
                 throw "Unknown filter '${name}'."
             }
         }
+        $preview = try { ([string]$Value).Substring(0, [Math]::Min(60, ([string]$Value).Length)) } catch { '<non-string>' }
+        ET-Log "              -> type out: $($Value?.GetType().FullName); value preview: «$preview»"
     }
-
     return $Value
 }
 
@@ -1567,13 +1585,13 @@ function Read-NextArg {
     )
     $i = $Index.Value
     $len = $Text.Length
+    ET-Log "Read-NextArg: start at $i of $len"
 
-    # Skip whitespace
+    # skip whitespace
     while ($i -lt $len -and [char]::IsWhiteSpace($Text[$i])) { $i++ }
-    if ($i -ge $len) { $Index.Value = $i; return $null }
+    if ($i -ge $len) { $Index.Value = $i; ET-Log "Read-NextArg: EOI"; return $null }
 
     if ($Text[$i] -eq '"') {
-        # Quoted argument (supports \" and \\)
         $i++
         $sb = [System.Text.StringBuilder]::new()
         while ($i -lt $len) {
@@ -1583,37 +1601,34 @@ function Read-NextArg {
                 if ($i + 1 -lt $len) {
                     $n = $Text[$i+1]
                     if ($n -eq '"' -or $n -eq '\') {
-                        [void]$sb.Append($n)
-                        $i += 2
-                        continue
+                        [void]$sb.Append($n); $i += 2; continue
                     }
                 }
             }
-            [void]$sb.Append($ch)
-            $i++
+            [void]$sb.Append($ch); $i++
         }
         $Index.Value = $i
-        return $sb.ToString()
+        $q = $sb.ToString()
+        ET-Log "Read-NextArg: quoted -> «$q»"
+        return $q
     }
 
-    # Bare token: stop on whitespace or delimiters
+    # bare token (no whitespace, |, :, })
     $start = $i
     while ($i -lt $len) {
         $ch = $Text[$i]
         if ([char]::IsWhiteSpace($ch) -or $ch -eq '|' -or $ch -eq ':' -or $ch -eq '}') { break }
         $i++
     }
-    if ($i -eq $start) { $Index.Value = $i; return $null }
+    if ($i -eq $start) { $Index.Value = $i; ET-Log "Read-NextArg: empty"; return $null }
 
     $tok = $Text.Substring($start, $i - $start)
-
-    # Allow only safe bare args (no spaces/quotes/bar/colon/brace)
-    if ($tok -match '^[A-Za-z0-9_./\\-]+$') {
-        $Index.Value = $i
-        return $tok
+    if ($tok -notmatch '^[A-Za-z0-9_./\\-]+$') {
+        throw "Invalid bare argument '$tok'. Put it in quotes: `"$tok`""
     }
-
-    throw "Invalid bare argument '$tok'. Put it in quotes: `"$tok`""
+    $Index.Value = $i
+    ET-Log "Read-NextArg: bare   -> «$tok»"
+    return $tok
 }
 
 
@@ -1625,24 +1640,26 @@ function Read-NextArg {
 # Expects "var.Name" or "env.NAME" followed by optional "| filter[: "arg"]".
 # ---------------------------------------------------------------------------
 function Parse-Placeholder {
-    param([string]$Inside)  # content between {{ and }}
+    param([string]$Inside)
 
+    ET-Log "Parse-Placeholder: «$Inside»"
     $s = $Inside
     $i = 0; $len = $s.Length
 
-    # Head: var.Name | env.NAME
+    # head
     while ($i -lt $len -and [char]::IsWhiteSpace($s[$i])) { $i++ }
     $headStart = $i
     while ($i -lt $len -and $s[$i] -notin @('|','}')) { $i++ }
     $headRaw = $s.Substring($headStart, $i - $headStart).Trim()
+    ET-Log "  head raw: «$headRaw»"
 
     if ($headRaw -notmatch '^(?<ns>var|env)\.(?<id>[^|}\s]+)$') {
         throw "Invalid placeholder head '$headRaw'. Use 'var.Name' or 'env.NAME'."
     }
-    $ns = $Matches.ns
-    $id = $Matches.id
+    $ns = $Matches.ns; $id = $Matches.id
+    ET-Log "  head ns/id: $ns / $id"
 
-    # Filters: | name [: arg]...
+    # filters
     $filters = New-Object System.Collections.Generic.List[object]
     while ($i -lt $len) {
         while ($i -lt $len -and [char]::IsWhiteSpace($s[$i])) { $i++ }
@@ -1652,7 +1669,7 @@ function Parse-Placeholder {
         while ($i -lt $len -and [char]::IsWhiteSpace($s[$i])) { $i++ }
         if ($i -ge $len) { break }
 
-        # Filter name
+        # name
         $nameStart = $i
         while ($i -lt $len) {
             $ch = $s[$i]
@@ -1661,38 +1678,38 @@ function Parse-Placeholder {
         }
         if ($i -eq $nameStart) { throw "Expected filter name after '|'" }
         $fname = $s.Substring($nameStart, $i - $nameStart)
+        ET-Log "  filter: $fname"
 
-        # Args
+        # args
         $args = New-Object System.Collections.Generic.List[string]
         while ($i -lt $len) {
             while ($i -lt $len -and [char]::IsWhiteSpace($s[$i])) { $i++ }
             if ($i -ge $len -or $s[$i] -ne ':') { break }
-            $i++ # skip ':'
+            $i++
             $ref = [ref]$i
             $argVal = Read-NextArg -Text $s -Index $ref
             $i = $ref.Value
             if ($null -eq $argVal) {
                 throw "Missing filter argument after ':' for filter '$fname'."
             }
+            ET-Log "           arg: «$argVal»"
             [void]$args.Add($argVal)
         }
-
-        # Keep the shape filters expect: Name + Args[]
-        $filters.Add([pscustomobject]@{
-            Name = $fname
-            Args = $args.ToArray()
-        })
+        $filters.Add([pscustomobject]@{ Name = $fname; Args = $args.ToArray() })
     }
 
-    # Return head under legacy and modern names
-    [pscustomobject]@{
-        Type       = $ns         # legacy field many callers use
-        Name       = $id         # legacy field many callers use
+    $ph = [pscustomobject]@{
+        Type       = $ns
+        Name       = $id
         Namespace  = $ns
         Identifier = $id
         Filters    = $filters.ToArray()
     }
+    ET-Log ("  parsed -> " + ($ph | ConvertTo-Json -Compress))
+    return $ph
 }
+
+
 
 function Resolve-HeadValue {
     param(
@@ -1700,18 +1717,26 @@ function Resolve-HeadValue {
         [hashtable]$Variables
     )
 
+    ET-Log "Resolve-HeadValue: $($Placeholder.Type).$($Placeholder.Name)"
     switch ($Placeholder.Type) {
         'var' {
             if (-not $Variables.ContainsKey($Placeholder.Name)) {
                 throw "Variable '$($Placeholder.Name)' is not defined (-Variables)."
             }
             $v = $Variables[$Placeholder.Name]
+            ET-Log "  var value: «$v» (type: $($v?.GetType().FullName))"
             if ($null -eq $v) { throw "Variable '$($Placeholder.Name)' is null." }
             return $v
         }
         'env' {
-            $v = [Environment]::GetEnvironmentVariable($Placeholder.Name)
-            if ($null -eq $v) { throw "Environment variable '$($Placeholder.Name)' is not defined." }
+            # Explicitly read PROCESS first; fall back to User/Machine for convenience.
+            $v = [Environment]::GetEnvironmentVariable($Placeholder.Name, [EnvironmentVariableTarget]::Process)
+            if ($null -eq $v) { $v = [Environment]::GetEnvironmentVariable($Placeholder.Name, [EnvironmentVariableTarget]::User) }
+            if ($null -eq $v) { $v = [Environment]::GetEnvironmentVariable($Placeholder.Name, [EnvironmentVariableTarget]::Machine) }
+            ET-Log "  env value: «$v»"
+            if ([string]::IsNullOrEmpty($v)) {
+                throw "Environment variable '$($Placeholder.Name)' is not defined."
+            }
             return $v
         }
         default {
