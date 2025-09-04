@@ -1266,9 +1266,6 @@ function Apply-Filters {
         [object[]] $Pipeline
     )
 
-    if ($null -eq $Value) {
-    throw "Filter pipeline received null input. Check the placeholder head (var/env) resolves correctly."
-}
     foreach ($f in $Pipeline) {
 
         # ---- Normalize access for hashtable or PSCustomObject ----
@@ -1573,7 +1570,7 @@ function Read-NextArg {
     if ($i -ge $len) { $Index.Value = $i; return $null }
 
     if ($Text[$i] -eq '"') {
-        # Quoted argument (supports \" and \\)
+        # Quoted argument: supports \" and \\
         $i++
         $sb = [System.Text.StringBuilder]::new()
         while ($i -lt $len) {
@@ -1607,7 +1604,7 @@ function Read-NextArg {
 
     $tok = $Text.Substring($start, $i - $start)
 
-    # Allow only safe bare args (no spaces/quotes/bar/colon/brace)
+    # Only allow obviously safe bare args
     if ($tok -match '^[A-Za-z0-9_./\\-]+$') {
         $Index.Value = $i
         return $tok
@@ -1617,13 +1614,13 @@ function Read-NextArg {
 }
 
 
-
 # ---------------------------------------------------------------------------
 # Helper: Parse-Placeholder
 # Parses the inside of {{ ... }} into namespace/name, and filter pipeline
 # of filters with arguments.
 # Expects "var.Name" or "env.NAME" followed by optional "| filter[: "arg"]".
 # ---------------------------------------------------------------------------
+
 function Parse-Placeholder {
     param([string]$Inside)  # content between {{ and }}
 
@@ -1677,49 +1674,16 @@ function Parse-Placeholder {
             [void]$args.Add($argVal)
         }
 
-        # Keep the shape filters expect: Name + Args[]
-        $filters.Add([pscustomobject]@{
-            Name = $fname
-            Args = $args.ToArray()
-        })
+        # IMPORTANT: return filter as object with Name/Args (what your executor expects)
+        $filters.Add([pscustomobject]@{ Name = $fname; Args = $args.ToArray() })
     }
 
-    # Return head under legacy and modern names
     [pscustomobject]@{
-        Type       = $ns         # legacy field many callers use
-        Name       = $id         # legacy field many callers use
         Namespace  = $ns
         Identifier = $id
         Filters    = $filters.ToArray()
     }
 }
-
-function Resolve-HeadValue {
-    param(
-        [Parameter(Mandatory)]$Placeholder,
-        [hashtable]$Variables
-    )
-
-    switch ($Placeholder.Type) {
-        'var' {
-            if (-not $Variables.ContainsKey($Placeholder.Name)) {
-                throw "Variable '$($Placeholder.Name)' is not defined (-Variables)."
-            }
-            $v = $Variables[$Placeholder.Name]
-            if ($null -eq $v) { throw "Variable '$($Placeholder.Name)' is null." }
-            return $v
-        }
-        'env' {
-            $v = [Environment]::GetEnvironmentVariable($Placeholder.Name)
-            if ($null -eq $v) { throw "Environment variable '$($Placeholder.Name)' is not defined." }
-            return $v
-        }
-        default {
-            throw "Unknown head type '$($Placeholder.Type)'."
-        }
-    }
-}
-
 
 
 
