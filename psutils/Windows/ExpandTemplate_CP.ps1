@@ -1493,6 +1493,22 @@ function Apply-Filters {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 # --- helper: unescape a double-quoted arg ("...") with simple backslash escapes
 function Unescape-QuotedArg {
     param([Parameter(Mandatory)][string]$s)
@@ -1578,57 +1594,70 @@ function Read-FilterArg {
 
 
 
-function Read-NextArg {
-    param(
-        [string]$Text,
-        [ref]$Index
-    )
-    $i = $Index.Value
-    $len = $Text.Length
-    ET-Log "Read-NextArg: start at $i of $len"
+function Skip-WS([string]$S, [ref]$i) {
+    while ($i.Value -lt $S.Length -and [char]::IsWhiteSpace($S[$i.Value])) { $i.Value++ }
+}
 
-    # skip whitespace
-    while ($i -lt $len -and [char]::IsWhiteSpace($Text[$i])) { $i++ }
-    if ($i -ge $len) { $Index.Value = $i; ET-Log "Read-NextArg: EOI"; return $null }
+function Read-Ident([string]$S, [ref]$i) {
+    $start = $i.Value
+    while ($i.Value -lt $S.Length) {
+        $ch = $S[$i.Value]
+        if ($ch -match '[A-Za-z0-9_\-]') { $i.Value++ } else { break }
+    }
+    if ($i.Value -eq $start) { return $null }
+    return $S.Substring($start, $i.Value - $start)
+}
 
-    if ($Text[$i] -eq '"') {
-        $i++
-        $sb = [System.Text.StringBuilder]::new()
-        while ($i -lt $len) {
-            $ch = $Text[$i]
-            if ($ch -eq '"') { $i++; break }
-            if ($ch -eq '\') {
-                if ($i + 1 -lt $len) {
-                    $n = $Text[$i+1]
-                    if ($n -eq '"' -or $n -eq '\') {
-                        [void]$sb.Append($n); $i += 2; continue
-                    }
-                }
+function Read-QuotedArg([string]$S, [ref]$i) {
+    # assumes S[i] == '"'
+    $i.Value++ # skip opening "
+    $sb = [System.Text.StringBuilder]::new()
+    while ($i.Value -lt $S.Length) {
+        $ch = $S[$i.Value]
+        if ($ch -eq '"') { $i.Value++; return $sb.ToString() }
+        if ($ch -eq '\') {
+            if ($i.Value + 1 -ge $S.Length) { throw "Unfinished escape near end of quoted argument." }
+            $i.Value++
+            $esc = $S[$i.Value]
+            switch ($esc) {
+                '"' { [void]$sb.Append('"') }
+                '\' { [void]$sb.Append('\') }
+                'n' { [void]$sb.Append("`n") }
+                'r' { [void]$sb.Append("`r") }
+                't' { [void]$sb.Append("`t") }
+                default { [void]$sb.Append($esc) } # keep unknown escapes literally
             }
-            [void]$sb.Append($ch); $i++
+            $i.Value++; continue
         }
-        $Index.Value = $i
-        $q = $sb.ToString()
-        ET-Log "Read-NextArg: quoted -> «$q»"
-        return $q
+        [void]$sb.Append($ch)
+        $i.Value++
     }
+    throw "Unclosed quoted argument."
+}
 
-    # bare token (no whitespace, |, :, })
-    $start = $i
-    while ($i -lt $len) {
-        $ch = $Text[$i]
-        if ([char]::IsWhiteSpace($ch) -or $ch -eq '|' -or $ch -eq ':' -or $ch -eq '}') { break }
-        $i++
+function Read-UnquotedArg([string]$S, [ref]$i) {
+    # stop at whitespace, pipe, close-brace, or colon (next arg separator)
+    $start = $i.Value
+    while ($i.Value -lt $S.Length) {
+        $ch = $S[$i.Value]
+        if ($ch -match '[\s:\|\}]') { break }
+        $i.Value++
     }
-    if ($i -eq $start) { $Index.Value = $i; ET-Log "Read-NextArg: empty"; return $null }
+    if ($i.Value -eq $start) { return $null }
+    return $S.Substring($start, $i.Value - $start)
+}
 
-    $tok = $Text.Substring($start, $i - $start)
-    if ($tok -notmatch '^[A-Za-z0-9_./\\-]+$') {
-        throw "Invalid bare argument '$tok'. Put it in quotes: `"$tok`""
+function Read-NextArg([string]$S, [ref]$i) {
+    Skip-WS $S ([ref]$i)
+    if ($i.Value -ge $S.Length) { return $null }
+
+    if ($S[$i.Value] -eq '"') {
+        $arg = Read-QuotedArg $S ([ref]$i)
+        return $arg
+    } else {
+        $arg = Read-UnquotedArg $S ([ref]$i)
+        return $arg
     }
-    $Index.Value = $i
-    ET-Log "Read-NextArg: bare   -> «$tok»"
-    return $tok
 }
 
 
@@ -1640,73 +1669,80 @@ function Read-NextArg {
 # Expects "var.Name" or "env.NAME" followed by optional "| filter[: "arg"]".
 # ---------------------------------------------------------------------------
 function Parse-Placeholder {
-    param([string]$Inside)
-
-    ET-Log "Parse-Placeholder: «$Inside»"
-    $s = $Inside
-    $i = 0; $len = $s.Length
-
-    # head
-    while ($i -lt $len -and [char]::IsWhiteSpace($s[$i])) { $i++ }
-    $headStart = $i
-    while ($i -lt $len -and $s[$i] -notin @('|','}')) { $i++ }
-    $headRaw = $s.Substring($headStart, $i - $headStart).Trim()
-    ET-Log "  head raw: «$headRaw»"
-
-    if ($headRaw -notmatch '^(?<ns>var|env)\.(?<id>[^|}\s]+)$') {
-        throw "Invalid placeholder head '$headRaw'. Use 'var.Name' or 'env.NAME'."
+    param(
+        [Parameter(Mandatory)][string]$Text,
+        [Parameter(Mandatory)][ref]$Index  # points at first '{' of '{{'
+    )
+    # Expect '{{'
+    if ($Index.Value + 1 -ge $Text.Length -or $Text[$Index.Value] -ne '{' -or $Text[$Index.Value+1] -ne '{') {
+        throw "Parse-Placeholder: expected '{{' at index $($Index.Value)."
     }
-    $ns = $Matches.ns; $id = $Matches.id
-    ET-Log "  head ns/id: $ns / $id"
+    $i = $Index.Value + 2
 
-    # filters
-    $filters = New-Object System.Collections.Generic.List[object]
-    while ($i -lt $len) {
-        while ($i -lt $len -and [char]::IsWhiteSpace($s[$i])) { $i++ }
-        if ($i -ge $len -or $s[$i] -ne '|') { break }
-        $i++ # skip '|'
+    # Body until '}}'
+    # We parse inline rather than slice—lets us log and error precisely.
+    Skip-WS $Text ([ref]$i)
 
-        while ($i -lt $len -and [char]::IsWhiteSpace($s[$i])) { $i++ }
-        if ($i -ge $len) { break }
+    # Head: var.NAME or env.NAME
+    $ns = Read-Ident $Text ([ref]$i)
+    if (-not $ns) { throw "Invalid placeholder head at index $i. Expected 'var' or 'env'." }
+    if ($ns -ne 'var' -and $ns -ne 'env') { throw "Invalid placeholder head '$ns'. Use 'var.Name' or 'env.NAME'." }
 
-        # name
-        $nameStart = $i
-        while ($i -lt $len) {
-            $ch = $s[$i]
-            if ([char]::IsWhiteSpace($ch) -or $ch -eq ':' -or $ch -eq '|' -or $ch -eq '}') { break }
-            $i++
-        }
-        if ($i -eq $nameStart) { throw "Expected filter name after '|'" }
-        $fname = $s.Substring($nameStart, $i - $nameStart)
-        ET-Log "  filter: $fname"
+    if ($i -ge $Text.Length -or $Text[$i] -ne '.') { throw "Expected '.' after '$ns' at index $i." }
+    $i++
 
-        # args
-        $args = New-Object System.Collections.Generic.List[string]
-        while ($i -lt $len) {
-            while ($i -lt $len -and [char]::IsWhiteSpace($s[$i])) { $i++ }
-            if ($i -ge $len -or $s[$i] -ne ':') { break }
-            $i++
-            $ref = [ref]$i
-            $argVal = Read-NextArg -Text $s -Index $ref
-            $i = $ref.Value
-            if ($null -eq $argVal) {
-                throw "Missing filter argument after ':' for filter '$fname'."
+    $name = Read-Ident $Text ([ref]$i)
+    if (-not $name) { throw "Expected identifier after '$ns.' at index $i." }
+
+    ET-Log "Parse-Placeholder: head = $ns.$name"
+
+    # Parse zero or more filters:  | filterName [: arg [: arg ...]]
+    $pipeline = @()
+    while ($i -lt $Text.Length) {
+        Skip-WS $Text ([ref]$i)
+        if ($i -ge $Text.Length) { break }
+
+        # Close?
+        if ($Text[$i] -eq '}' -and ($i + 1 -lt $Text.Length) -and $Text[$i+1] -eq '}') {
+            $i += 2
+            $Index.Value = $i
+            return @{
+                Namespace = $ns
+                Name      = $name
+                Pipeline  = $pipeline
             }
-            ET-Log "           arg: «$argVal»"
-            [void]$args.Add($argVal)
         }
-        $filters.Add([pscustomobject]@{ Name = $fname; Args = $args.ToArray() })
+
+        # Another filter?
+        if ($Text[$i] -eq '|') {
+            $i++
+            Skip-WS $Text ([ref]$i)
+            $fname = Read-Ident $Text ([ref]$i)
+            if (-not $fname) { throw "Expected filter name after '|' at index $i." }
+
+            $args = @()
+            # read 0+ colon-separated args
+            while ($i -lt $Text.Length) {
+                Skip-WS $Text ([ref]$i)
+                if ($i -ge $Text.Length) { break }
+                if ($Text[$i] -ne ':') { break }
+                $i++ # consume ':'
+                Skip-WS $Text ([ref]$i)
+                $arg = Read-NextArg $Text ([ref]$i)
+                if ($null -eq $arg) { throw "Expected argument after ':' for filter '$fname' at index $i." }
+                $args += $arg
+            }
+
+            ET-Log "Parse-Placeholder: filter '$fname' args=[$($args -join ', ')]"
+            $pipeline += ,@{ Name = $fname; Args = $args }
+            continue
+        }
+
+        # Anything else between tokens is an error
+        throw "Unexpected token '$($Text[$i])' in placeholder at index $i."
     }
 
-    $ph = [pscustomobject]@{
-        Type       = $ns
-        Name       = $id
-        Namespace  = $ns
-        Identifier = $id
-        Filters    = $filters.ToArray()
-    }
-    ET-Log ("  parsed -> " + ($ph | ConvertTo-Json -Compress))
-    return $ph
+    throw "Unclosed placeholder: missing '}}'."
 }
 
 
