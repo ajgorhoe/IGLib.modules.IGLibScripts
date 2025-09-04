@@ -5,10 +5,36 @@
 
 **Contents**:
 
-* [Miscellaneous Remarks](#miscellaneous-remarks) - various helpful remarks for users and developers
+* [Quick ToDo](#quick-to-do)
+
+* **[Documentation - Windows Powerhell Utilities and Template Engine](#windows-powershell-utilities-and-template-engine---documentation)** (**[direct link](./Sandbox/sandbox2.md)** to external document)
+  * **[Introduction - Windows PowerShell Utilities and Template Engine](#introduction--windows-powershell-utilities)** - summary of the scripts available in this directory and basic concepts (typical parameters, etc.)
+    * [Wrapper Scripts and Examples](#wrapper-scripts--examples)
+    * [Auxiliary Scripts](#auxiliary-scripts)
+    * [Compatibility](#compatibility)
+  * **[Script Reference](#script-reference)** - complete documentation for scripts in this directory
+    * [ShowFullContextMenus.ps1](#showfullcontextmenusps1) - switches to full Explorer's context menu on Windows 11 (or reverts back to reduced menus)
+    * [RemoveTaskbar.ps1](#removetaskbarps1) - removes the taskbar (not available on newer Windows)
+    * [HideTaskbar.ps1](#hidetaskbarps1) - switches on auto-hiding the taskbar (does not work on newer Windows)
+    * [SetDesktopIconSize.ps1](#setdesktopiconsizeps1) - sets the desktop icon size (to small icons by default, any size via parameters)
+    * [SetTaskbarIconSize.ps1](#settaskbariconsizeps1) - sets the size of taskbar icons (not available on newer versions of Windows)
+    * [IconSizeUtility.ps1](#iconsizeutilityps1) - a simple user interface to change the size of desktop and taskbar icons
+    * [AddContextMenuItem.ps1](#addcontextmenuitemps1) - adds a custom item to Explorer's context menu, or removes it (e.g., to open a file or directory in a specific program, such as text editor, development environment, any other program, or run a script on it)
+      * [AddCodeToExplorerMenu.ps1](#addcontextmenuitemps1) - a wrapper script for `AddContextMenuItem.ps1`, which adds Visual Studio Code to Explrer's context menu; serves as example of how to simply utilize the `AddContextMenuItem.ps1`
+      * [AddCode_Verify.ps1](#addcode_verifyps1) - auxiliary script that verifies whether the Visual Studio Code has been added to Explorer's menu
+    * [Other Scripts](#other-scripts)
+      * [RestartExplorer.ps1](#restartexplorerps1) - restarts Windows Explorer; this may be necessary when using the above scripts that modify the behavior of Windows' user interface; however, scripts themselves already have the switch that causes Explorer's restart
+      * [IsAdmin.ps1](#isadminps1) - auxiliary - just writes out information on whether the PowerShell is running with elevated privilege (Administrator mode)
+      * [RunAsAdmin.ps1](#runasadminps1) - auxiliary script - just demonstrate how to implement running a certain PowerShell script in Administrator mode
+    * **[Template Engine (ExpandTemplate.ps1)](#template-engine-expandtemplateps1)** - a fully fledged template 
+  * [Appendix - Command Cheatsheet](#appendix--quick-command-cheatsheet)
+  * [Final Notes](#final-notes)
+
+
+* **[Miscellaneous Remarks](#miscellaneous-remarks)** - various helpful remarks for users and developers
   * [Remarks on RemoveTaskbar.ps1](#remarks-on-removetaskbarps1)
   * [Remarks on AddContextMenuItem.ps1](#remarks-on-addcontextmenuitemps1) - some tips for using it
-* [Notes for Developers](#notes-for-developers) - contains dev. notes on possible further feature, behavior, Windows development, etc.
+* **[Notes for Developers](#notes-for-developers)** - contains dev. notes on possible further feature, behavior, Windows development, etc.
   * [Notes - Hiding the Taskbar](#notes---hiding-the-taskbar) - what is known about using Windows Registry and newer development in Windows that affect hiding the taskbar
   * [To Do](#notes---todo) - things that might be done in the future
   * [Possible Scripting Extensions of ExpandTemplate (the Scripting Engine)](#notes---possible-scripting-extensions-of-the-expandtemplateps1-the-template-engine)
@@ -27,12 +53,13 @@
 .\HideTaskbar.ps1 -Revert -RestartExplorer
 ~~~
 
+---
 
+## Windows PowerShell Utilities and Template Engine - Documentation
 
+Documentation is currently [in this external document](./Sandbox/sandbox2.md).
 
-
-
-
+---
 
 ## Miscellaneous Remarks
 

@@ -55,6 +55,47 @@ $ForXMLEncoding = "`"Hello & Goodbye!`"  5 < 6 & 7 > 4  <a id=e55>#e55</a>"
     "ForUrlEncoding=$ForUrlEncoding", "ForXMLEncoding=$ForXMLEncoding" )
 
 
+# Just another form of the above, without parentheses for the array parameter:
+./ExpandTemplate.ps1 -Template TemplateExample.txt.tmpl  `
+  -Output TemplateExample.txt  `
+  -Var "MyVarSimple=$MyVarSimple", "MyVarLong=$MyVarLong",
+    "PathWin=$PathWin", "PathUnix=$PathUnix",
+    "DirtyRelativePath=$DirtyRelativePath", "DirtyAbsolutePath=$DirtyAbsolutePath",
+    "EscapedStr=$EscapedStr", "EscapedStrSimple=$EscapedStrSimple", 
+    "ForUrlEncoding=$ForUrlEncoding", "ForXMLEncoding=$ForXMLEncoding" 
 
+# TODO: Check why spaces at the beginning of variable values are lost in this mode.
+# Jet another form of the above call, using -Variables hashtable parameter:
+$VariablesHashTab = @{ MyVarSimple=$MyVarSimple; MyVarLong=$MyVarLong;
+    PathWin=$PathWin; PathUnix=$PathUnix;
+    DirtyRelativePath=$DirtyRelativePath; DirtyAbsolutePath=$DirtyAbsolutePath;
+    EscapedStr=$EscapedStr; EscapedStrSimple=$EscapedStrSimple; 
+    ForUrlEncoding=$ForUrlEncoding; ForXMLEncoding=$ForXMLEncoding }
+./ExpandTemplate.ps1 -Template TemplateExample.txt.tmpl  `
+  -Output TemplateExample.txt  `
+  -Variables $VariablesHashTab
+
+
+# Mixed mode, with some variables passed via -Var array parameter, and some
+# via -Variables hashtable parameter:
+./ExpandTemplate.ps1 -Template TemplateExample.txt.tmpl  `
+  -Output TemplateExample.txt  `
+  -Var @( "MyVarSimple=$MyVarSimple", "MyVarLong=$MyVarLong",
+    "PathWin=$PathWin" )  `
+    -Variables @{ PathWin=$PathWin; PathUnix=$PathUnix;
+    DirtyRelativePath=$DirtyRelativePath; DirtyAbsolutePath=$DirtyAbsolutePath;
+    EscapedStr=$EscapedStr; EscapedStrSimple=$EscapedStrSimple; 
+    ForUrlEncoding=$ForUrlEncoding; ForXMLEncoding=$ForXMLEncoding }
+
+
+# Mixed mode, repeating the -Var:
+./ExpandTemplate.ps1 -Template TemplateExample.txt.tmpl  `
+  -Output TemplateExample.txt  `
+  -Var "MyVarSimple=$MyVarSimple" -Var "MyVarLong=$MyVarLong"  `
+  -Var "PathWin=$PathWin"  `
+  -Variables @{ PathWin=$PathWin; PathUnix=$PathUnix;
+    DirtyRelativePath=$DirtyRelativePath; DirtyAbsolutePath=$DirtyAbsolutePath;
+    EscapedStr=$EscapedStr; EscapedStrSimple=$EscapedStrSimple; 
+    ForUrlEncoding=$ForUrlEncoding; ForXMLEncoding=$ForXMLEncoding }
 
 
