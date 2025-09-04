@@ -1460,98 +1460,196 @@ function Apply-Filters {
     return $Value
 }
 
+
+
+# --- helper: unescape a double-quoted arg ("...") with simple backslash escapes
+function Unescape-QuotedArg {
+    param([Parameter(Mandatory)][string]$s)
+    # Handle \" and \\ plus common \n \r \t (kept minimal & predictable)
+    $sb = [System.Text.StringBuilder]::new()
+    $i = 0
+    while ($i -lt $s.Length) {
+        $ch = $s[$i]
+        if ($ch -eq '\') {
+            if ($i + 1 -lt $s.Length) {
+                $n = $s[$i+1]
+                switch ($n) {
+                    '"'{ [void]$sb.Append('"');  $i += 2; continue }
+                    '\'{ [void]$sb.Append('\');  $i += 2; continue }
+                    'n'{ [void]$sb.Append([char]10); $i += 2; continue }
+                    'r'{ [void]$sb.Append([char]13); $i += 2; continue }
+                    't'{ [void]$sb.Append([char]9);  $i += 2; continue }
+                    default { [void]$sb.Append($n); $i += 2; continue }
+                }
+            }
+        }
+        [void]$sb.Append($ch)
+        $i++
+    }
+    $sb.ToString()
+}
+
+# --- helper: read a single filter argument starting at $i
+# Supports:
+#   - quoted: "…", with simple backslash escapes
+#   - bare:   runs of [^:\|\}\s]+ (no whitespace, ':', '|', or '}')
+function Read-FilterArg {
+    param(
+        [Parameter(Mandatory)][string]$Text,
+        [Parameter(Mandatory)][ref]$Index
+    )
+    $len = $Text.Length
+    # skip spaces
+    while ($Index.Value -lt $len -and [char]::IsWhiteSpace($Text[$Index.Value])) { $Index.Value++ }
+
+    if ($Index.Value -ge $len) { return '' }
+
+    $startCh = $Text[$Index.Value]
+
+    if ($startCh -eq '"') {
+        # quoted
+        $Index.Value++  # skip first "
+        $start = $Index.Value
+        $escaped = $false
+        $sb = [System.Text.StringBuilder]::new()
+        while ($Index.Value -lt $len) {
+            $ch = $Text[$Index.Value]
+            if ($ch -eq '\') {
+                $escaped = $true
+                # Don’t append here; Unescape-QuotedArg handles escapes later.
+                $Index.Value += 2
+                continue
+            }
+            if ($ch -eq '"') {
+                # end of quoted
+                $raw = $Text.Substring($start, $Index.Value - $start)
+                $Index.Value++ # consume closing "
+                return (if ($escaped) { Unescape-QuotedArg $raw } else { $raw })
+            }
+            $Index.Value++
+        }
+        throw "Unterminated quoted filter argument starting at index $start."
+    }
+
+    # bare token: read until whitespace or any of : | }
+    $startIdx = $Index.Value
+    while ($Index.Value -lt $len) {
+        $ch = $Text[$Index.Value]
+        if ([char]::IsWhiteSpace($ch) -or $ch -eq ':' -or $ch -eq '|' -or $ch -eq '}') { break }
+        $Index.Value++
+    }
+    if ($Index.Value -eq $startIdx) { return '' }
+    return $Text.Substring($startIdx, $Index.Value - $startIdx)
+}
+
 # ---------------------------------------------------------------------------
 # Helper: Parse-Placeholder
-# Parses the inside of {{ ... }} into namespace, name, and filter pipeline.
+# Parses the inside of {{ ... }} into namespace/name, and filter pipeline
+# of filters with arguments.
 # Expects "var.Name" or "env.NAME" followed by optional "| filter[: "arg"]".
 # ---------------------------------------------------------------------------
 function Parse-Placeholder {
-    <#
-    .SYNOPSIS
-      Parse the inside of {{ ... }} into namespace, name, and a filter pipeline.
+    param(
+        [Parameter(Mandatory)][string]$Inner  # text between {{ and }}
+    )
+    # Normalize whitespace around pipes so our scanning is simpler but
+    # we still parse args from the original string to preserve content.
+    $s = $Inner.Trim()
 
-    .DESCRIPTION
-      Expected head forms:
-        var.Name
-        env.NAME
-      Followed by optional filters separated by pipes:
-        | filter
-        | filter:"arg"
-        | filter:"arg1":"arg2"   # multiple args supported (e.g., replace:"old":"new")
+    # Split the pipeline on '|' but only at top level (not inside quotes).
+    # We'll do a simple scan.
+    $segments = @()
+    $len = $s.Length
+    $i = 0
+    $segStart = 0
+    $inQuote = $false
 
-      Whitespace/newlines around pipes and colons are tolerated.
-
-    .PARAMETER ExprText
-      Raw text inside the {{ and }} delimiters.
-
-    .OUTPUTS
-      Hashtable:
-        @{ ns = 'var'|'env'
-           name = 'Name'
-           filters = @(
-               @{ name='filterName'; arg='<firstArg-or-$null>'; args=@('<arg1>','<arg2>',...) },
-               ...
-           )
+    while ($i -lt $len) {
+        $ch = $s[$i]
+        if ($ch -eq '"') {
+            # toggle quote unless escaped
+            $backslashes = 0
+            $k = $i - 1
+            while ($k -ge 0 -and $s[$k] -eq '\') { $backslashes++; $k-- }
+            if (($backslashes % 2) -eq 0) { $inQuote = -not $inQuote }
+            $i++
+            continue
         }
-    #>
-    param([string]$ExprText)
-
-    # Split around '|' (pipes). We’ll trim whitespace per segment.
-    $parts = $ExprText -split '\|'
-    if ($parts.Count -lt 1) { throw "Empty expression in placeholder." }
-
-    # Head: var.Name or env.NAME
-    $head = $parts[0].Trim()
-    if ($head -notmatch '^(?<ns>var|env)\.(?<name>[A-Za-z_][A-Za-z0-9_\.]*)$') {
-        throw "Invalid placeholder head '${head}'. Use 'var.Name' or 'env.NAME'."
+        if (-not $inQuote -and $ch -eq '|') {
+            $segments += $s.Substring($segStart, $i - $segStart)
+            $i++
+            while ($i -lt $len -and [char]::IsWhiteSpace($s[$i])) { $i++ }
+            $segStart = $i
+            continue
+        }
+        $i++
     }
-    $ns   = $Matches['ns']
-    $name = $Matches['name']
+    if ($segStart -lt $len) { $segments += $s.Substring($segStart) }
 
-    # Filters (zero or more)
-    $filters = @()
-    for ($i = 1; $i -lt $parts.Count; $i++) {
-        $seg = $parts[$i].Trim()
-        if (-not $seg) { continue }
+    if ($segments.Count -lt 1) { throw "Empty placeholder." }
 
-        # Extract filter name
-        if ($seg -notmatch '^(?<fn>[A-Za-z_][A-Za-z0-9_]*)') {
-            throw "Invalid filter segment '${seg}'. Use 'filter' or 'filter:""arg""' (multiple args allowed)."
-        }
-        $fname = $Matches['fn']
-        $rest  = $seg.Substring($Matches[0].Length)
+    # First segment: head (namespace.name) possibly with spaces
+    $head = $segments[0].Trim()
+    if ([string]::IsNullOrWhiteSpace($head)) { throw "Invalid placeholder head: '$head'." }
 
-        # Extract one or more quoted args of the form : "arg"
-        $fargs = @()
-        while ($rest -match '^\s*:\s*"(?:[^"\\]|\\.)*"') {
-            # capture the next quoted arg
-            if ($rest -match '^\s*:\s*"(?<arg>(?:[^"\\]|\\.)*)"') {
-                $capt = $Matches['arg']
-                # Unescape \" -> " and \\ -> \
-                $capt = $capt -replace '\\\\','\'   # \\  -> \
-                $capt = $capt -replace '\\"','"'    # \"  -> "
-                $fargs += $capt
-                $rest = $rest.Substring($Matches[0].Length)
-            } else {
-                break
+    # Expect "var.Name" or "env.NAME"
+    $ns   = $null
+    $name = $null
+    $dot  = $head.IndexOf('.')
+    if ($dot -le 0 -or $dot -ge $head.Length - 1) {
+        throw "Invalid placeholder head '$head'. Use 'var.Name' or 'env.NAME'."
+    }
+    $ns   = $head.Substring(0, $dot).Trim()
+    $name = $head.Substring($dot + 1).Trim()
+    if ($ns -notin @('var','env')) {
+        throw "Unknown namespace '$ns' in '$head'. Allowed: var, env."
+    }
+    if (-not $name) { throw "Missing name after '$ns.' in '$head'." }
+
+    # Parse filters (segments[1..])
+    $filters = New-Object System.Collections.Generic.List[object]
+    for ($si = 1; $si -lt $segments.Count; $si++) {
+        $raw = $segments[$si].Trim()
+        if (-not $raw) { continue }
+
+        # filter name up to first ':' or whitespace
+        $j = 0
+        while ($j -lt $raw.Length -and -not [char]::IsWhiteSpace($raw[$j]) -and $raw[$j] -ne ':') { $j++ }
+        $fname = $raw.Substring(0, $j)
+        if (-not $fname) { throw "Missing filter name in segment '$raw'." }
+
+        # collect args after zero or more ':' tokens
+        $args = New-Object System.Collections.Generic.List[string]
+        # Move index in original segment: skip spaces after name
+        $k = $j
+        while ($k -lt $raw.Length -and [char]::IsWhiteSpace($raw[$k])) { $k++ }
+
+        while ($k -lt $raw.Length -and $raw[$k] -eq ':') {
+            $k++  # skip ':'
+            $idxRef = [ref]$k
+            $arg = Read-FilterArg -Text $raw -Index $idxRef
+            $k = $idxRef.Value
+            # trailing spaces before next ':' are fine
+            while ($k -lt $raw.Length -and [char]::IsWhiteSpace($raw[$k])) { $k++ }
+            if ($arg -eq '') {
+                # Allow empty string arg by writing "" in the template; otherwise treat truly missing
+                throw "Missing argument value for filter '$fname' in segment '$raw'."
             }
+            [void]$args.Add($arg)
         }
 
-        # No extra junk allowed after arguments
-        if ($rest.Trim()) {
-            throw "Invalid filter segment '${seg}'. Unexpected text after arguments."
-        }
-
-        # Store both first arg (compat) and full args (for multi-arg filters like replace)
-        $filters += @{
-            name = $fname
-            arg  = ($(if ($fargs.Count -gt 0) { $fargs[0] } else { $null }))
-            args = $fargs
-        }
+        $filters.Add([pscustomobject]@{ Name=$fname; Args=$args.ToArray() })
     }
 
-    return @{ ns = $ns; name = $name; filters = $filters }
+    # Return a uniform object the rest of your engine already expects
+    [pscustomobject]@{
+        Namespace = $ns
+        Name      = $name
+        Filters   = $filters.ToArray()
+    }
 }
+
+
 
 # ---------------------------------------------------------------------------
 # Helper: Get-InitialValue

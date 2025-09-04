@@ -21,8 +21,8 @@
     * [IsAdmin.ps1](#isadminps1) - auxiliary - just writes out information on whether the PowerShell is running with elevated privilege (Administrator mode)
     * [RunAsAdmin.ps1](#runasadminps1) - auxiliary script - just demonstrate how to implement running a certain PowerShell script in Administrator mode
   * **[Template Engine (ExpandTemplate.ps1)](#template-engine-expandtemplateps1)** - a fully fledged template 
-* [Appendix - Command Cheatsheet](#appendix--quick-command-cheatsheet)
-* [Final Notes](#final-notes)
+  * [Appendix - Command Cheatsheet](#appendix--quick-command-cheatsheet)
+  * [Final Notes](#final-notes)
 
 ---
 
