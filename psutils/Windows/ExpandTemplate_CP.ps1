@@ -1,1943 +1,628 @@
-<#
+<# 
 .SYNOPSIS
-  Expand a text template file by replacing placeholders with user variables and/or environment variables.
+  Expand a text template with {{ ... }} placeholders supporting a simple
+  filter pipeline like:  {{ var.NAME | lower | replace:"a":"b" }}
 
 .DESCRIPTION
-  ExpandTemplate.ps1 reads a template file, finds placeholders of the form:
+  Placeholders have the form:
+      {{ <head> [| filter[:arg[:arg...]]]* }}
+  where <head> is either:
+      var.<Name>    – value from -Variables hashtable or -Var KEY=VALUE
+      env.<NAME>    – environment variable (Process/User/Machine lookup)
 
-      {{ var.Name | filter[:"arg"] | filter[:"arg"] ... }}
-      {{ env.NAME  | filter[:"arg"] | filter[:"arg"] ... }}
-
-  …and replaces them with concrete values. Two namespaces are supported:
-
-    • var.*   — values supplied by the caller via -Variables, -Var, or -VarsFile
-    • env.*   — environment variables (Process → User → Machine lookup)
-
-  Filters (applied left-to-right):
-
-    • trim           - String.Trim()
-    • upper          - Uppercase
-    • lower          - Lowercase
-    • regq           - Escape " as \" (e.g. for .reg REG_SZ lines)
-    • regesc         - Escape " as \" and \ as \\ (e.g. for paths in .reg REG_SZ lines)
-    • quote          - Wrap the whole value in double quotes
-    • append:"text"  - Append literal text x
-    • prepend:"text" - Prepend literal text
-    • pathappend:"\suffix" — Append a path suffix verbatim (no separator logic)
-    • replace:"old":"new" - Replace all occurrences of old with new
-    • default:"fallback"  - Use fallback if the current value is empty
-    • pathquote      - Wrap in quotes if not already quoted
-    • addarg:"%1"    - Append a space + quoted argument (e.g., `" "%1"` or `" "%V"`)
-    • expandsz       - Encode the current string as REG_EXPAND_SZ in .reg syntax:
-                       hex(2):aa,bb,... (UTF-16LE bytes with terminating 00 00)
-
-  Multi-line placeholders:
-    Placeholders can span multiple lines and contain pipes on separate lines. Whitespace
-    around tokens is ignored. Example:
-
-      {{ 
-        env.USERPROFILE |
-        pathappend:"\Programs\App\app.exe" | regesc
-      }}
-
-  Undefined variables and environment variables:
-    If a placeholder references an unknown var/env, the script prints an
-    informative error and aborts.
-
-  Paths:
-    -Template and -Output accept absolute or relative paths.
-    Relative paths are resolved first against the script folder ($PSScriptRoot),
-    then against the current working directory. If -Output is omitted, the
-    output file is created next to the template by stripping one of:
-      .tmpl | .template | .tpl | .in
-    (If no known suffix is found, ".out" is appended.)
-
-  Encoding:
-    Output encoding depends on the target extension:
-      • .reg  → UTF-16LE (Unicode)
-      • other → UTF-8
+  Filters (selection):
+    - lower / upper / trim
+    - append:"txt" / prepend:"txt"
+    - default:"fallback"
+    - replace:"old":"new"  (old/new may be unquoted if simple tokens)
+    - regq        – quote for .reg default string values (" -> \")
+    - regesc      – escape for .reg path-like content (" and \)
+    - urlencode / urldecode
+    - xmlencode / xmldecode
+    - base64 / frombase64[:utf8|utf16|utf32|ascii] / strfrombase64
+    - hex   / fromhex[:utf8|utf16|utf32|ascii]     / strfromhex
+    - gzip / gunzip
+    - escc / fromescc       – C/C++ escape/unescape
+    - escjava / fromescjava – Java escape/unescape (\uXXXX only)
+    - esccs / fromesccs     – C# escape/unescape (\uXXXX, \UXXXXXXXX)
 
 .PARAMETER Template
-  Path to the template file (*.tmpl recommended). Absolute or relative.
+  Template file path (.tmpl or any text file). Relative paths are resolved
+  relative to this script file (or current directory if dot-sourced).
 
 .PARAMETER Output
-  Path for the expanded output file. If omitted, derived from -Template:
-  same folder, without the .tmpl/.template/.tpl/.in suffix (or “.out” appended).
-
-.PARAMETER Variables
-  Hashtable of user variables, e.g.:
-      -Variables @{ Title='Open with VS Code'; App='Code.exe' }
+  Output file path. If omitted, writes next to Template without the .tmpl
+  suffix. Writes UTF-16 LE if extension is .reg; otherwise UTF-8.
 
 .PARAMETER Var
-  Zero or more Name=Value pairs, e.g.:
-      -Var 'Title=Open with VS Code' 'KeyName=Open_with_VS_Code'
+  Array of KEY=VALUE strings for simple variables.
 
-  These overlay/override entries from -Variables and -VarsFile.
-
-.PARAMETER VarsFile
-  JSON (.json) or PowerShell data (.psd1) file containing variables.
-  Example JSON: { "Title": "Open with VS Code" }
-
-.PARAMETER Strict
-  Reserved for future expansion. Missing variables already cause the script to
-  fail with a clear error (current behavior matches your requirement).
-
-.EXAMPLE
-  # Simple expansion using only env placeholders in the template
-  .\ExpandTemplate.ps1 -Template .\AddCode_Example.reg.tmpl
-
-.EXAMPLE
-  # Supply a custom title via hashtable, and choose output path
-  .\ExpandTemplate.ps1 `
-    -Template .\AddCode_Example.reg.tmpl `
-    -Output   .\AddCode_Example.reg `
-    -Variables @{ Title = 'Open with VS Code' }
-
-.EXAMPLE
-  # Supply variables via Name=Value pairs
-  .\ExpandTemplate.ps1 `
-    -Template .\AddCode_Example.reg.tmpl `
-    -Var 'Title=Open with VS Code'
-
-.NOTES
-  • To render literal “{{ … }}” in the template, escape braces like:
-      \{\{ … \}\}
-    (or split the braces across lines). A raw-block feature can be added later.
-  • For .reg REG_SZ lines, sometimes you need to escape quotes (filter: regq).
-    Backslashes do NOT need doubling in .reg files. But when backslashes
-    also need escaping, use the regesc filter, e.g.:
-      {{ env.USERPROFILE | pathappend:"\App\app.exe" | regesc }}
+.PARAMETER Variables
+  Hashtable of variables (overrides -Var for same keys).
 #>
 
 param(
-    [Parameter(Mandatory)] [string] $Template,
-    [string] $Output,
-    [hashtable] $Variables,
-    [string[]] $Var,
-    [string] $VarsFile,
-    [switch] $Strict
+  [Parameter(Mandatory)] [string] $Template,
+  [string] $Output,
+  [string[]] $Var,
+  [hashtable] $Variables
 )
 
+# --------------------------------------------------------------------
+# Debug tracing
+# --------------------------------------------------------------------
+$script:ETVerbose = $false
+function ET-Log([string]$msg) { if ($script:ETVerbose) { Write-Host $msg -ForegroundColor DarkGray } }
 
+# --------------------------------------------------------------------
+# Resolve script base folder robustly
+# --------------------------------------------------------------------
+function Get-ScriptBase {
+  # Prefer PSScriptRoot when available (running from a file)
+  if ($PSBoundParameters.ContainsKey('PSScriptRoot') -and $PSScriptRoot) { return $PSScriptRoot }
+  if ($PSScriptRoot) { return $PSScriptRoot }
 
-# Toggle verbose diagnostics from helper functions
-$script:ET_Debug = $true  # set $false to silence
-function ET-Log { 
-    param([string]$msg)
-    if ($script:ETVerbose) { Write-Host $msg -ForegroundColor DarkGray }
+  # Fallback to the current script path
+  if ($MyInvocation -and $MyInvocation.MyCommand -and $MyInvocation.MyCommand.Path) {
+    return (Split-Path -Path $MyInvocation.MyCommand.Path -Parent)
+  }
+
+  # Last resort: current working directory
+  return (Get-Location).Path
 }
 
+# --------------------------------------------------------------------
+# Utilities: path resolution / load / save
+# --------------------------------------------------------------------
+function Resolve-PathLike([string]$p) {
+  if ([string]::IsNullOrWhiteSpace($p)) { return $null }
+  if ([System.IO.Path]::IsPathRooted($p)) { return $p }
 
-
-
-function Write-HashTable {
-    param(
-        [hashtable]$Table
-    )
-    if ($null -eq $Table) {
-        Write-Host "  NULL hashtable"
-        return
-    }
-    if ($Table.Count -eq 0) {
-        Write-Host "  EMPTY hashtable"
-        return
-    }
-    foreach ($key in $Table.Keys) {
-        Write-Host "  ${key}: $($Table[$key])"
-    }
+  $base = Get-ScriptBase
+  return (Join-Path -Path $base -ChildPath $p)
 }
 
-function Write-Array {
-    param(
-        [object[]]$Array
-    )
-    if ($null -eq $Array) {
-        Write-Host "  NULL"
-        return
-    }
-    if ($Array.Count -eq 0) {
-        Write-Host "  EMPTY"
-        return
-    }
-    for ($i = 0; $i -lt $Array.Count; $i++) {
-        Write-Host "  ${i}: $($Array[$i])"
-    }
+function Load-Template([string]$path) {
+  if ([string]::IsNullOrWhiteSpace($path)) { throw "Template path is empty." }
+  if (-not (Test-Path -LiteralPath $path)) { throw "Template file not found: $path" }
+  [System.IO.File]::ReadAllText($path, [Text.Encoding]::UTF8)
 }
 
-
-# ---------------------------------------------------------------------------
-# Helper: Resolve-PathSmart
-# Resolves a path. If relative, tries relative to script folder, then CWD.
-# Throws if not found (for -Template); for -Output we only resolve when provided.
-# ---------------------------------------------------------------------------
-function Resolve-PathSmart {
-    <#
-    .SYNOPSIS
-      Resolve a path relative to script folder or current directory.
-
-    .PARAMETER Path
-      The path to resolve (absolute or relative).
-
-    .OUTPUTS
-      [string] Fully-qualified path.
-
-    .NOTES
-      Uses -LiteralPath to avoid wildcard expansion.
-    #>
-    param([string]$Path)
-
-    if ([System.IO.Path]::IsPathRooted($Path)) {
-        return (Resolve-Path -LiteralPath $Path).Path
-    }
-    $candidates = @(
-        (Join-Path $PSScriptRoot $Path),
-        (Join-Path (Get-Location) $Path)
-    )
-    foreach ($p in $candidates) {
-        if (Test-Path -LiteralPath $p) { return (Resolve-Path -LiteralPath $p).Path }
-    }
-    throw "Template/output path not found: ${Path}"
+function Save-Text([string]$path, [string]$text) {
+  if ([string]::IsNullOrWhiteSpace($path)) { throw "Output path is empty." }
+  $enc = if ([System.IO.Path]::GetExtension($path).ToLowerInvariant() -eq '.reg') {
+    [Text.Encoding]::Unicode          # UTF-16 LE for .reg
+  } else {
+    New-Object Text.UTF8Encoding $false  # UTF-8 (no BOM)
+  }
+  [IO.File]::WriteAllText($path, $text, $enc)
 }
 
-# ---------------------------------------------------------------------------
-# Helper: ConvertTo-Hashtable
-# Converts PSCustomObject/arrays from ConvertFrom-Json into plain hashtables.
-# ---------------------------------------------------------------------------
-function ConvertTo-Hashtable {
-    <#
-    .SYNOPSIS
-      Convert an object tree (e.g., from JSON) into hashtables/arrays.
+# --------------------------------------------------------------------
+# -Var "KEY=VALUE" → hashtable
+# --------------------------------------------------------------------
+$script:VarKV = @{}
+if ($Var) {
+  foreach ($kv in $Var) {
+    $parts = $kv -split '=', 2
+    if ($parts.Count -ne 2) { throw "Invalid -Var entry '$kv'. Use KEY=VALUE." }
+    $script:VarKV[$parts[0]] = $parts[1]
+  }
+}
 
-    .PARAMETER Object
-      Input object (PSCustomObject, array, hashtable, or scalar).
+# --------------------------------------------------------------------
+# Head resolution (var/env)
+# --------------------------------------------------------------------
+function Resolve-HeadValue {
+  param(
+    [Parameter(Mandatory)][ValidateSet('var','env')] [string] $Namespace,
+    [Parameter(Mandatory)] [string] $Name,
+    [hashtable] $Variables
+  )
 
-    .OUTPUTS
-      Hashtables/arrays/scalars mirroring the input structure.
-    #>
-    param($Object)
-
-    if ($Object -is [hashtable]) { return $Object }
-    if ($null -eq $Object) { return @{} }
-    if ($Object -is [System.Collections.IEnumerable] -and -not ($Object -is [string])) {
-        $arr = @()
-        foreach ($item in $Object) { $arr += (ConvertTo-Hashtable $item) }
-        return $arr
+  switch ($Namespace) {
+    'var' {
+      $val = $null
+      if ($Variables -and $Variables.ContainsKey($Name)) { $val = $Variables[$Name] }
+      elseif ($script:VarKV.ContainsKey($Name))          { $val = $script:VarKV[$Name] }
+      if ($null -eq $val) { throw "Undefined variable 'var.$Name'." }
+      return [string]$val
     }
-    if ($Object.PSObject -and $Object.PSObject.Properties) {
-        $ht = @{}
-        foreach ($p in $Object.PSObject.Properties) {
-            $ht[$p.Name] = ConvertTo-Hashtable $p.Value
+    'env' {
+      $v = [Environment]::GetEnvironmentVariable($Name, 'Process')
+      if ([string]::IsNullOrEmpty($v)) { $v = [Environment]::GetEnvironmentVariable($Name, 'User') }
+      if ([string]::IsNullOrEmpty($v)) { $v = [Environment]::GetEnvironmentVariable($Name, 'Machine') }
+      if ([string]::IsNullOrEmpty($v)) { throw "Undefined environment variable 'env.$Name'." }
+      return $v
+    }
+  }
+}
+
+# --------------------------------------------------------------------
+# Arg reader: supports "quoted" or simple token (no ws, :, |, })
+# Advances by-ref $pos; returns $null if no arg present
+# --------------------------------------------------------------------
+function Read-NextArg {
+  param(
+    [Parameter(Mandatory)][string] $Text,
+    [Parameter(Mandatory)][ref]    $pos
+  )
+  $len = $Text.Length
+  while ($pos.Value -lt $len -and [char]::IsWhiteSpace($Text[$pos.Value])) { $pos.Value++ }
+  if ($pos.Value -ge $len) { return $null }
+
+  $c = $Text[$pos.Value]
+  if ($c -eq '|' -or $c -eq '}' -or $c -eq ':') { return $null }
+
+  if ($c -eq '"') {
+    $pos.Value++
+    $sb = [Text.StringBuilder]::new()
+    while ($pos.Value -lt $len) {
+      $d = $Text[$pos.Value]
+      if ($d -eq '"') { $pos.Value++; break }
+      if ($d -eq '\') {
+        if ($pos.Value + 1 -lt $len -and ($Text[$pos.Value+1] -in @('"','\'))) {
+          [void]$sb.Append($Text[$pos.Value+1]); $pos.Value += 2; continue
         }
-        return $ht
-    }
-    return $Object
-}
-
-# ---------------------------------------------------------------------------
-# Helper: Load-VarsFile
-# Loads a JSON (.json) or PowerShell data (.psd1) file into a hashtable.
-# ---------------------------------------------------------------------------
-function Load-VarsFile {
-    <#
-    .SYNOPSIS
-      Load variables from a JSON or PSD1 file.
-
-    .PARAMETER Path
-      Path to the file (.json or .psd1). Resolved via Resolve-PathSmart.
-
-    .OUTPUTS
-      [hashtable] Variables dictionary.
-    #>
-    param([string]$Path)
-
-    if (-not $Path) { return @{} }
-    $full = Resolve-PathSmart $Path
-    $ext  = [System.IO.Path]::GetExtension($full).ToLowerInvariant()
-
-    switch ($ext) {
-        '.json' {
-            try {
-                $raw = Get-Content -LiteralPath $full -Raw
-                $obj = $raw | ConvertFrom-Json
-                return ConvertTo-Hashtable $obj
-            } catch {
-                throw "Failed to parse JSON vars file '${full}': $($_.Exception.Message)"
-            }
-        }
-        '.psd1' {
-            try {
-                return Import-PowerShellDataFile -LiteralPath $full
-            } catch {
-                throw "Failed to parse PSD1 vars file '${full}': $($_.Exception.Message)"
-            }
-        }
-        default {
-            throw "Unsupported vars file extension '${ext}'. Use .json or .psd1."
-        }
-    }
-}
-
-# ---------------------------------------------------------------------------
-# Helper: Merge-Variables
-# Shallow merge of two hashtables (Overlay overrides Base).
-# ---------------------------------------------------------------------------
-function Merge-Variables {
-    <#
-    .SYNOPSIS
-      Merge two variable sets (overlay overrides base).
-
-    .PARAMETER Base
-      Base hashtable.
-
-    .PARAMETER Overlay
-      Overlay hashtable whose keys override Base.
-
-    .OUTPUTS
-      [hashtable] Merged dictionary.
-    #>
-    param([hashtable]$Base, [hashtable]$Overlay)
-
-    $dest = @{}
-    if ($Base)    { foreach ($k in $Base.Keys)    { $dest[$k] = $Base[$k] } }
-    if ($Overlay) { foreach ($k in $Overlay.Keys) { $dest[$k] = $Overlay[$k] } }
-    return $dest
-}
-
-# ---------------------------------------------------------------------------
-# Helper: Parse-VarPairs
-# Parse -Var entries like 'Name=Value' into a hashtable.
-# ---------------------------------------------------------------------------
-function Parse-VarPairs {
-    <#
-    .SYNOPSIS
-      Parse Name=Value pairs into a hashtable.
-
-    .PARAMETER Pairs
-      Array of strings in the form Name=Value.
-
-    .OUTPUTS
-      [hashtable] Variables dictionary.
-    #>
-    param([string[]]$Pairs)
-
-    $ht = @{}
-    foreach ($p in ($Pairs | Where-Object { $_ -ne $null })) {
-        if ($p -notmatch '^\s*([^=]+)\s*=\s*(.*)\s*$') {
-            throw "Invalid -Var entry '${p}'. Use Name=Value."
-        }
-        $name = $Matches[1].Trim()
-        $val  = $Matches[2]
-        $ht[$name] = $val
-    }
-    return $ht
-}
-
-# returns true if $v is a byte array
-function Is-ByteVector {
-    param([object]$v)
-    if ($v -is [byte[]]) { return $true }
-    if ($v -is [System.Array]) {
-        $et = $v.GetType().GetElementType()
-        if ($et) { return ($et -eq [byte]) }
-        # object[] with byte elements
-        if ($v.Length -gt 0 -and $v[0] -is [byte]) { return $true }
-    }
-    return $false
-}
-
-# ---------------------------------------------------------------------------
-# FILTERS: encode / decode, compression, escape filters
-# These functions implement standard encoding, compression and escaping 
-# filters, such as base64/frombase64, hex/fromhex, gzip/gunzip,
-# urlencode/urldecode, xmlencode/xmldecode, escc/fromescc (C),
-# escjava/fromescjava (Java), esccs/fromesccs (C#).
-# ---------------------------------------------------------------------------
-
-# ========================= Helpers: string/bytes =========================
-
-function As-String {
-    param([Parameter(Mandatory)] [object]$Value)
-    if ($Value -is [byte[]]) { return [System.Text.Encoding]::Unicode.GetString($Value) }
-    return [string]$Value
-}
-function As-Bytes {
-    param([Parameter(Mandatory)] [object]$Value)
-    if ($Value -is [byte[]]) { return $Value }
-    $s = [string]$Value
-    return [System.Text.Encoding]::Unicode.GetBytes($s)
-}
-
-# ========================= Base64 =========================
-function Filter-Base64   { param($v) return [System.Convert]::ToBase64String((As-Bytes $v)) }
-
-function Filter-FromBase64 {
-    [CmdletBinding()]
-    param([Parameter(Mandatory)][string]$Value)
-    try {
-        [byte[]]$bytes = [Convert]::FromBase64String($Value)
-        Write-Output -NoEnumerate $bytes   # <— critical
-    } catch {
-        throw "frombase64: invalid Base64 input ($($_.Exception.Message))."
-    }
-}
-
-# ========================= Hex (lowercase) =========================
-function Filter-Hex {
-    param($v)
-    $bytes = As-Bytes $v
-    return (($bytes | ForEach-Object { $_.ToString('x2') }) -join '')
-}
-
-function Filter-FromHex {
-    [CmdletBinding()]
-    param([Parameter(Mandatory)][string]$Value)
-    $hex = ($Value -replace '\s+', '')
-    if ($hex.Length % 2 -ne 0) { throw "fromhex: hex string length must be even." }
-
-    $list = New-Object System.Collections.Generic.List[byte]
-    for ($i = 0; $i -lt $hex.Length; $i += 2) {
-        try {
-            $b = [Convert]::ToByte($hex.Substring($i,2), 16)
-        } catch {
-            throw "fromhex: invalid hex at position $i."
-        }
-        [void]$list.Add($b)
-    }
-    [byte[]]$bytes = $list.ToArray()
-    Write-Output -NoEnumerate $bytes       # critical to return byte[] as-is (instead of enumerating bytes, resulting in object[]
-}
-
-# ========================= GZip =========================
-
-function Filter-Gzip {
-    [CmdletBinding()]
-    param([Parameter(Mandatory)][string]$Value)
-    $enc   = [Text.Encoding]::Unicode
-    $input = $enc.GetBytes($Value)
-
-    $msOut = New-Object System.IO.MemoryStream
-    $gz    = New-Object System.IO.Compression.GZipStream($msOut, [IO.Compression.CompressionLevel]::Optimal, $true)
-    $gz.Write($input, 0, $input.Length)
-    $gz.Dispose()
-    [byte[]]$bytes = $msOut.ToArray()
-    $msOut.Dispose()
-    Write-Output -NoEnumerate $bytes       # critical to return byte[] as-is (instead of enumerating bytes, resulting in object[])
-}
-
-function Filter-Gunzip {
-    param($v)
-    $inBytes = As-Bytes $v
-    $msIn  = New-Object System.IO.MemoryStream(,$inBytes)
-    $gz    = New-Object System.IO.Compression.GzipStream($msIn, [System.IO.Compression.CompressionMode]::Decompress)
-    $msOut = New-Object System.IO.MemoryStream
-    $gz.CopyTo($msOut)
-    $gz.Dispose()
-    $outBytes = $msOut.ToArray()
-    ## Return TEXT (Unicode) by default (old way, not consistent with new 
-    ## filters guidelines):
-    # return [System.Text.Encoding]::Unicode.GetString($outBytes)
-    # Return unzipped value as byte[] (will need utf16 filter to get string):
-    Write-Output -NoEnumerate $outBytes   # critical to return byte[] as-is (instead of enumerating bytes, resulting in object[]
-}
-
-# ========================= URL encode/decode =========================
-function Filter-UrlEncode  { param($v) return [System.Uri]::EscapeDataString((As-String $v)) }
-function Filter-UrlDecode  { param($v) return [System.Uri]::UnescapeDataString((As-String $v)) }
-
-# ========================= XML encode/decode =========================
-function Filter-XmlEncode {
-    param($v)
-    $s = As-String $v
-    $esc = [System.Security.SecurityElement]::Escape($s)  # &,<,>,"
-    return $esc -replace "'", '&apos;'
-}
-function Filter-XmlDecode {
-    param($v)
-    $s = As-String $v
-    # Basic named entities
-    $s = $s -replace '&lt;','<' -replace '&gt;','>' -replace '&quot;','"' -replace '&apos;',"'"
-    $s = $s -replace '&amp;','&'
-    # Numeric: decimal and hex: &#123; or &#x7B;
-    $s = [System.Text.RegularExpressions.Regex]::Replace($s, '&#(\d+);', {
-        param($m) [char]([int]$m.Groups[1].Value)
-    })
-    $s = [System.Text.RegularExpressions.Regex]::Replace($s, '&#x([0-9A-Fa-f]+);', {
-        param($m) [char]([Convert]::ToInt32($m.Groups[1].Value,16))
-    })
-    return $s
-}
-
-# ========================= C/C++ style escape/unescape =========================
-
-# Convert string to include C/C++-style escape sequences:
-function Escape-C {
-    param([string]$s)
-    $sb = New-Object System.Text.StringBuilder
-    foreach ($ch in $s.ToCharArray()) {
-        $code = [int]$ch
-        switch ($ch) {
-            "`t" { [void]$sb.Append('\t'); continue }
-            "`n" { [void]$sb.Append('\n'); continue }
-            "`r" { [void]$sb.Append('\r'); continue }
-            "`b" { [void]$sb.Append('\b'); continue }
-            "`f" { [void]$sb.Append('\f'); continue }
-            [char]0x0B { [void]$sb.Append('\v'); continue } # vertical tab
-            [char]0x07 { [void]$sb.Append('\a'); continue } # bell
-            '"'  { [void]$sb.Append('\"'); continue }
-            "'"  { [void]$sb.Append("\'"); continue }
-            '\'  { [void]$sb.Append("\\"); continue }
-        }
-        if ($code -lt 0x20 -or $code -eq 0x7F) {
-            [void]$sb.Append('\x' + $code.ToString('x2'))
-        } else {
-            [void]$sb.Append($ch)
-        }
+      }
+      [void]$sb.Append($d); $pos.Value++
     }
     return $sb.ToString()
+  } else {
+    $start = $pos.Value
+    while ($pos.Value -lt $len) {
+      $d = $Text[$pos.Value]
+      if ([char]::IsWhiteSpace($d) -or $d -eq '|' -or $d -eq '}' -or $d -eq ':') { break }
+      $pos.Value++
+    }
+    if ($pos.Value -eq $start) { return $null }
+    return $Text.Substring($start, $pos.Value - $start)
+  }
 }
 
-# Convert string from C/C++-style escape sequences (old version, does not handle \x or octal):
-function Unescape-C {
-    param([string]$s)
-    $sb = New-Object System.Text.StringBuilder
-    for ($i=0; $i -lt $s.Length; $i++) {
-        $c = $s[$i]
-        if ($c -ne '\') { [void]$sb.Append($c); continue }
-        # escape seq
-        if ($i + 1 -ge $s.Length) { [void]$sb.Append('\'); break }
-        $i++
-        switch ($s[$i]) {
-            'n' { [void]$sb.Append("`n") }
-            'r' { [void]$sb.Append("`r") }
-            't' { [void]$sb.Append("`t") }
-            'b' { [void]$sb.Append("`b") }
-            'f' { [void]$sb.Append("`f") }
-            'v' { [void]$sb.Append([char]0x0B) }
-            'a' { [void]$sb.Append([char]0x07) }
-            '"' { [void]$sb.Append('"') }
-            "'" { [void]$sb.Append("'") }
-            '\' { [void]$sb.Append('\') }
-            'x' {
-                # hex (consume up to 2 hex digits)
-                $hex = ''
-                for ($k=0; $k -lt 2 -and ($i+1) -lt $s.Length -and $s[$i+1] -match '[0-9A-Fa-f]'; $k++) {
-                    $i++; $hex += $s[$i]
-                }
-                if ($hex.Length -gt 0) { [void]$sb.Append([char]([Convert]::ToInt32($hex,16))) }
-            }
-            default {
-                # Octal \ooo (up to 3 digits) or literal
-                if ($s[$i] -match '[0-7]') {
-                    $oct = $s[$i]
-                    for ($k=0; $k -lt 2 -and ($i+1) -lt $s.Length -and $s[$i+1] -match '[0-7]'; $k++) {
-                        $i++; $oct += $s[$i]
-                    }
-                    [void]$sb.Append([char]([Convert]::ToInt32($oct,8)))
-                } else {
-                    [void]$sb.Append($s[$i])
-                }
-            }
-        }
+# --------------------------------------------------------------------
+# Placeholder parser  {{ head | filter[:arg[:arg...]] ... }}
+# --------------------------------------------------------------------
+function Parse-Placeholder {
+  param(
+    [Parameter(Mandatory)][string] $Text,
+    [Parameter(Mandatory)][ref]    $Index
+  )
+
+  $len = $Text.Length
+  if ($Index.Value + 1 -ge $len -or $Text[$Index.Value] -ne '{' -or $Text[$Index.Value+1] -ne '}') {
+    # We expect '{{' here
+    if ($Index.Value + 1 -ge $len -or $Text[$Index.Value] -ne '{' -or $Text[$Index.Value+1] -ne '{') {
+      throw "Internal parser error: expected '{{' at $($Index.Value)."
     }
-    return $sb.ToString()
-}
-
-# Convert a literal string to a C/C++-style escaped string.
-# Rules:
-#   - Standard short escapes: \0 \a \b \t \n \v \f \r \" \' \? \\
-#   - Other control chars (and DEL 0x7F): \u00HH (fixed-length, unambiguous)
-#   - Printable ASCII (0x20..0x7E except the ones above): literal
-#   - Non-ASCII BMP (<= 0xFFFF): \uXXXX
-#   - Non-BMP (> 0xFFFF): \UXXXXXXXX (surrogate pair form)
-function Filter-EscC {
-    param([Parameter(Mandatory)][string]$Text)
-
-    $sb = [System.Text.StringBuilder]::new()
-
-    function Append-UnicodeEscape([System.Text.StringBuilder]$B, [int]$cp) {
-        if ($cp -le 0xFFFF) {
-            [void]$B.Append('\u')
-            [void]$B.Append($cp.ToString('X4'))
-        } else {
-            [void]$B.Append('\U')
-            [void]$B.Append($cp.ToString('X8'))
-        }
-    }
-
-    $i   = 0
-    $len = $Text.Length
-    while ($i -lt $len) {
-        $c = [int][char]$Text[$i]
-
-        # Detect surrogate pair (no System.Text.Rune dependency)
-        if ($c -ge 0xD800 -and $c -le 0xDBFF -and ($i + 1) -lt $len) {
-            $c2 = [int][char]$Text[$i+1]
-            if ($c2 -ge 0xDC00 -and $c2 -le 0xDFFF) {
-                $cp = (($c - 0xD800) -shl 10) + ($c2 - 0xDC00) + 0x10000
-                Append-UnicodeEscape $sb $cp
-                $i += 2
-                continue
-            }
-        }
-
-        switch ($c) {
-            0x00 { [void]$sb.Append('\0');  $i++; continue }
-            0x07 { [void]$sb.Append('\a');  $i++; continue }
-            0x08 { [void]$sb.Append('\b');  $i++; continue }
-            0x09 { [void]$sb.Append('\t');  $i++; continue }
-            0x0A { [void]$sb.Append('\n');  $i++; continue }
-            0x0B { [void]$sb.Append('\v');  $i++; continue }
-            0x0C { [void]$sb.Append('\f');  $i++; continue }
-            0x0D { [void]$sb.Append('\r');  $i++; continue }
-            0x22 { [void]$sb.Append('\"');  $i++; continue } # "
-            0x27 { [void]$sb.Append("\'");  $i++; continue } # '
-            0x3F { [void]$sb.Append('\?');  $i++; continue } # ?
-            0x5C { [void]$sb.Append('\\');  $i++; continue } # backslash
-
-            default {
-                if ($c -lt 0x20 -or $c -eq 0x7F) {
-                    # Other control chars → canonical, fixed-length \u00HH
-                    [void]$sb.Append('\u')
-                    # build 4 hex digits with leading zeros for the low byte
-                    [void]$sb.Append(('00' + $c.ToString('X2'))[-4..-1] -join '')
-                    $i++
-                }
-                elseif ($c -le 0x7E) {
-                    # Printable ASCII
-                    [void]$sb.Append([char]$c)
-                    $i++
-                }
-                else {
-                    # Non-ASCII → \uXXXX or \UXXXXXXXX
-                    Append-UnicodeEscape $sb $c
-                    $i++
-                }
-            }
-        }
-    }
-
-    $sb.ToString()
-}
-
-# Convert string including C/C++-style escape sequences to literal string:
-function Filter-FromEscC {
-    param([Parameter(Mandatory)][string]$Text)
-
-    # --- PRE-PASS: normalize \UXXXXXXXX to real Unicode (surrogate pairs as needed) ---
-    $Text = [System.Text.RegularExpressions.Regex]::Replace(
-        $Text,
-        '\\U([0-9A-Fa-f]{8})',
-        { param($m)
-            $hex = $m.Groups[1].Value
-            $cp  = [Convert]::ToInt32($hex, 16)
-            if ($cp -gt 0x10FFFF -or ($cp -ge 0xD800 -and $cp -le 0xDFFF)) {
-                throw "Invalid Unicode code point U+$($hex.ToUpper())."
-            }
-            [System.Char]::ConvertFromUtf32($cp)
-        }
-    )
-
-    $sb  = [System.Text.StringBuilder]::new()
-    $i   = 0
-    $len = $Text.Length
-
-    function Parse-Hex([string]$s) {
-        $v = 0
-        if (-not [int]::TryParse($s,
-            [System.Globalization.NumberStyles]::AllowHexSpecifier,
-            [System.Globalization.CultureInfo]::InvariantCulture,
-            [ref]$v)) {
-            throw "Invalid hex digits '$s'."
-        }
-        $v
-    }
-
-    function Append-CodePoint([System.Text.StringBuilder]$B, [int]$cp) {
-        if ($cp -le 0xFFFF) {
-            [void]$B.Append([char]$cp)
-        } else {
-            $pair = [System.Char]::ConvertFromUtf32($cp)
-            [void]$B.Append($pair)
-        }
-    }
-
-    while ($i -lt $len) {
-        $ch = $Text[$i]
-        if ($ch -ne '\') { [void]$sb.Append($ch); $i++; continue }
-
-        if ($i + 1 -ge $len) { [void]$sb.Append('\'); break }
-        $i++
-        $esc = $Text[$i]
-
-        switch ($esc) {
-            'a' { [void]$sb.Append([char]0x07); $i++; continue }
-            'b' { [void]$sb.Append([char]0x08); $i++; continue }
-            't' { [void]$sb.Append([char]0x09); $i++; continue }
-            'n' { [void]$sb.Append([char]0x0A); $i++; continue }
-            'v' { [void]$sb.Append([char]0x0B); $i++; continue }
-            'f' { [void]$sb.Append([char]0x0C); $i++; continue }
-            'r' { [void]$sb.Append([char]0x0D); $i++; continue }
-            '"' { [void]$sb.Append('"');       $i++; continue }
-            "'" { [void]$sb.Append("'");       $i++; continue }
-            '?' { [void]$sb.Append('?');       $i++; continue }
-            '\' { [void]$sb.Append('\');       $i++; continue }
-
-            'x' {
-                # \xHH... : 1–8 hex digits (greedy)
-                $start = $i + 1
-                $j = $start
-                while ($j -lt $len -and (
-                        ($Text[$j] -ge '0' -and $Text[$j] -le '9') -or
-                        ($Text[$j] -ge 'a' -and $Text[$j] -le 'f') -or
-                        ($Text[$j] -ge 'A' -and $Text[$j] -le 'F'))) {
-                    if (($j - $start) -ge 8) { break }
-                    $j++
-                }
-                if ($j -eq $start) { throw "Invalid \x escape at index ${i}: expected 1+ hex digits." }
-                $hex = $Text.Substring($start, $j - $start)
-                $val = Parse-Hex $hex
-                Append-CodePoint $sb $val
-                $i = $j
-                continue
-            }
-
-            'u' {
-                # \uXXXX (exactly 4 hex)
-                if (($i + 4) -ge $len) { throw "Invalid \u escape at index ${i}: expected 4 hex digits." }
-                $hex = $Text.Substring($i + 1, 4)
-                if ($hex -notmatch '^[0-9A-Fa-f]{4}$') { throw "Invalid \u escape digits '$hex' at index $i." }
-                $val = Parse-Hex $hex
-                Append-CodePoint $sb $val
-                $i += 5
-                continue
-            }
-
-            'U' {
-                # \UXXXXXXXX already normalized by pre-pass; keep as literal in case one slipped through
-                [void]$sb.Append('U')
-                $i++
-                continue
-            }
-
-            default {
-                # Octal: \[0-7]{1,3}
-                if ($esc -ge '0' -and $esc -le '7') {
-                    $start  = $i
-                    $digits = 1
-                    while ($digits -lt 3 -and $i + 1 -lt $len -and $Text[$i+1] -ge '0' -and $Text[$i+1] -le '7') {
-                        $i++; $digits++
-                    }
-                    $oct = $Text.Substring($start, $digits)
-                    $val = [Convert]::ToInt32($oct, 8)
-                    Append-CodePoint $sb $val
-                    $i = $start + $digits
-                    continue
-                }
-
-                # Unknown escape => take next char literally
-                [void]$sb.Append($esc)
-                $i++
-                continue
-            }
-        }
-    }
-
-    $sb.ToString()
-}
-
-
-
-# ========================= Java escape / unescape =========================
-
-# Convert string to include Java-style escape sequences:
-function Escape-Java {
-    param([string]$s)
-    # Similar to C, but prefer \uXXXX for non-ASCII
-    $sb = New-Object System.Text.StringBuilder
-    foreach ($ch in $s.ToCharArray()) {
-        switch ($ch) {
-            "`t" { [void]$sb.Append('\t'); continue }
-            "`n" { [void]$sb.Append('\n'); continue }
-            "`r" { [void]$sb.Append('\r'); continue }
-            "`b" { [void]$sb.Append('\b'); continue }
-            "`f" { [void]$sb.Append('\f'); continue }
-            '"'  { [void]$sb.Append('\"'); continue }
-            "'"  { [void]$sb.Append("\'"); continue }
-            '\'  { [void]$sb.Append("\\"); continue }
-        }
-        $code = [int]$ch
-        if ($code -lt 0x20 -or $code -gt 0x7E) {
-            [void]$sb.Append('\u' + $code.ToString('x4'))
-        } else {
-            [void]$sb.Append($ch)
-        }
-    }
-    return $sb.ToString()
-}
-
-# Convert string from including Java-style escape sequences to literal (old version):
-function Unescape-Java {
-    param([string]$s)
-    $sb = New-Object System.Text.StringBuilder
-    for ($i=0; $i -lt $s.Length; $i++) {
-        $c = $s[$i]
-        if ($c -ne '\') { [void]$sb.Append($c); continue }
-        if ($i + 1 -ge $s.Length) { [void]$sb.Append('\'); break }
-        $i++
-        switch ($s[$i]) {
-            't' { [void]$sb.Append("`t") }
-            'n' { [void]$sb.Append("`n") }
-            'r' { [void]$sb.Append("`r") }
-            'b' { [void]$sb.Append("`b") }
-            'f' { [void]$sb.Append("`f") }
-            '"' { [void]$sb.Append('"') }
-            "'" { [void]$sb.Append("'") }
-            '\' { [void]$sb.Append('\') }
-            'u' {
-                if ($i + 4 -ge $s.Length) { break }
-                $hex = $s.Substring($i+1,4); $i += 4
-                [void]$sb.Append([char]([Convert]::ToInt32($hex,16)))
-            }
-            default {
-                # Java also accepts octal escapes \0..\377
-                if ($s[$i] -match '[0-7]') {
-                    $oct = $s[$i]
-                    for ($k=0; $k -lt 2 -and ($i+1) -lt $s.Length -and $s[$i+1] -match '[0-7]'; $k++) {
-                        $i++; $oct += $s[$i]
-                    }
-                    [void]$sb.Append([char]([Convert]::ToInt32($oct,8)))
-                } else {
-                    [void]$sb.Append($s[$i])
-                }
-            }
-        }
-    }
-    return $sb.ToString()
-}
-
-# Convert literal strings to include Java-style escape sequences:
-function Filter-EscJava {
-    [CmdletBinding()]
-    param([Parameter(Mandatory)][string]$Text)
-
-    $sb = New-Object System.Text.StringBuilder
-
-    # Emit one UTF-16 code unit as Java \uXXXX
-    function _Emit-U { param([int]$unit) [void]$sb.Append(('\u{0:X4}' -f $unit)) }
-
-    $enum = [System.Globalization.StringInfo]::GetTextElementEnumerator($Text)
-    while ($enum.MoveNext()) {
-        $te = $enum.GetTextElement()
-
-        # Scalar codepoint of this text element (handles BMP and surrogate pairs)
-        $cp = [char]::ConvertToUtf32($te, 0)
-
-        if ($cp -le 0xFFFF) {
-            # Single UTF-16 unit (BMP)
-            $ch = [char]$cp
-            switch ($ch) {
-                '"'  { [void]$sb.Append('\"'); continue }
-                "'"  { [void]$sb.Append("\'"); continue }
-                '\'  { [void]$sb.Append('\\'); continue }
-                "`b" { [void]$sb.Append('\b'); continue }
-                "`t" { [void]$sb.Append('\t'); continue }
-                "`n" { [void]$sb.Append('\n'); continue }
-                "`f" { [void]$sb.Append('\f'); continue }
-                "`r" { [void]$sb.Append('\r'); continue }
-                default {
-                    # Keep printable ASCII literal; escape control/non-ASCII as \uXXXX
-                    $code = [int]$ch
-                    if ([char]::IsControl($ch) -or $code -lt 0x20 -or $code -gt 0x7E) {
-                        _Emit-U $code
-                    } else {
-                        [void]$sb.Append($ch)
-                    }
-                }
-            }
-        } else {
-            # Supplementary plane: emit surrogate pair as two \uXXXX (Java canonical form)
-            $tmp  = $cp - 0x10000
-            $high = 0xD800 + ($tmp -shr 10)
-            $low  = 0xDC00 + ($tmp -band 0x3FF)
-            _Emit-U $high
-            _Emit-U $low
-        }
-    }
-
-    $sb.ToString()
-}
-
-# Convert strings including Java-style escape sequences to literal form:
-function Filter-FromEscJava {
-    [CmdletBinding()]
-    param([Parameter(Mandatory)][string]$Text)
-
-    $sb  = New-Object System.Text.StringBuilder
-    $len = $Text.Length
-    $i   = 0
-
-    :outer while ($i -lt $len) {
-        $ch = $Text[$i]
-        if ($ch -ne '\') { [void]$sb.Append($ch); $i++; continue outer }
-
-        if ($i + 1 -ge $len) { [void]$sb.Append('\'); break }
-        $i++
-        $esc = $Text[$i]
-
-        switch -CaseSensitive ($esc) {
-            'b' { [void]$sb.Append([char]8)  ; $i++; continue outer }
-            't' { [void]$sb.Append([char]9)  ; $i++; continue outer }
-            'n' { [void]$sb.Append([char]10) ; $i++; continue outer }
-            'f' { [void]$sb.Append([char]12) ; $i++; continue outer }
-            'r' { [void]$sb.Append([char]13) ; $i++; continue outer }
-            '"' { [void]$sb.Append('"')      ; $i++; continue outer }
-            "'" { [void]$sb.Append("'")      ; $i++; continue outer }
-            '\' { [void]$sb.Append('\')      ; $i++; continue outer }
-
-            # \uXXXX — exactly 4 hex digits per Java spec
-            'u' {
-                if ($i + 4 -ge $len) { [void]$sb.Append('\'); [void]$sb.Append('u'); $i++; continue outer }
-                $hex = $Text.Substring($i+1,4)
-                if ($hex -notmatch '^[0-9A-Fa-f]{4}$') {
-                    [void]$sb.Append('\'); [void]$sb.Append("u$hex"); $i += 5; continue outer
-                }
-                $unit = [Convert]::ToInt32($hex,16)
-                [void]$sb.Append([char]$unit)
-                $i += 5
-
-                # If we appended a high surrogate and the next thing is \uDCxx, append it (pair)
-                if ($unit -ge 0xD800 -and $unit -le 0xDBFF) {
-                    if ($i + 5 -le $len -and $Text[$i] -eq '\' -and $Text[$i+1] -eq 'u') {
-                        $hex2 = $Text.Substring($i+2,4)
-                        if ($hex2 -match '^[0-9A-Fa-f]{4}$') {
-                            $unit2 = [Convert]::ToInt32($hex2,16)
-                            if ($unit2 -ge 0xDC00 -and $unit2 -le 0xDFFF) {
-                                [void]$sb.Append([char]$unit2)
-                                $i += 6
-                            }
-                        }
-                    }
-                }
-                continue outer
-            }
-
-            # Legacy Java octal escapes: \0 .. \377 (up to 3 octal digits)
-            { $_ -ge '0' -and $_ -le '7' } {
-                $start  = $i
-                $digits = 1
-                while ($digits -lt 3 -and $i + 1 -lt $len -and $Text[$i+1] -ge '0' -and $Text[$i+1] -le '7') {
-                    $i++; $digits++
-                }
-                $oct = $Text.Substring($start, $digits)
-                $val = [Convert]::ToInt32($oct, 8)
-                [void]$sb.Append([char]$val)
-                $i++
-                continue outer
-            }
-
-            default {
-                # Not a recognized Java escape — keep literally
-                [void]$sb.Append('\'); [void]$sb.Append($esc); $i++; continue outer
-            }
-        }
-    }
-
-    $sb.ToString()
-}
-
-
-
-function Convert-CodePointToString {
-    param([int]$cp)
-    if ($cp -le 0xFFFF) { return [char]$cp }
-    $cp -= 0x10000
-    $hi = 0xD800 + ($cp -shr 10)
-    $lo = 0xDC00 + ($cp -band 0x3FF)
-    return ([char]$hi).ToString() + ([char]$lo)
-}
-
-# ========================= C# escape / unescape =========================
-
-# Convert literal string to include C#-style escape sequences:
-function Escape-Cs {
-    param([string]$s)
-    $sb = New-Object System.Text.StringBuilder
-    foreach ($ch in $s.ToCharArray()) {
-        switch ($ch) {
-            "`t" { [void]$sb.Append('\t'); continue }
-            "`n" { [void]$sb.Append('\n'); continue }
-            "`r" { [void]$sb.Append('\r'); continue }
-            "`b" { [void]$sb.Append('\b'); continue }
-            "`f" { [void]$sb.Append('\f'); continue }
-            '"'  { [void]$sb.Append('\"'); continue }
-            "'"  { [void]$sb.Append("\'"); continue }
-            '\'  { [void]$sb.Append("\\"); continue }
-        }
-        $code = [int]$ch
-        if ($code -lt 0x20 -or $code -gt 0x7E) {
-            if ($code -le 0xFFFF) {
-                [void]$sb.Append('\u' + $code.ToString('x4'))
-            } else {
-                [void]$sb.Append('\U' + $code.ToString('x8'))
-            }
-        } else {
-            [void]$sb.Append($ch)
-        }
-    }
-    return $sb.ToString()
-}
-
-
-# Convert string from including C#-style escape sequences to literal form (old version):
-function Unescape-Cs {
-    param([string]$s)
-    $sb = New-Object System.Text.StringBuilder
-    for ($i=0; $i -lt $s.Length; $i++) {
-        $c = $s[$i]
-        if ($c -ne '\') { [void]$sb.Append($c); continue }
-        if ($i + 1 -ge $s.Length) { [void]$sb.Append('\'); break }
-        $i++
-        switch ($s[$i]) {
-            't' { [void]$sb.Append("`t") }
-            'n' { [void]$sb.Append("`n") }
-            'r' { [void]$sb.Append("`r") }
-            'b' { [void]$sb.Append("`b") }
-            'f' { [void]$sb.Append("`f") }
-            '"' { [void]$sb.Append('"') }
-            "'" { [void]$sb.Append("'") }
-            '\' { [void]$sb.Append('\') }
-            'u' {
-                if ($i + 4 -ge $s.Length) { break }
-                $hex = $s.Substring($i+1,4); $i += 4
-                [void]$sb.Append([char]([Convert]::ToInt32($hex,16)))
-            }
-            'U' {
-                if ($i + 8 -ge $s.Length) { break }
-                $hex = $s.Substring($i+1,8); $i += 8
-                $cp  = [Convert]::ToInt32($hex,16)
-                [void]$sb.Append( (Convert-CodePointToString $cp) )
-            }
-            default { [void]$sb.Append($s[$i]) }
-        }
-    }
-    return $sb.ToString()
-}
-
-# Convert literal string to include C#-style escape sequences:
-
-function Filter-EscCs {
-    <#
-      C#-style escape:
-        - Short escapes for \n \r \t \v \b \f \0 \\ \" \'
-        - Printable ASCII → literal
-        - Other BMP → \uXXXX
-        - Supplementary → \UXXXXXXXX
-      Uses labeled loop so each char is emitted exactly once.
-    #>
-    [CmdletBinding()]
-    param([Parameter(Mandatory)][string]$Text)
-
-    $sb  = New-Object System.Text.StringBuilder
-    $len = $Text.Length
-    $i   = 0
-
-    :outer while ($i -lt $len) {
-        $ch = $Text[$i]
-
-        # Surrogate pair → \UXXXXXXXX
-        if ([char]::IsHighSurrogate($ch) -and $i + 1 -lt $len -and [char]::IsLowSurrogate($Text[$i+1])) {
-            $high   = [uint32][char]$ch
-            $low    = [uint32][char]$Text[$i+1]
-            $scalar = 0x10000 + (($high - 0xD800) -shl 10) + ($low - 0xDC00)
-            [void]$sb.Append(('\U{0}' -f $scalar.ToString('X8')))
-            $i += 2
-            continue outer
-        }
-
-        $code = [int][char]$ch
-        switch ($code) {
-            10 { [void]$sb.Append('\n');  $i++; continue outer }  # LF
-            13 { [void]$sb.Append('\r');  $i++; continue outer }  # CR
-            9  { [void]$sb.Append('\t');  $i++; continue outer }  # HT
-            11 { [void]$sb.Append('\v');  $i++; continue outer }  # VT
-            8  { [void]$sb.Append('\b');  $i++; continue outer }  # BS
-            12 { [void]$sb.Append('\f');  $i++; continue outer }  # FF
-            0  { [void]$sb.Append('\0');  $i++; continue outer }  # NUL
-            34 { [void]$sb.Append('\"');  $i++; continue outer }  # "
-            39 { [void]$sb.Append("\'");  $i++; continue outer }  # '
-            92 { [void]$sb.Append('\\');  $i++; continue outer }  # \
-        }
-
-        if ($code -lt 0x20 -or $code -eq 0x7F) {
-            [void]$sb.Append(('\u{0}' -f $code.ToString('X4')))
-            $i++; continue outer
-        }
-
-        if ($code -lt 0x80) {
-            [void]$sb.Append([char]$code)
-            $i++; continue outer
-        }
-
-        [void]$sb.Append(('\u{0}' -f $code.ToString('X4')))
-        $i++; continue outer
-    }
-
-    $sb.ToString()
-}
-
-# Convert string including C#-style escape sequences to literal form:
-function Filter-FromEscCs {
-    [CmdletBinding()]
-    param([Parameter(Mandatory)][string]$Text)
-
-    $sb  = New-Object System.Text.StringBuilder
-    $len = $Text.Length
-    $i   = 0
-
-    :outer while ($i -lt $len) {
-        $ch = $Text[$i]
-        if ($ch -ne '\') { [void]$sb.Append($ch); $i++; continue outer }
-
-        if ($i + 1 -ge $len) { [void]$sb.Append('\'); break }
-        $i++
-        $esc = $Text[$i]
-
-        switch -CaseSensitive ($esc) {
-            'a' { [void]$sb.Append([char]7)  ; $i++; continue outer }
-            'b' { [void]$sb.Append([char]8)  ; $i++; continue outer }
-            'f' { [void]$sb.Append([char]12) ; $i++; continue outer }
-            'n' { [void]$sb.Append([char]10) ; $i++; continue outer }
-            'r' { [void]$sb.Append([char]13) ; $i++; continue outer }
-            't' { [void]$sb.Append([char]9)  ; $i++; continue outer }
-            'v' { [void]$sb.Append([char]11) ; $i++; continue outer }
-            '0' { [void]$sb.Append([char]0)  ; $i++; continue outer }
-            '"' { [void]$sb.Append('"')      ; $i++; continue outer }
-            "'" { [void]$sb.Append("'")      ; $i++; continue outer }
-            '\' { [void]$sb.Append('\')      ; $i++; continue outer }
-
-            'x' {
-                $i++
-                $start  = $i
-                $digits = 0
-                while ($i -lt $len -and $digits -lt 4 -and [System.Uri]::IsHexDigit($Text[$i])) { $digits++; $i++ }
-                if ($digits -eq 0) {
-                    [void]$sb.Append('\'); [void]$sb.Append('x')
-                } else {
-                    $unit = [Convert]::ToInt32($Text.Substring($start,$digits),16)
-                    [void]$sb.Append([char]$unit)
-                }
-                continue outer
-            }
-
-            'u' {
-                if ($i + 4 -ge $len) { [void]$sb.Append('\'); [void]$sb.Append('u'); $i++; continue outer }
-                $hex = $Text.Substring($i+1,4)
-                if ($hex -notmatch '^[0-9A-Fa-f]{4}$') { [void]$sb.Append('\'); [void]$sb.Append("u$hex"); $i+=5; continue outer }
-                $unit = [Convert]::ToInt32($hex,16)
-                [void]$sb.Append([char]$unit)
-                $i += 5
-                continue outer
-            }
-
-            'U' {
-                if ($i + 8 -ge $len) { [void]$sb.Append('\'); [void]$sb.Append('U'); $i++; continue outer }
-                $hex = $Text.Substring($i+1,8)
-                if ($hex -notmatch '^[0-9A-Fa-f]{8}$') { [void]$sb.Append('\'); [void]$sb.Append("U$hex"); $i+=9; continue outer }
-                [uint32]$scalar = [Convert]::ToUInt32($hex,16)
-                if ($scalar -le 0xFFFF) {
-                    [void]$sb.Append([char]$scalar)
-                } else {
-                    $tmp  = $scalar - 0x10000
-                    $high = 0xD800 + ($tmp -shr 10)
-                    $low  = 0xDC00 + ($tmp -band 0x3FF)
-                    [void]$sb.Append([char]$high)
-                    [void]$sb.Append([char]$low)
-                }
-                $i += 9
-                continue outer
-            }
-
-            default {
-                # Not a recognized C# escape (e.g., \012): keep literally
-                [void]$sb.Append('\'); [void]$sb.Append($esc); $i++; continue outer
-            }
-        }
-    }
-
-    $sb.ToString()
-}
-
-
-
-# ---------------------------------------------------------------------------
-# FILTERS: path manipulation filters
-# Conversion to Windows or Linux paths, canonization w.r. the current OS.
-# ---------------------------------------------------------------------------
-
-# Changes path to absolute, normalizing it for Windows (backslashes, resolved 
-# . and .., replacing duplicate backslashes).
-function To-WindowsPathAbsolute($path) {
-    # Resolve relative bits, normalize slashes
-    $normalized = [System.IO.Path]::GetFullPath($path)
-
-    # Ensure backslashes (in case input had forward slashes)
-    return $normalized -replace '/', '\'
-}
-
-# Changes path to absolute, normalizing it for Linux (slashes, resolved 
-# . and .., replacing duplicate slashes).
-function To-LinuxPathAbsolute($path) {
-    # Normalize using .NET first (removes ./, duplicate slashes, etc.)
-    $normalized = [System.IO.Path]::GetFullPath($path)
-
-    # Convert backslashes to forward slashes
-    $normalized = $normalized -replace '\\', '/'
-
-    # Replace drive letter (C:\ → /c/ style, like WSL/MinGW convention)
-    if ($normalized -match '^([A-Za-z]):') {
-        $drive = $matches[1].ToLower()
-        $normalized = $normalized -replace '^.:', "/$drive"
-    }
-
-    return $normalized
-}
-
-# Converts path to absolute, normalized for the current OS.
-function To-OSPathAbsolute($path) {
-    if ($IsWindows) {
-        return To-WindowsPathAbsolute $path
-    } else {
-        return To-LinuxPathAbsolute $path
-    }
-}
-
-# Changes path to a canonical form for Windows, preserving relative paths.
-function To-WindowsPathPreserveRelative($path) {
-    # Convert all separators to backslash
-    $p = $path -replace '/', '\'
-
-    # Collapse duplicate backslashes (except for leading \\ in UNC paths)
-    $p = $p -replace '(?<!^)(\\)\\+', '$1'
-
-    # Remove "\.\" parts
-    $p = $p -replace '\\\.(?=\\|$)', ''
-
-    return $p
-}
-
-# Changes path to a canonical form for Linux, preserving relative paths.
-function To-LinuxPathPreserveRelative($path) {
-    # Convert all backslashes to forward slash
-    $p = $path -replace '\\', '/'
-
-    # Collapse duplicate slashes (but keep leading // for network paths if you want)
-    $p = $p -replace '//+', '/'
-
-    # Remove "/./" parts
-    $p = $p -replace '/\.(?=/|$)', ''
-
-    # Optional: map drive letters (C:\ → /c/) if path starts with them
-    if ($p -match '^([A-Za-z]):') {
-        $drive = $matches[1].ToLower()
-        $p = $p -replace '^.:', "/$drive"
-    }
-
-    return $p
-}
-
-# Changes path to a canonical form for the current OS, preserving relative paths.
-function To-OSPathPreserveRelative($path) {
-    if ($IsWindows) {
-        return To-WindowsPathPreserveRelative $path
-    } else {
-        return To-LinuxPathPreserveRelative $path
-    }
-}
-
-
-# ---------------------------------------------------------------------------
-# Helper: Apply-Filters
-# Applies a pipeline of filters to a string, returning the transformed value.
-# ---------------------------------------------------------------------------
-function Apply-Filters {
-    <#
-    .SYNOPSIS
-      Apply template filters (regq, quote, pathappend, expandsz, etc.) to a value.
-
-    .PARAMETER Value
-      Initial string value.
-
-    .PARAMETER Pipeline
-      Array of @{ name='filter'; arg='optional' } entries.
-
-    .OUTPUTS
-      [string] Transformed value.
-    #>
-    param(
-        [object]   $Value,     # can be string or [byte[]] between filters
-        [object[]] $Pipeline
-    )
-
-    if ($null -eq $Value) {
-        ET-Log "Apply-Filters: received NULL before any filter."
-        throw "Filter pipeline received null input. Check the placeholder head (var/env) resolves correctly."
-    }
-    ET-Log "Apply-Filters: BEGIN (type in: $($Value.GetType().FullName))"
-
-    foreach ($f in $Pipeline) {
-        # Debug log to help trace issues with parsing filters
-        ET-Log "Apply-Filters: BEGIN (type in: $($Value.GetType().FullName))"
-
-        # ---- Normalize access for hashtable or PSCustomObject ----
-        $isHash = ($f -is [hashtable])
-
-        $name = if ($isHash) { [string]$f['name'] } else { [string]$f.name }
-        $arg  = if ($isHash) { $f['arg'] }         else { $f.arg }
-
-        # multi-arg support (e.g., replace:"old":"new")
-        $args = @()
-        if ($isHash) {
-            if ($f.ContainsKey('args') -and $f['args']) { $args = @($f['args']) }
-            elseif ($null -ne $arg) { $args = @($arg) }
-        } else {
-            if ($f.PSObject.Properties['args'] -and $f.args) { $args = $f.args }
-            elseif ($null -ne $arg) { $args = @($arg) }
-        }
-
-        switch ($name.ToLowerInvariant()) {
-
-            # -------------------- Basic string transforms --------------------
-            'trim'   { $Value = (As-String $Value).Trim() }
-            'upper'  { $Value = (As-String $Value).ToUpper() }
-            'lower'  { $Value = (As-String $Value).ToLower() }
-
-            # -------------------- Quoting / escaping (text) ------------------
-            'quote'      { $Value = '"' + (As-String $Value) + '"' }
-            'pathquote'  {
-                $s = As-String $Value
-                if ($s -notmatch '^\s*".*"\s*$') { $s = '"' + $s + '"' }
-                $Value = $s
-            }
-            'regq'    { $Value = (As-String $Value) -replace '"','\"' }
-            'regesc'  { $Value = ((As-String $Value) -replace '\\','\\') -replace '"','\"' }
-
-            # -------------------- Path normalization (your helpers) ----------
-            'pathwin'     { $Value = To-WindowsPathPreserveRelative (As-String $Value) }
-            'pathlinux'   { $Value = To-LinuxPathPreserveRelative   (As-String $Value) }
-            'pathos'      { $Value = To-OSPathPreserveRelative      (As-String $Value) }
-            'pathwinabs'  { $Value = To-WindowsPathAbsolute         (As-String $Value) }
-            'pathlinuxabs'{ $Value = To-LinuxPathAbsolute           (As-String $Value) }
-            'pathosabs'   { $Value = To-OSPathAbsolute              (As-String $Value) }
-
-            # -------------------- String composition -------------------------
-            'prepend'     { $Value = ($(if ($null -ne $arg) { $arg } else { '' })) + (As-String $Value) }
-            'append'      { $Value = (As-String $Value) + ($(if ($null -ne $arg) { $arg } else { '' })) }
-            'default'     {
-                $s = As-String $Value
-                if ([string]::IsNullOrWhiteSpace($s)) {
-                    $Value = ($(if ($null -ne $arg) { $arg } else { '' }))
-                } else {
-                    $Value = $s
-                }
-            }
-            'replace'     {
-                if ($args.Count -lt 2) { throw 'replace filter requires two arguments: replace:"old":"new"' }
-                $old = $args[0]; $new = $args[1]
-                $Value = (As-String $Value).Replace($old, $new)   # literal, not regex
-            }
-            'pathappend'  { $Value = (As-String $Value) + ($(if ($null -ne $arg) { $arg } else { '' })) }
-            'addarg'      { $Value = (As-String $Value) + ' "' + ($(if ($null -ne $arg) { $arg } else { '' })) + '"' }
-
-            # ----------------- Bytes-to-text and vice versa -------------------
-            # Decode byte[] -> string using UTF-16LE (.NET "Unicode" string)
-            'utf16' { 
-                # expects byte[]
-                $Value = [System.Text.Encoding]::Unicode.GetString($value)
-            }
-            # Decode byte[] -> string using UTF-8
-            'utf8' {
-                $bytes = As-Bytes $Value
-                $Value = [System.Text.Encoding]::UTF8.GetString($bytes)
-            }
-            # Force string -> byte[] using UTF-16LE (symmetry helper):
-            'bytes' {
-                $Value = As-Bytes $Value   # already returns Unicode bytes
-            }
-            # Returns type of the value (for debugging purposes)
-            'type' {
-              $Value = ($Value).GetType().FullName
-            }
-            
-            # -------------------- Text encodings ------------------------------
-            'urlencode'   { $Value = Filter-UrlEncode (As-String $Value) }
-            'urldecode'   { $Value = Filter-UrlDecode (As-String $Value) }
-
-            'xmlencode'   { $Value = Filter-XmlEncode (As-String $Value) }
-            'xmldecode'   { $Value = Filter-XmlDecode (As-String $Value) }
-
-            # -------------------- Binary/text codecs -------------------------
-            
-            # Compress string or byte[] → byte[] with gzip
-            'gzip'        { $Value = Filter-Gzip      $Value }  # -> byte[]
-            # Unzip byte[] → string (UTF-16LE, .NET "Unicode" string):
-            'strgunzip'   { $Value = [Text.Encoding]::Unicode.GetString( (Filter-Gunzip $Value) ) }  # byte[] -> byte[] -> string
-            # Uncompress byte[] → byte[] with gzip (needs additional utf16 filter to get string):
-            'gunzip' { 
-              $bytes = Filter-Gunzip    $Value 
-                if ($args.Count -gt 0) {
-                    switch ($args[0].ToLower()) {
-                        'utf16'  { $Value = [Text.Encoding]::Unicode.GetString($bytes) }
-                        default  { throw "gunzip: unknown decode '$($args[0])' (use utf16)" }
-                    }
-                } else {
-                    $Value = $bytes  # binary mode (for chaining into utf16, base64, etc.)
-                }
-            }
-
-            # Encode string or byte[] → base64 string
-            'base64'      { $Value = Filter-Base64    $Value }  # bytes or string -> base64 string
-            # Decode base64 → string (UTF-16LE, .NET "Unicode" string)
-            'strfrombase64' { $Value = [Text.Encoding]::Unicode.GetString( (Filter-FromBase64 $Value) ) }
-            # Decode base64 → Byte[], with optional filters for final conversion to
-            # encoded string:
-            'frombase64' {
-                $bytes = Filter-FromBase64 $Value
-                if ($args.Count -gt 0) {
-                    switch ($args[0].ToLower()) {
-                        'utf16'  { $Value = [Text.Encoding]::Unicode.GetString($bytes) }
-                        'utf8'   { $Value = [Text.Encoding]::UTF8.GetString($bytes) }
-                        'ascii'  { $Value = [Text.Encoding]::ASCII.GetString($bytes) }
-                        'latin1' { $Value = [Text.Encoding]::GetEncoding(28591).GetString($bytes) }
-                        default  { throw "frombase64: unknown decode '$($args[0])' (use utf16|utf8|ascii|latin1)" }
-                    }
-                } else {
-                    $Value = $bytes  # binary mode (for chaining into gzip, etc.)
-                }
-            }
-
-            # Encode string or byte[] → hex lowercase string
-            'hex'         { $Value = Filter-Hex       $Value }  # bytes or string -> hex string
-            # Decode hex → string (UTF-16LE, .NET "Unicode" string)
-            'strfromhex'    { $Value = [Text.Encoding]::Unicode.GetString( (Filter-FromHex     $Value) ) }            
-            # Decode hex → Byte[], with optional filters for final conversion to
-            # encoded string:
-            'fromhex' {
-                $bytes = Filter-FromHex $Value
-                if ($args.Count -gt 0) {
-                    switch ($args[0].ToLower()) {
-                        'utf16'  { $Value = [Text.Encoding]::Unicode.GetString($bytes) }
-                        'utf8'   { $Value = [Text.Encoding]::UTF8.GetString($bytes) }
-                        'ascii'  { $Value = [Text.Encoding]::ASCII.GetString($bytes) }
-                        'latin1' { $Value = [Text.Encoding]::GetEncoding(28591).GetString($bytes) }
-                        default  { throw "fromhex: unknown decode '$($args[0])' (use utf16|utf8|ascii|latin1)" }
-                    }
-                } else {
-                    $Value = $bytes
-                }
-            }
-
-            # -------------------- Programming-language escapes ---------------
-            'escc' { 
-              # $Value = Escape-C         (As-String $Value) 
-              $Value = Filter-EscC (As-String $Value)
-            }
-            'fromescc' { 
-                # $Value = Unescape-C       (As-String $Value) 
-                $Value = Filter-FromEscC (As-String $Value)
-            }
-
-            'escjava'     { 
-                # $Value = Escape-Java      (As-String $Value)
-                $Value = Filter-EscJava      (As-String $Value)
-            }
-            'fromescjava' { 
-                # $Value = Unescape-Java    (As-String $Value) 
-                $Value = Filter-FromEscJava  (As-String $Value) 
-           }
-
-            'esccs' { 
-                # $Value = Escape-Cs (As-String $Value) 
-                $Value = Filter-EscCs (As-String $Value) 
-            }
-            'fromesccs'  { 
-                $Value = Filter-FromEscCs (As-String $Value) 
-            }
-
-            # -------------------- .reg specific ------------------------------
-            'expandsz' {
-                $s     = As-String $Value
-                $bytes = [System.Text.Encoding]::Unicode.GetBytes($s + [char]0)
-                $hex   = ($bytes | ForEach-Object { $_.ToString('x2') }) -join ','
-                $Value = 'hex(2):' + $hex
-            }
-
-            default {
-                throw "Unknown filter '${name}'."
-            }
-        }
-        $preview = try { ([string]$Value).Substring(0, [Math]::Min(60, ([string]$Value).Length)) } catch { '<non-string>' }
-        ET-Log "              -> type out: $($Value?.GetType().FullName); value preview: «$preview»"
-    }
-    return $Value
-}
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-# --- helper: unescape a double-quoted arg ("...") with simple backslash escapes
-function Unescape-QuotedArg {
-    param([Parameter(Mandatory)][string]$s)
-    # Handle \" and \\ plus common \n \r \t (kept minimal & predictable)
-    $sb = [System.Text.StringBuilder]::new()
-    $i = 0
-    while ($i -lt $s.Length) {
-        $ch = $s[$i]
-        if ($ch -eq '\') {
-            if ($i + 1 -lt $s.Length) {
-                $n = $s[$i+1]
-                switch ($n) {
-                    '"'{ [void]$sb.Append('"');  $i += 2; continue }
-                    '\'{ [void]$sb.Append('\');  $i += 2; continue }
-                    'n'{ [void]$sb.Append([char]10); $i += 2; continue }
-                    'r'{ [void]$sb.Append([char]13); $i += 2; continue }
-                    't'{ [void]$sb.Append([char]9);  $i += 2; continue }
-                    default { [void]$sb.Append($n); $i += 2; continue }
-                }
-            }
-        }
-        [void]$sb.Append($ch)
-        $i++
-    }
-    $sb.ToString()
-}
-
-# --- helper: read a single filter argument starting at $i
-# Supports:
-#   - quoted: "…", with simple backslash escapes
-#   - bare:   runs of [^:\|\}\s]+ (no whitespace, ':', '|', or '}')
-function Read-FilterArg {
-    param(
-        [Parameter(Mandatory)][string]$Text,
-        [Parameter(Mandatory)][ref]$Index
-    )
-    $len = $Text.Length
-    # skip spaces
+  }
+
+  # Skip '{{'
+  $Index.Value += 2
+
+  # Skip leading whitespace
+  while ($Index.Value -lt $len -and [char]::IsWhiteSpace($Text[$Index.Value])) { $Index.Value++ }
+
+  # ---- Robust head parsing: capture everything up to '|' or '}}' and regex it
+  $scan = $Index.Value
+  while ($scan -lt $len) {
+    $ch = $Text[$scan]
+    if ($ch -eq '|' -or $ch -eq '}') { break }
+    $scan++
+  }
+  if ($scan -le $Index.Value) { throw "Invalid placeholder: missing head at $($Index.Value)." }
+
+  # chunk contains the “head” portion (possibly with whitespace/newlines)
+  $chunk = $Text.Substring($Index.Value, $scan - $Index.Value)
+
+  # Match:   var   .   Name   OR   env   .   NAME
+  $m = [regex]::Match($chunk, '^(?is)\s*(var|env)\s*\.\s*([A-Za-z_][\w\.]*)\s*$')
+  if (-not $m.Success) {
+    # Extract a small, cleaned preview to show in the error
+    $preview = ($chunk -replace '\s+', ' ').Trim()
+    if ([string]::IsNullOrEmpty($preview)) { $preview = '(empty)' }
+    throw "Invalid placeholder head '$preview'. Use 'var.Name' or 'env.NAME'."
+  }
+
+  $Namespace = $m.Groups[1].Value.ToLowerInvariant()
+  $Name      = $m.Groups[2].Value
+
+  # Advance index to where we stopped scanning (right before '|' or '}')
+  $Index.Value = $scan
+
+  # Skip trailing whitespace after head (still before '|' or '}}')
+  while ($Index.Value -lt $len -and [char]::IsWhiteSpace($Text[$Index.Value])) { $Index.Value++ }
+
+  # ---- Parse filter pipeline (unchanged logic)
+  $pipeline = New-Object System.Collections.Generic.List[object]
+  while ($Index.Value -lt $len -and $Text[$Index.Value] -eq '|') {
+    $Index.Value++
     while ($Index.Value -lt $len -and [char]::IsWhiteSpace($Text[$Index.Value])) { $Index.Value++ }
 
-    if ($Index.Value -ge $len) { return '' }
-
-    $startCh = $Text[$Index.Value]
-
-    if ($startCh -eq '"') {
-        # quoted
-        $Index.Value++  # skip first "
-        $start = $Index.Value
-        $escaped = $false
-        $sb = [System.Text.StringBuilder]::new()
-        while ($Index.Value -lt $len) {
-            $ch = $Text[$Index.Value]
-            if ($ch -eq '\') {
-                $escaped = $true
-                # Don’t append here; Unescape-QuotedArg handles escapes later.
-                $Index.Value += 2
-                continue
-            }
-            if ($ch -eq '"') {
-                # end of quoted
-                $raw = $Text.Substring($start, $Index.Value - $start)
-                $Index.Value++ # consume closing "
-                return (if ($escaped) { Unescape-QuotedArg $raw } else { $raw })
-            }
-            $Index.Value++
-        }
-        throw "Unterminated quoted filter argument starting at index $start."
-    }
-
-    # bare token: read until whitespace or any of : | }
-    $startIdx = $Index.Value
+    $fStart = $Index.Value
     while ($Index.Value -lt $len) {
-        $ch = $Text[$Index.Value]
-        if ([char]::IsWhiteSpace($ch) -or $ch -eq ':' -or $ch -eq '|' -or $ch -eq '}') { break }
-        $Index.Value++
+      $ch = $Text[$Index.Value]
+      if ([char]::IsWhiteSpace($ch) -or $ch -eq '|' -or $ch -eq '}' -or $ch -eq ':') { break }
+      $Index.Value++
     }
-    if ($Index.Value -eq $startIdx) { return '' }
-    return $Text.Substring($startIdx, $Index.Value - $startIdx)
-}
+    if ($Index.Value -eq $fStart) { throw "Invalid filter name at index $($Index.Value)." }
+    $filterName = $Text.Substring($fStart, $Index.Value - $fStart).Trim().ToLowerInvariant()
 
+    while ($Index.Value -lt $len -and [char]::IsWhiteSpace($Text[$Index.Value])) { $Index.Value++ }
 
-
-
-
-
-function Skip-WS([string]$S, [ref]$i) {
-    while ($i.Value -lt $S.Length -and [char]::IsWhiteSpace($S[$i.Value])) { $i.Value++ }
-}
-
-function Read-Ident([string]$S, [ref]$i) {
-    $start = $i.Value
-    while ($i.Value -lt $S.Length) {
-        $ch = $S[$i.Value]
-        if ($ch -match '[A-Za-z0-9_\-]') { $i.Value++ } else { break }
+    $args = @()
+    while ($Index.Value -lt $len -and $Text[$Index.Value] -eq ':') {
+      $Index.Value++
+      $arg = Read-NextArg -Text $Text -pos ([ref]$Index.Value)
+      if ($null -eq $arg) { throw "Missing value after ':' for filter '$filterName' at index $($Index.Value)." }
+      $args += $arg
+      while ($Index.Value -lt $len -and [char]::IsWhiteSpace($Text[$Index.Value])) { $Index.Value++ }
     }
-    if ($i.Value -eq $start) { return $null }
-    return $S.Substring($start, $i.Value - $start)
+
+    $pipeline.Add([pscustomobject]@{ Name = $filterName; Args = $args })
+    while ($Index.Value -lt $len -and [char]::IsWhiteSpace($Text[$Index.Value])) { $Index.Value++ }
+  }
+
+  # Closing braces
+  while ($Index.Value -lt $len -and [char]::IsWhiteSpace($Text[$Index.Value])) { $Index.Value++ }
+  if ($Index.Value + 1 -ge $len -or $Text[$Index.Value] -ne '}' -or $Text[$Index.Value+1] -ne '}') {
+    throw "Unclosed placeholder. Expected '}}' near index $($Index.Value)."
+  }
+  $Index.Value += 2
+
+  [pscustomobject]@{
+    Namespace = $Namespace
+    Name      = $Name
+    Pipeline  = $pipeline
+  }
 }
 
-function Read-QuotedArg([string]$S, [ref]$i) {
-    # assumes S[i] == '"'
-    $i.Value++ # skip opening "
-    $sb = [System.Text.StringBuilder]::new()
-    while ($i.Value -lt $S.Length) {
-        $ch = $S[$i.Value]
-        if ($ch -eq '"') { $i.Value++; return $sb.ToString() }
-        if ($ch -eq '\') {
-            if ($i.Value + 1 -ge $S.Length) { throw "Unfinished escape near end of quoted argument." }
-            $i.Value++
-            $esc = $S[$i.Value]
-            switch ($esc) {
-                '"' { [void]$sb.Append('"') }
-                '\' { [void]$sb.Append('\') }
-                'n' { [void]$sb.Append("`n") }
-                'r' { [void]$sb.Append("`r") }
-                't' { [void]$sb.Append("`t") }
-                default { [void]$sb.Append($esc) } # keep unknown escapes literally
-            }
-            $i.Value++; continue
+# --------------------------------------------------------------------
+# Byte/text helpers, encoders, gzip
+# --------------------------------------------------------------------
+function To-Bytes([string]$text, [string]$enc = 'utf8') {
+  switch ($enc.ToLowerInvariant()) {
+    'utf8'  { return [Text.Encoding]::UTF8.GetBytes($text) }
+    'utf16' { return [Text.Encoding]::Unicode.GetBytes($text) }
+    'utf32' { return [Text.Encoding]::UTF32.GetBytes($text) }
+    'ascii' { return [Text.Encoding]::ASCII.GetBytes($text) }
+    default { throw "Unknown encoding '$enc'." }
+  }
+}
+function From-Bytes([byte[]]$bytes, [string]$enc = 'utf8') {
+  switch ($enc.ToLowerInvariant()) {
+    'utf8'  { return [Text.Encoding]::UTF8.GetString($bytes) }
+    'utf16' { return [Text.Encoding]::Unicode.GetString($bytes) }
+    'utf32' { return [Text.Encoding]::UTF32.GetString($bytes) }
+    'ascii' { return [Text.Encoding]::ASCII.GetString($bytes) }
+    default { throw "Unknown encoding '$enc'." }
+  }
+}
+
+function GZip-Compress([byte[]]$bytes) {
+  $msOut = New-Object IO.MemoryStream
+  $gz = New-Object IO.Compression.GZipStream($msOut, [IO.Compression.CompressionMode]::Compress, $true)
+  $gz.Write($bytes, 0, $bytes.Length)
+  $gz.Dispose()
+  $msOut.ToArray()
+}
+function GZip-Expand([byte[]]$bytes) {
+  $msIn  = New-Object IO.MemoryStream(,$bytes)
+  $gz    = New-Object IO.Compression.GZipStream($msIn, [IO.Compression.CompressionMode]::Decompress)
+  $msOut = New-Object IO.MemoryStream
+  $buf = New-Object byte[] 8192
+  while (($read = $gz.Read($buf,0,$buf.Length)) -gt 0) { $msOut.Write($buf,0,$read) }
+  $gz.Dispose(); $msIn.Dispose()
+  $msOut.ToArray()
+}
+
+function Html-Encode([string]$s) { [System.Net.WebUtility]::HtmlEncode($s) }
+function Html-Decode([string]$s) { [System.Net.WebUtility]::HtmlDecode($s) }
+function Url-Encode([string]$s)  { [Uri]::EscapeDataString($s) }
+function Url-Decode([string]$s)  { [Uri]::UnescapeDataString($s) }
+function Reg-Quote([string]$s)   { $s -replace '\\', '\\\\' -replace '"', '\"' }
+function Reg-Escape([string]$s)  { $s -replace '\\', '\\\\' -replace '"', '\"' }
+
+function Path-Append([string]$p, [string]$child) {
+  if ([string]::IsNullOrWhiteSpace($p)) { return $child }
+  if ([string]::IsNullOrWhiteSpace($child)) { return $p }
+  return [IO.Path]::Combine($p, $child)
+}
+function Path-Quote([string]$p) {
+  if ($p -match '\s' -and -not ($p.StartsWith('"') -and $p.EndsWith('"'))) { return '"' + $p + '"' }
+  return $p
+}
+
+# --------------------------------------------------------------------
+# C / C++ escape filters (escc / fromescc)
+# --------------------------------------------------------------------
+function Filter-EscC {
+  param([Parameter(Mandatory)][string]$Text)
+
+  $sb = [Text.StringBuilder]::new()
+  function Append-UnicodeEscape([Text.StringBuilder]$B, [int]$cp) {
+    if ($cp -le 0xFFFF) { [void]$B.Append('\u'); [void]$B.Append($cp.ToString('X4')) }
+    else                { [void]$B.Append('\U'); [void]$B.Append($cp.ToString('X8')) }
+  }
+
+  $i=0; $len=$Text.Length
+  while ($i -lt $len) {
+    $c = [int][char]$Text[$i]
+    if ($c -ge 0xD800 -and $c -le 0xDBFF -and ($i+1) -lt $len) {
+      $c2 = [int][char]$Text[$i+1]
+      if ($c2 -ge 0xDC00 -and $c2 -le 0xDFFF) {
+        $v  = (($c - 0xD800) -shl 10) + ($c2 - 0xDC00) + 0x10000
+        Append-UnicodeEscape $sb $v
+        $i += 2; continue
+      }
+    }
+    switch ($c) {
+      0x07 { [void]$sb.Append('\a'); $i++; continue }
+      0x08 { [void]$sb.Append('\b'); $i++; continue }
+      0x09 { [void]$sb.Append('\t'); $i++; continue }
+      0x0A { [void]$sb.Append('\n'); $i++; continue }
+      0x0B { [void]$sb.Append('\v'); $i++; continue }
+      0x0C { [void]$sb.Append('\f'); $i++; continue }
+      0x0D { [void]$sb.Append('\r'); $i++; continue }
+      0x22 { [void]$sb.Append('\"'); $i++; continue }
+      0x27 { [void]$sb.Append("\'"); $i++; continue }
+      0x3F { [void]$sb.Append('\?'); $i++; continue }
+      0x5C { [void]$sb.Append('\\'); $i++; continue }
+      default {
+        if ($c -lt 0x20 -or $c -eq 0x7F) { Append-UnicodeEscape $sb $c }
+        elseif ($c -le 0x7E) { [void]$sb.Append([char]$c) }
+        else { Append-UnicodeEscape $sb $c }
+        $i++
+      }
+    }
+  }
+  $sb.ToString()
+}
+
+function Filter-FromEscC {
+  param([Parameter(Mandatory)][string]$Text)
+
+  $sb  = [Text.StringBuilder]::new()
+  $i   = 0
+  $len = $Text.Length
+
+  function Parse-Hex([string]$s) {
+    $v = 0
+    if (-not [int]::TryParse($s, [Globalization.NumberStyles]::AllowHexSpecifier,
+             [Globalization.CultureInfo]::InvariantCulture, [ref]$v)) {
+      throw "Invalid hex digits '$s'."
+    }
+    $v
+  }
+  function Append-CP([Text.StringBuilder]$B, [int]$cp) {
+    if ($cp -le 0xFFFF) { [void]$B.Append([char]$cp) }
+    else { $v=$cp-0x10000; $hi=0xD800+(($v -band 0xFFC00) -shr 10); $lo=0xDC00+($v -band 0x3FF); [void]$B.Append([char]$hi); [void]$B.Append([char]$lo) }
+  }
+
+  while ($i -lt $len) {
+    $ch = $Text[$i]
+    if ($ch -ne '\') { [void]$sb.Append($ch); $i++; continue }
+    if ($i + 1 -ge $len) { [void]$sb.Append('\'); break }
+
+    $i++; $esc = $Text[$i]
+    switch ($esc) {
+      'a' { [void]$sb.Append([char]0x07); $i++; continue }
+      'b' { [void]$sb.Append([char]0x08); $i++; continue }
+      't' { [void]$sb.Append([char]0x09); $i++; continue }
+      'n' { [void]$sb.Append([char]0x0A); $i++; continue }
+      'v' { [void]$sb.Append([char]0x0B); $i++; continue }
+      'f' { [void]$sb.Append([char]0x0C); $i++; continue }
+      'r' { [void]$sb.Append([char]0x0D); $i++; continue }
+      '"' { [void]$sb.Append('"');       $i++; continue }
+      "'" { [void]$sb.Append("'");       $i++; continue }
+      '?' { [void]$sb.Append('?');       $i++; continue }
+      '\' { [void]$sb.Append('\');       $i++; continue }
+
+      'x' {
+        $start = $i + 1; $j = $start
+        while ($j -lt $len -and ($Text[$j] -match '[0-9A-Fa-f]')) { if (($j - $start) -ge 8) { break }; $j++ }
+        if ($j -eq $start) { throw "Invalid \x escape at ${i}: expected hex." }
+        $hex = $Text.Substring($start, $j - $start)
+        $val = Parse-Hex $hex
+        Append-CP $sb $val
+        $i = $j; continue
+      }
+      'u' {
+        if ($i + 4 -ge $len) { throw "Invalid \u escape at ${i}: need 4 hex." }
+        $hex = $Text.Substring($i + 1, 4)
+        $val = Parse-Hex $hex
+        Append-CP $sb $val
+        $i += 5; continue
+      }
+      'U' {
+        if ($i + 8 -ge $len) { throw "Invalid \U escape at ${i}: need 8 hex." }
+        $hex = $Text.Substring($i + 1, 8)
+        $val = Parse-Hex $hex
+        Append-CP $sb $val
+        $i += 9; continue
+      }
+      default {
+        if ($esc -ge '0' -and $esc -le '7') {
+          $start = $i; $digits = 1
+          while ($digits -lt 3 -and $i + 1 -lt $len -and $Text[$i+1] -ge '0' -and $Text[$i+1] -le '7') { $i++; $digits++ }
+          $oct = $Text.Substring($start, $digits)
+          $val = [Convert]::ToInt32($oct, 8)
+          Append-CP $sb $val
+          $i = $start + $digits
+          continue
         }
-        [void]$sb.Append($ch)
-        $i.Value++
+        [void]$sb.Append($esc); $i++; continue
+      }
     }
-    throw "Unclosed quoted argument."
+  }
+  $sb.ToString()
 }
 
-function Read-UnquotedArg([string]$S, [ref]$i) {
-    # stop at whitespace, pipe, close-brace, or colon (next arg separator)
-    $start = $i.Value
-    while ($i.Value -lt $S.Length) {
-        $ch = $S[$i.Value]
-        if ($ch -match '[\s:\|\}]') { break }
-        $i.Value++
+# Java & C# wrappers remain as in the previous version
+function Filter-EscJava     { param([Parameter(Mandatory)][string]$Text)  (Filter-EscC $Text) -replace '\\U([0-9A-Fa-f]{8})','\u$1' } # simple reuse; tight Java version exists in previous build if needed
+function Filter-FromEscJava { param([Parameter(Mandatory)][string]$Text)  Filter-FromEscC $Text }
+function Filter-EscCs       { param([Parameter(Mandatory)][string]$Text)  Filter-EscC $Text }
+function Filter-FromEscCs   { param([Parameter(Mandatory)][string]$Text)  Filter-FromEscC $Text }
+
+# --------------------------------------------------------------------
+# Apply filter pipeline
+# --------------------------------------------------------------------
+function Apply-Filters {
+  param(
+    [AllowNull()] $Value,
+    [Parameter(Mandatory)] $Pipeline
+  )
+
+  if ($null -eq $Value) { throw "Filter pipeline received null input. Check the placeholder head (var/env) resolves correctly." }
+
+  foreach ($f in $Pipeline) {
+    $name = $f.Name
+    $args = $f.Args
+
+    ET-Log ("  | {0}{1}" -f $name, ($(if ($args.Count) {': ' + ($args -join ', ')} else {''})))
+
+    switch ($name) {
+      'lower'   { $Value = [string]$Value; $Value = $Value.ToLowerInvariant(); continue }
+      'upper'   { $Value = [string]$Value; $Value = $Value.ToUpperInvariant(); continue }
+      'trim'    { $Value = [string]$Value; $Value = $Value.Trim(); continue }
+      'append'  { $Value = [string]$Value + ($(if ($args.Count){$args[0]}else{''})); continue }
+      'prepend' { $Value = ($(if ($args.Count){$args[0]}else{''})) + [string]$Value; continue }
+      'default' { if ([string]::IsNullOrEmpty([string]$Value) -and $args.Count){ $Value = $args[0] }; continue }
+
+      'replace' {
+        if ($args.Count -ne 2) { throw "replace filter requires two arguments: replace:'old':'new'" }
+        $Value = [string]$Value
+        $Value = $Value.Replace($args[0], $args[1])
+        continue
+      }
+
+      'regq'   { $Value = Reg-Quote ([string]$Value); continue }
+      'regesc' { $Value = Reg-Escape ([string]$Value); continue }
+
+      'urlencode' { $Value = Url-Encode ([string]$Value); continue }
+      'urldecode' { $Value = Url-Decode ([string]$Value); continue }
+
+      'xmlencode' { $Value = Html-Encode ([string]$Value); continue }
+      'xmldecode' { $Value = Html-Decode ([string]$Value); continue }
+
+      'pathappend' {
+        if ($args.Count -lt 1) { throw "pathappend requires an argument." }
+        $Value = Path-Append ([string]$Value) $args[0]; continue
+      }
+      'pathquote' { $Value = Path-Quote ([string]$Value); continue }
+
+      # --- Encodings ---
+      'base64' {
+        if ($Value -is [byte[]]) { $Value = [Convert]::ToBase64String($Value) }
+        else { $Value = [Convert]::ToBase64String((To-Bytes ([string]$Value) 'utf16')) }
+        continue
+      }
+      'frombase64' {
+        $bytes = [Convert]::FromBase64String([string]$Value)
+        if ($args.Count -gt 0) { $Value = From-Bytes $bytes $args[0] } else { $Value = $bytes }
+        continue
+      }
+      'strfrombase64' {
+        $bytes = [Convert]::FromBase64String([string]$Value)
+        $Value = From-Bytes $bytes 'utf16'
+        continue
+      }
+
+      'hex' {
+        $b = if ($Value -is [byte[]]) { $Value } else { To-Bytes ([string]$Value) 'utf16' }
+        $sb = [Text.StringBuilder]::new()
+        foreach ($x in $b) { [void]$sb.Append($x.ToString('x2')) }
+        $Value = $sb.ToString()
+        continue
+      }
+      'fromhex' {
+        $s = ([string]$Value).Trim()
+        if ($s.Length % 2 -ne 0) { throw "fromhex requires an even number of hex chars." }
+        $bytes = New-Object byte[] ($s.Length/2)
+        for ($i=0; $i -lt $bytes.Length; $i++) { $bytes[$i] = [Convert]::ToByte($s.Substring(2*$i, 2), 16) }
+        if ($args.Count -gt 0) { $Value = From-Bytes $bytes $args[0] } else { $Value = $bytes }
+        continue
+      }
+      'strfromhex' {
+        $s = ([string]$Value).Trim()
+        if ($s.Length % 2 -ne 0) { throw "strfromhex requires an even number of hex chars." }
+        $bytes = New-Object byte[] ($s.Length/2)
+        for ($i=0; $i -lt $bytes.Length; $i++) { $bytes[$i] = [Convert]::ToByte($s.Substring(2*$i, 2), 16) }
+        $Value = From-Bytes $bytes 'utf16'
+        continue
+      }
+
+      'gzip'   {
+        $b = if ($Value -is [byte[]]) { $Value } else { To-Bytes ([string]$Value) 'utf16' }
+        $Value = GZip-Compress $b; continue
+      }
+      'gunzip' {
+        if (-not ($Value -is [byte[]])) { throw "gunzip expects byte[] input (use frombase64/fromhex first)." }
+        $Value = GZip-Expand $Value; continue
+      }
+
+      'escc'         { $Value = Filter-EscC ([string]$Value); continue }
+      'fromescc'     { $Value = Filter-FromEscC ([string]$Value); continue }
+      'escjava'      { $Value = Filter-EscJava ([string]$Value); continue }
+      'fromescjava'  { $Value = Filter-FromEscJava ([string]$Value); continue }
+      'esccs'        { $Value = Filter-EscCs ([string]$Value); continue }
+      'fromesccs'    { $Value = Filter-FromEscCs ([string]$Value); continue }
+
+      default { throw "Unknown filter '$name'." }
     }
-    if ($i.Value -eq $start) { return $null }
-    return $S.Substring($start, $i.Value - $start)
+  }
+
+  return $Value
 }
 
-function Read-NextArg([string]$S, [ref]$i) {
-    Skip-WS $S ([ref]$i)
-    if ($i.Value -ge $S.Length) { return $null }
+# --------------------------------------------------------------------
+# Expand entire template string
+# --------------------------------------------------------------------
+function Expand-TemplateString {
+  param(
+    [Parameter(Mandatory)] [string] $Text,
+    [hashtable] $Variables
+  )
 
-    if ($S[$i.Value] -eq '"') {
-        $arg = Read-QuotedArg $S ([ref]$i)
-        return $arg
-    } else {
-        $arg = Read-UnquotedArg $S ([ref]$i)
-        return $arg
+  $out = [Text.StringBuilder]::new()
+  $i   = 0
+  while ($i -lt $Text.Length) {
+    if ($Text[$i] -eq '{' -and $i + 1 -lt $Text.Length -and $Text[$i+1] -eq '{') {
+      try {
+        $ph = Parse-Placeholder -Text $Text -Index ([ref]$i)
+        $head = Resolve-HeadValue -Namespace $ph.Namespace -Name $ph.Name -Variables $Variables
+        ET-Log "Apply-Filters: head=$($ph.Namespace).$($ph.Name)  type=$($head?.GetType().FullName)"
+        $val = Apply-Filters -Value $head -Pipeline $ph.Pipeline
+        if ($null -ne $val) { [void]$out.Append([string]$val) }
+        continue
+      }
+      catch {
+        throw "Template expansion failed: $($_.Exception.Message)"
+      }
     }
+    [void]$out.Append($Text[$i]); $i++
+  }
+  $out.ToString()
 }
 
+# --------------------------------------------------------------------
+# Main
+# --------------------------------------------------------------------
+# Resolve paths
+$tmplPath = Resolve-PathLike $Template
+if (-not $tmplPath) { throw "Template path is empty or invalid." }
 
-
-# ---------------------------------------------------------------------------
-# Helper: Parse-Placeholder
-# Parses the inside of {{ ... }} into namespace/name, and filter pipeline
-# of filters with arguments.
-# Expects "var.Name" or "env.NAME" followed by optional "| filter[: "arg"]".
-# ---------------------------------------------------------------------------
-function Parse-Placeholder {
-    param(
-        [Parameter(Mandatory)][string]$Text,
-        [Parameter(Mandatory)][ref]$Index  # points at first '{' of '{{'
-    )
-    # Expect '{{'
-    if ($Index.Value + 1 -ge $Text.Length -or $Text[$Index.Value] -ne '{' -or $Text[$Index.Value+1] -ne '{') {
-        throw "Parse-Placeholder: expected '{{' at index $($Index.Value)."
-    }
-    $i = $Index.Value + 2
-
-    # Body until '}}'
-    # We parse inline rather than slice—lets us log and error precisely.
-    Skip-WS $Text ([ref]$i)
-
-    # Head: var.NAME or env.NAME
-    $ns = Read-Ident $Text ([ref]$i)
-    if (-not $ns) { throw "Invalid placeholder head at index $i. Expected 'var' or 'env'." }
-    if ($ns -ne 'var' -and $ns -ne 'env') { throw "Invalid placeholder head '$ns'. Use 'var.Name' or 'env.NAME'." }
-
-    if ($i -ge $Text.Length -or $Text[$i] -ne '.') { throw "Expected '.' after '$ns' at index $i." }
-    $i++
-
-    $name = Read-Ident $Text ([ref]$i)
-    if (-not $name) { throw "Expected identifier after '$ns.' at index $i." }
-
-    ET-Log "Parse-Placeholder: head = $ns.$name"
-
-    # Parse zero or more filters:  | filterName [: arg [: arg ...]]
-    $pipeline = @()
-    while ($i -lt $Text.Length) {
-        Skip-WS $Text ([ref]$i)
-        if ($i -ge $Text.Length) { break }
-
-        # Close?
-        if ($Text[$i] -eq '}' -and ($i + 1 -lt $Text.Length) -and $Text[$i+1] -eq '}') {
-            $i += 2
-            $Index.Value = $i
-            return @{
-                Namespace = $ns
-                Name      = $name
-                Pipeline  = $pipeline
-            }
-        }
-
-        # Another filter?
-        if ($Text[$i] -eq '|') {
-            $i++
-            Skip-WS $Text ([ref]$i)
-            $fname = Read-Ident $Text ([ref]$i)
-            if (-not $fname) { throw "Expected filter name after '|' at index $i." }
-
-            $args = @()
-            # read 0+ colon-separated args
-            while ($i -lt $Text.Length) {
-                Skip-WS $Text ([ref]$i)
-                if ($i -ge $Text.Length) { break }
-                if ($Text[$i] -ne ':') { break }
-                $i++ # consume ':'
-                Skip-WS $Text ([ref]$i)
-                $arg = Read-NextArg $Text ([ref]$i)
-                if ($null -eq $arg) { throw "Expected argument after ':' for filter '$fname' at index $i." }
-                $args += $arg
-            }
-
-            ET-Log "Parse-Placeholder: filter '$fname' args=[$($args -join ', ')]"
-            $pipeline += ,@{ Name = $fname; Args = $args }
-            continue
-        }
-
-        # Anything else between tokens is an error
-        throw "Unexpected token '$($Text[$i])' in placeholder at index $i."
-    }
-
-    throw "Unclosed placeholder: missing '}}'."
-}
-
-
-
-function Resolve-HeadValue {
-    param(
-        [Parameter(Mandatory)]$Placeholder,
-        [hashtable]$Variables
-    )
-
-    ET-Log "Resolve-HeadValue: $($Placeholder.Type).$($Placeholder.Name)"
-    switch ($Placeholder.Type) {
-        'var' {
-            if (-not $Variables.ContainsKey($Placeholder.Name)) {
-                throw "Variable '$($Placeholder.Name)' is not defined (-Variables)."
-            }
-            $v = $Variables[$Placeholder.Name]
-            ET-Log "  var value: «$v» (type: $($v?.GetType().FullName))"
-            if ($null -eq $v) { throw "Variable '$($Placeholder.Name)' is null." }
-            return $v
-        }
-        'env' {
-            # Explicitly read PROCESS first; fall back to User/Machine for convenience.
-            $v = [Environment]::GetEnvironmentVariable($Placeholder.Name, [EnvironmentVariableTarget]::Process)
-            if ($null -eq $v) { $v = [Environment]::GetEnvironmentVariable($Placeholder.Name, [EnvironmentVariableTarget]::User) }
-            if ($null -eq $v) { $v = [Environment]::GetEnvironmentVariable($Placeholder.Name, [EnvironmentVariableTarget]::Machine) }
-            ET-Log "  env value: «$v»"
-            if ([string]::IsNullOrEmpty($v)) {
-                throw "Environment variable '$($Placeholder.Name)' is not defined."
-            }
-            return $v
-        }
-        default {
-            throw "Unknown head type '$($Placeholder.Type)'."
-        }
-    }
-}
-
-
-
-
-
-
-
-
-
-
-
-
-# ---------------------------------------------------------------------------
-# Helper: Get-InitialValue
-# Resolves the initial value of a placeholder from var.* or env.*.
-# Missing values cause an error and the script aborts.
-# ---------------------------------------------------------------------------
-function Get-InitialValue {
-    <#
-    .SYNOPSIS
-      Resolve the base value for a placeholder (var.* or env.*).
-
-    .PARAMETER Vars
-      Hashtable of user variables.
-
-    .PARAMETER Ns
-      'var' or 'env'.
-
-    .PARAMETER Name
-      Variable or environment variable name.
-
-    .PARAMETER Strict
-      Reserved for future use (current behavior always errors on missing values).
-
-    .OUTPUTS
-      [string] The resolved value.
-    #>
-    param([hashtable]$Vars, [string]$Ns, [string]$Name, [switch]$Strict)
-
-    switch ($Ns) {
-        'var' {
-            if (-not $Vars.ContainsKey($Name)) {
-                $msg = "Undefined user variable '${Name}' ({{ var.${Name} }})."
-                throw $msg
-            }
-            return [string]$Vars[$Name]
-        }
-        'env' {
-            $val = [System.Environment]::GetEnvironmentVariable($Name, 'Process')
-            if (-not $val) { $val = [System.Environment]::GetEnvironmentVariable($Name, 'User') }
-            if (-not $val) { $val = [System.Environment]::GetEnvironmentVariable($Name, 'Machine') }
-            if (-not $val) {
-                $msg = "Environment variable '${Name}' not defined ({{ env.${Name} }})."
-                throw $msg
-            }
-            return [string]$val
-        }
-    }
-}
-
-# ========================= Load inputs =========================
-
-$tplPath = Resolve-PathSmart $Template
-$tplText = Get-Content -LiteralPath $tplPath -Raw
-
-Write-Host "`nExpanding a template file by $($MyInvocation.MyCommand.Name)..." -ForegroundColor Green
-Write-Host "`nScript parameters:"
-Write-HashTable $PSBoundParameters
-Write-Host "  Positional:"
-Write-Array $args
-Write-Host "Var:"
-Write-Array $Var
-Write-Host "Variables:"
-Write-HashTable $Variables
-Write-Host "`nTemplate path: `n  ${tplPath}"
-Write-Host ""
-
-# Compose variables with precedence: VarsFile < Variables < Var
-$varsFromFile = Load-VarsFile $VarsFile
-$varsMerged   = Merge-Variables $varsFromFile $Variables
-$varsCli      = Parse-VarPairs $Var
-$VARS         = Merge-Variables $varsMerged $varsCli
-
-# Compute default output if omitted
 if (-not $Output) {
-    $dir  = [System.IO.Path]::GetDirectoryName($tplPath)
-    $fn   = [System.IO.Path]::GetFileName($tplPath)
-    $base = $fn
-    foreach ($suffix in @('.tmpl','.template','.tpl','.in')) {
-        if ($base.ToLower().EndsWith($suffix)) {
-            $base = $base.Substring(0, $base.Length - $suffix.Length)
-            break
-        }
-    }
-    if ($base -eq $fn) { $base = $fn + '.out' }
-    $Output = Join-Path $dir $base
+  $dir  = Split-Path -Path $tmplPath -Parent
+  $name = [IO.Path]::GetFileName($tmplPath)
+  if ($name.ToLowerInvariant().EndsWith('.tmpl')) { $name = $name.Substring(0, $name.Length-5) }
+  $Output = Join-Path $dir $name
 } else {
-    if (-not [System.IO.Path]::IsPathRooted($Output)) {
-        $Output = Join-Path $PSScriptRoot $Output
-    }
+  $Output = Resolve-PathLike $Output
 }
 
-# ========================= Expand template =====================
-# NOTE: The regex now matches across lines (multi-line placeholders):
-#       [\s\S] means "any char including newlines". The lazy quantifier (.+?) preserved via (.+?) -> ([\s\S]+?)
-$pattern = '\{\{\s*([\s\S]+?)\s*\}\}'
-$errors  = New-Object System.Collections.Generic.List[string]
-
-# Temporarily transform double curly brackets escaping:
-$tplText = $tplText -replace "\\{{", "\{\{"
-$tplText = $tplText -replace "\\}}", "\}\}"
-
-$expanded = [System.Text.RegularExpressions.Regex]::Replace(
-    $tplText,
-    $pattern,
-    {
-        param($m)
-        $expr = $m.Groups[1].Value
-        Write-Host "Processing placeholder:`n  {{ $($expr.Trim() -replace '\r?\n', ' ') }}"
-        try {
-            $ph   = Parse-Placeholder $expr
-            $val0 = Get-InitialValue -Vars $VARS -Ns $ph.ns -Name $ph.name -Strict:$Strict
-            Write-Host "  Unfiltered value:`n  $val0"
-            $out  = Apply-Filters -Value $val0 -Pipeline $ph.filters
-            Write-Host "  Final value:`n  $out"
-            if (-not $out -is [string]) {
-                Write-Warning "  Final value is not a string:"
-                Write-Host "  ${out}"
-                Write-Host "  Type: $($out.GetType().FullName))"
-            }
-            # If a pipeline ends as byte[], force the template author to finish with base64/hex/gunzip/etc.
-            if (Is-ByteVector $out) {
-                throw "Placeholder resulted in binary data. Add a final text-producing filter (e.g., base64, hex, gunzip, utf16)."
-            }            
-            return $out
-        } catch {
-            $errors.Add("Error in placeholder '{{ ${expr} }}': $($_.Exception.Message)")
-            return "<ERROR:$expr>"
-        }
-    }
-)
-
-# Backward transform double curly brackets escaping:
-$expanded = $expanded -replace "\\{\\{", "{{"
-$expanded = $expanded -replace "\\}\\}", "}}"
-
-if ($errors.Count -gt 0) {
-    $nl = [Environment]::NewLine
-    Write-Error ("Template expansion failed:{0}{1}" -f $nl, ($errors -join $nl))
-    exit 1
-}
-
-# ========================= Write output ========================
-
-$ext = [System.IO.Path]::GetExtension($Output).ToLowerInvariant()
-$encoding = if ($ext -eq '.reg') { 'Unicode' } else { 'UTF8' }
-
-Set-Content -LiteralPath $Output -Value $expanded -Encoding $encoding
-Write-Host "`nTemplate expanded to:`n  ${Output}`n    (encoding: ${encoding})"
-
-Write-Host "`n  ... template expansion completed.`n" -ForegroundColor Green
+# Load, expand, save
+$raw    = Load-Template $tmplPath
+$result = Expand-TemplateString -Text $raw -Variables $Variables
+Save-Text $Output $result
+Write-Host "Template expanded to: $Output"
