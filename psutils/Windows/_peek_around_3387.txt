@@ -1,0 +1,6 @@
+ without filters:
+  "{{ var.MyVarLong }}"
+with filter | replace:"demonstrate":"show" :
+  "{{ var.MyVarLong | replace:"demonstrate":"show" }}"
+with filter | replace:"used to demonstrate":"demonstrating" :
+  "{{ var.MyVarLong | replace:"

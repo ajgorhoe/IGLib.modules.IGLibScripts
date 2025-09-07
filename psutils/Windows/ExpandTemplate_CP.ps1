@@ -277,6 +277,7 @@ function Parse-Placeholder {
   }
 }
 
+
 # --------------------------------------------------------------------
 # Byte/text helpers, encoders, gzip
 # --------------------------------------------------------------------
@@ -579,30 +580,63 @@ function Apply-Filters {
 # Expand entire template string
 # --------------------------------------------------------------------
 function Expand-TemplateString {
+  [CmdletBinding()]
   param(
-    [Parameter(Mandatory)] [string] $Text,
-    [hashtable] $Variables
+    [Parameter(Mandatory)][string]$Text,
+    [Parameter(Mandatory)][hashtable]$Variables
   )
 
-  $out = [Text.StringBuilder]::new()
+  $sb  = [System.Text.StringBuilder]::new()
+  $len = $Text.Length
   $i   = 0
-  while ($i -lt $Text.Length) {
-    if ($Text[$i] -eq '{' -and $i + 1 -lt $Text.Length -and $Text[$i+1] -eq '{') {
-      try {
-        $ph = Parse-Placeholder -Text $Text -Index ([ref]$i)
-        $head = Resolve-HeadValue -Namespace $ph.Namespace -Name $ph.Name -Variables $Variables
-        ET-Log "Apply-Filters: head=$($ph.Namespace).$($ph.Name)  type=$($head?.GetType().FullName)"
-        $val = Apply-Filters -Value $head -Pipeline $ph.Pipeline
-        if ($null -ne $val) { [void]$out.Append([string]$val) }
-        continue
-      }
-      catch {
-        throw "Template expansion failed: $($_.Exception.Message)"
-      }
+
+  while ($i -lt $len) {
+
+    # --- Treat escaped openers as literal '{{'
+    if ($i + 2 -lt $len -and $Text[$i] -eq '\' -and $Text[$i+1] -eq '{' -and $Text[$i+2] -eq '{') {
+      [void]$sb.Append('{{'); $i += 3; continue
     }
-    [void]$out.Append($Text[$i]); $i++
+    # Support the alternate escape form '\{\{' as literal '{{'
+    if ($i + 3 -lt $len -and $Text[$i] -eq '\' -and $Text[$i+1] -eq '{' -and $Text[$i+2] -eq '\' -and $Text[$i+3] -eq '{') {
+      [void]$sb.Append('{{'); $i += 4; continue
+    }
+
+    # --- Treat escaped closers as literal '}}'
+    if ($i + 2 -lt $len -and $Text[$i] -eq '\' -and $Text[$i+1] -eq '}' -and $Text[$i+2] -eq '}') {
+      [void]$sb.Append('}}'); $i += 3; continue
+    }
+    # Support the alternate escape form '\}\}' as literal '}}'
+    if ($i + 3 -lt $len -and $Text[$i] -eq '\' -and $Text[$i+1] -eq '}' -and $Text[$i+2] -eq '\' -and $Text[$i+3] -eq '}') {
+      [void]$sb.Append('}}'); $i += 4; continue
+    }
+
+    # --- Real placeholder opener?
+    if ($i + 1 -lt $len -and $Text[$i] -eq '{' -and $Text[$i+1] -eq '{') {
+      $refIdx = [ref]$i
+      try {
+        $ph = Parse-Placeholder -Text $Text -Index $refIdx
+      } catch {
+        throw
+      }
+      # Update position to after the closing '}}' consumed by Parse-Placeholder
+      $i = $refIdx.Value
+
+      # Resolve head, apply filters, and append
+      $headValue = Resolve-HeadValue -Namespace $ph.Namespace -Name $ph.Name -Variables $Variables
+      if ($null -eq $headValue) {
+        throw "Filter pipeline received null input. Check the placeholder head ($($ph.Namespace).$($ph.Name)) resolves correctly."
+      }
+      $expanded = Apply-Filters -Value $headValue -Filters $ph.Pipeline
+      if ($null -ne $expanded) { [void]$sb.Append($expanded) }
+      continue
+    }
+
+    # Fallback: copy one char
+    [void]$sb.Append($Text[$i])
+    $i++
   }
-  $out.ToString()
+
+  $sb.ToString()
 }
 
 # --------------------------------------------------------------------
