@@ -1496,6 +1496,10 @@ function Parse-Placeholder {
     #>
     param([string]$ExprText)
 
+    $expr1 = $ExprText.Trim() -replace '\r?\n', ' ' # normalize newlines to spaces
+    $expr1 = $expr1 -replace '\s*\|\s*', ' | '    # normalize pipe spacing
+    Write-Host "  Parse-Placeholder: `"$($expr1)  `"" -ForegroundColor DarkGray
+
     # Split around '|' (pipes). We’ll trim whitespace per segment.
     $parts = $ExprText -split '\|'
     if ($parts.Count -lt 1) { throw "Empty expression in placeholder." }
@@ -1507,6 +1511,9 @@ function Parse-Placeholder {
     }
     $ns   = $Matches['ns']
     $name = $Matches['name']
+
+    Write-Host "    Namespace: $ns" -ForegroundColor DarkGray
+    Write-Host "    Name:      $name" -ForegroundColor DarkGray
 
     # Filters (zero or more)
     $filters = @()
@@ -1548,6 +1555,15 @@ function Parse-Placeholder {
             arg  = ($(if ($fargs.Count -gt 0) { $fargs[0] } else { $null }))
             args = $fargs
         }
+
+        foreach ($f in $filters) {
+            Write-Host "    Filter: $(($f.name))" -ForegroundColor DarkGray
+            if ($f.arg -ne $null) { Write-Host "      First arg: '$(($f.arg))'" -ForegroundColor DarkGray }
+            if ($f.args.Count -gt 1) {
+                Write-Host "      All args:  @('$(($f.args -join "','"))')" -ForegroundColor DarkGray
+            }
+        }
+
     }
 
     return @{ ns = $ns; name = $name; filters = $filters }
