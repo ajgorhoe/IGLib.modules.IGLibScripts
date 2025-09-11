@@ -1,0 +1,180 @@
+
+
+$script:VerboseMode = $true  # Set to $true to enable debug messages
+$script:DebugMode = $true  # Set to $true to enable debug messages
+
+$FgVerbose = "DarkCyan" # Verbose messages color
+$FgDebug = "DarkGray"  # Debug messages color
+
+function Write-Debug {
+  param([string]$Msg)
+  # if ($script:DebugMode) { Write-Host "[DBG] $Msg" -ForegroundColor $FgDebug }
+  if ($script:DebugMode) { Write-Host "$Msg" -ForegroundColor $FgDebug }
+}
+
+function Write-Verbose {
+  param([string]$Msg)
+  # if ($script:DebugMode) { Write-Host "[DBG] $Msg" -ForegroundColor $FgDebug }
+  if ($script:CerboseMode) { Write-Host "$Msg" -ForegroundColor $FgVerbose }
+}
+
+
+function Read-NextArg {
+  param(
+    [Parameter(Mandatory)][string]$Text,
+    [Parameter(Mandatory)][ref]$Index
+  )
+  # Skips whitespace, then returns an argument string.
+  # Supports quoted args: "like this", with \" \\ escapes.
+  # Supports unquoted args until one of: space, tab, newline, ':', '|', '}'
+  $i = $Index.Value
+  $len = $Text.Length
+
+  # skip spaces
+  while ($i -lt $len -and ($Text[$i] -match '[ \t\r\n]')) { $i++ }
+  if ($i -ge $len) { $Index.Value = $i; return "" }
+
+  if ($Text[$i] -eq '"') {
+    # quoted
+    $i++  # consume opening "
+    $sb = [System.Text.StringBuilder]::new()
+    while ($i -lt $len) {
+      $ch = $Text[$i]
+      if ($ch -eq '"') { $i++; break }
+      if ($ch -eq '\') {
+        if ($i + 1 -lt $len) {
+          $n = $Text[$i+1]
+          switch ($n) {
+            '"'{ [void]$sb.Append('"');  $i+=2; continue }
+            '\' { [void]$sb.Append('\'); $i+=2; continue }
+            default { [void]$sb.Append('\'); $i++; continue }
+          }
+        }
+      }
+      [void]$sb.Append($ch); $i++
+    }
+    $Index.Value = $i
+    return $sb.ToString()
+  }
+
+  # unquoted
+  $start = $i
+  while ($i -lt $len) {
+    $ch = $Text[$i]
+    if ($ch -match '[ \t\r\n]') { break }
+    if ($ch -in @(':','|','}')) { break }
+    $i++
+  }
+  $Index.Value = $i
+  return $Text.Substring($start, $i - $start)
+}
+
+function Tokenize-Pipeline {
+  param(
+    [Parameter(Mandatory)][string]$Inner  # text between {{ and }}
+  )
+  # Returns a PSCustomObject:
+  #   Head     = 'var.Name' or 'env.NAME'
+  #   Pipeline = @(@{Name='trim'; Args=@()}, @{Name='replace'; Args=@('a','b')}, ...)
+  #
+  # It respects quotes and allows unquoted filter args (no spaces/:/|/}).
+  $i = 0
+  $len = $Inner.Length
+
+  # skip leading whitespace
+  while ($i -lt $len -and ($Inner[$i] -match '[ \t\r\n]')) { $i++ }
+  if ($i -ge $len) { throw "Empty placeholder." }
+
+  # read head token up to whitespace or '|'
+  $headStart = $i
+  while ($i -lt $len) {
+    $ch = $Inner[$i]
+    if ($ch -eq '|') { break }
+    if ($ch -match '[ \t\r\n]') { break }
+    $i++
+  }
+  $head = $Inner.Substring($headStart, $i - $headStart).Trim()
+  if (-not $head) { throw "Invalid placeholder head (empty)." }
+
+  # skip spaces
+  while ($i -lt $len -and ($Inner[$i] -match '[ \t\r\n]')) { $i++ }
+
+  $pipeline = @()
+
+  while ($i -lt $len) {
+    if ($Inner[$i] -eq '|') {
+      $i++  # consume pipe
+      while ($i -lt $len -and ($Inner[$i] -match '[ \t\r\n]')) { $i++ }
+      if ($i -ge $len) { break }
+
+      # read filter name
+      $nameStart = $i
+      while ($i -lt $len) {
+        $ch = $Inner[$i]
+        if ($ch -match '[ \t\r\n:]') { break }
+        if ($ch -eq '|') { break }
+        $i++
+      }
+      $fname = $Inner.Substring($nameStart, $i - $nameStart).Trim()
+      if (-not $fname) { throw "Missing filter name after '|'." }
+
+      # read 0..N args: each starts with ':' then arg (quoted or unquoted)
+      $args = @()
+      while ($i -lt $len) {
+        while ($i -lt $len -and ($Inner[$i] -match '[ \t\r\n]')) { $i++ }
+        if ($i -ge $len) { break }
+        if ($Inner[$i] -eq '|') { break }
+        if ($Inner[$i] -ne ':') { break }  # no more args
+
+        $i++  # consume ':'
+        # read next arg
+        $arg = Read-NextArg -Text $Inner -Index ([ref]$i)
+        if ($arg -eq "") {
+          throw "Empty filter argument for filter '$fname'."
+        }
+        $args += $arg
+      }
+
+      $pipeline += [pscustomobject]@{ Name = $fname; Args = $args }
+      continue
+    }
+
+    # trailing spaces after last filter
+    if ($Inner[$i] -match '[ \t\r\n]') {
+      $i++
+      continue
+    }
+
+    # anything else at this point is unexpected
+    throw "Unexpected token near '$($Inner.Substring($i,[Math]::Min(12,$len-$i)))' in filter pipeline."
+  }
+
+  [pscustomobject]@{
+    Head     = $head
+    Pipeline = $pipeline
+  }
+}
+
+function Parse-Placeholder {
+  param(
+    [Parameter(Mandatory)][string]$InnerText
+  )
+  # InnerText is everything between the braces, no braces included.
+  # We only tokenize here; actual value resolution + filter application
+  # remain in your existing code path.
+
+  # Handle your literal-double-braces escape (if you use a sentinel),
+  # otherwise skip — this function only parses placeholders.
+  $trimmed = $InnerText.Trim()
+
+  $ph = Tokenize-Pipeline -Inner $trimmed
+
+  # quick sanity: head must be var.* or env.*
+  if ($ph.Head -notmatch '^(var|env)\.') {
+    throw "Invalid placeholder head '$($ph.Head)'. Use 'var.Name' or 'env.NAME'."
+  }
+
+  return $ph
+}
+
+

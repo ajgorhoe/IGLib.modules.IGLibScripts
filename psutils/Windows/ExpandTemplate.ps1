@@ -118,6 +118,24 @@ param(
     [switch] $Strict
 )
 
+$script:VerboseMode = $true  # Set to $true to enable debug messages
+$script:DebugMode = $true  # Set to $true to enable debug messages
+
+$FgVerbose = "DarkCyan" # Verbose messages color
+$FgDebug = "DarkGray"  # Debug messages color
+
+function Write-Debug {
+  param([string]$Msg)
+  # if ($script:DebugMode) { Write-Host "[DBG] $Msg" -ForegroundColor $FgDebug }
+  if ($script:DebugMode) { Write-Host "$Msg" -ForegroundColor $FgDebug }
+}
+
+function Write-Verbose {
+  param([string]$Msg)
+  # if ($script:DebugMode) { Write-Host "[DBG] $Msg" -ForegroundColor $FgDebug }
+  if ($script:CerboseMode) { Write-Host "$Msg" -ForegroundColor $FgVerbose }
+}
+
 function Write-HashTable {
     param(
         [hashtable]$Table
@@ -1498,7 +1516,8 @@ function Parse-Placeholder {
 
     $expr1 = $ExprText.Trim() -replace '\r?\n', ' ' # normalize newlines to spaces
     $expr1 = $expr1 -replace '\s*\|\s*', ' | '    # normalize pipe spacing
-    Write-Host "  Parse-Placeholder: `"$($expr1)  `"" -ForegroundColor DarkGray
+    #Write-Host "  Parse-Placeholder: `"$($expr1)  `"" -ForegroundColor DarkGray
+    Write-Debug "  Parse-Placeholder: `"$($expr1)  `""
 
     # Split around '|' (pipes). We’ll trim whitespace per segment.
     $parts = $ExprText -split '\|'
@@ -1512,8 +1531,8 @@ function Parse-Placeholder {
     $ns   = $Matches['ns']
     $name = $Matches['name']
 
-    Write-Host "    Namespace: $ns" -ForegroundColor DarkGray
-    Write-Host "    Name:      $name" -ForegroundColor DarkGray
+    Write-Debug "    Namespace: $ns"
+    Write-Debug "    Name:      $name"
 
     # Filters (zero or more)
     $filters = @()
@@ -1557,10 +1576,10 @@ function Parse-Placeholder {
         }
 
         foreach ($f in $filters) {
-            Write-Host "    Filter: $(($f.name))" -ForegroundColor DarkGray
-            if ($f.arg -ne $null) { Write-Host "      First arg: '$(($f.arg))'" -ForegroundColor DarkGray }
+            Write-Debug "    Filter: $(($f.name))" -ForegroundColor DarkGray
+            if ($f.arg -ne $null) { Write-Debug "      First arg: '$(($f.arg))'" }
             if ($f.args.Count -gt 1) {
-                Write-Host "      All args:  @('$(($f.args -join "','"))')" -ForegroundColor DarkGray
+                Write-Debug "      All args:  @('$(($f.args -join "','"))')"
             }
         }
 
