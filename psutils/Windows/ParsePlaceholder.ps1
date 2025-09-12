@@ -3,7 +3,7 @@
 $script:VerboseMode = $true  # Set to $true to enable debug messages
 $script:DebugMode = $true  # Set to $true to enable debug messages
 
-$FgVerbose = "DarkCyan" # Verbose messages color
+$FgVerbose = "Brown" # Verbose messages color
 $FgDebug = "DarkGray"  # Debug messages color
 
 function Write-Debug {
@@ -15,7 +15,7 @@ function Write-Debug {
 function Write-Verbose {
   param([string]$Msg)
   # if ($script:DebugMode) { Write-Host "[DBG] $Msg" -ForegroundColor $FgDebug }
-  if ($script:CerboseMode) { Write-Host "$Msg" -ForegroundColor $FgVerbose }
+  if ($script:VerboseMode) { Write-Host "$Msg" -ForegroundColor $FgVerbose }
 }
 
 
