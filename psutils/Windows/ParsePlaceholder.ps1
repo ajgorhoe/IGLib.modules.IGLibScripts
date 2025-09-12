@@ -7,7 +7,7 @@
 $script:VerboseMode = $true  # Set to $true to enable debug messages
 $script:DebugMode = $true  # Set to $true to enable debug messages
 
-$FgVerbose = "DarkGreen" # Verbose messages color
+$FgVerbose = "Gray" # Verbose messages color
 $FgDebug = "DarkGray"  # Debug messages color
 
 function Write-Debug {
@@ -184,7 +184,7 @@ function Parse-Placeholder {
 
 
 
-function Test-ParsePlaceholder {
+function Test-ParsePlaceholderHardcoded {
   # Simple tests for Parse-Placeholder function
 
   Write-Host "`nRunning Parse-Placeholder tests..." -ForegroundColor Cyan
@@ -214,7 +214,65 @@ function Test-ParsePlaceholder {
 }
 
 
-# Run the tests:
-Test-ParsePlaceholder
 
+function Test-ParsePlaceholder {
+    param(
+        [string[]] $Contents
+    )
+    Write-Verbose "`nRunning Parse-Placeholder tests for $($Contents.Count) placeholders..."
+    $i = 0
+    foreach ($inner in $Contents) {
+      $i++
+      $numLines = ([regex]::Matches($text, "`n")).Count + 1
+      Write-Verbose "`n  Placeholder No. $i content (normalized; $numLines line(s)):"
+
+      $expr1 = $inner.Trim() -replace '\r?\n', ' ' # normalize newlines to spaces
+      $expr1 = $expr1 -replace '\s*\|\s*', ' | '    # normalize pipe spacing
+      Write-Verbose "    $expr1"
+      $ph = Parse-Placeholder $inner
+      Write-Verbose "    Head: `"$($ph.Head)`""
+      foreach ($filter in $ph.Pipeline) {
+        $args = $filter.Args -join ', '
+        $args = ($arr = $filter.Args | ForEach-Object { "`"$_`"" }) -join ","
+        Write-Verbose "    Filter: $($filter.Name)($args)"
+      }
+    }
+    Write-Verbose "`n ... Parse-Placeholder tests completed.`n"
+}
+
+
+# Test cases for Parse-Placeholder function:
+$_PlaceholderContents = @(
+  # 1) Unquoted args
+  'var.MyVarLong | replace:demonstrate:show | prepend:The | append:End'
+  ,
+  # 2) Mixed quoted/unquoted
+  'var.PathWin | pathappend:"dir1\dir2\icon.png" | replace:\\:/'
+  ,
+  # 3) Spaces around tokens
+  '  var.Name    |  lower   | replace  : X  :  "Y Y"  '
+  ,
+  # 4) Newlines in placeholder - simple
+  '  var.Name    
+  |  lower '
+  ,
+  # 5) Newlines in placeholder - more complex
+'
+      var.PathWin
+        | pathappend:"dir1\dir2\icon.png" | 
+        replace:\\:/
+        |
+        prepend:"The path is: "
+'
+  ,
+  # 6) Edge case: no filters, just head
+  '  var.Simple  '
+  ,
+  # 7) Edge case: no spaces
+  'var.PathWin|pathappend:"dir1\\dir2\\icon.png"|replace:\\:/|lower|prepend:"The path is: "'
+)
+
+
+# Run the tests:
+Test-ParsePlaceholder $_PlaceholderContents
 
