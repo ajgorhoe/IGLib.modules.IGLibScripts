@@ -1,9 +1,13 @@
 
 
+# Console colors:
+# Black, DarkBlue, DarkGreen, DarkCyan, DarkRed, DarkMagenta, 
+# DarkYellow, Gray, DarkGray, Blue, Green, Cyan, Red, Magenta, Yellow, White
+
 $script:VerboseMode = $true  # Set to $true to enable debug messages
 $script:DebugMode = $true  # Set to $true to enable debug messages
 
-$FgVerbose = "Brown" # Verbose messages color
+$FgVerbose = "DarkGreen" # Verbose messages color
 $FgDebug = "DarkGray"  # Debug messages color
 
 function Write-Debug {
@@ -176,5 +180,41 @@ function Parse-Placeholder {
 
   return $ph
 }
+
+
+
+
+function Test-ParsePlaceholder {
+  # Simple tests for Parse-Placeholder function
+
+  Write-Host "`nRunning Parse-Placeholder tests..." -ForegroundColor Cyan
+
+  # 1) Unquoted args
+  Write-Host "`nTest 1: Unquoted args" -ForegroundColor Yellow
+  $inner = 'var.MyVarLong | replace:demonstrate:show | prepend:The | append:End'
+  $ph = Parse-Placeholder $inner
+  $ph.Head        # var.MyVarLong
+  $ph.Pipeline    # replace('demonstrate','show'), prepend('The'), append('End')
+
+  # 2) Mixed quoted/unquoted
+  Write-Host "`nTest 2: Mixed quoted/unquoted args" -ForegroundColor Yellow
+  $inner = 'var.PathWin | pathappend:"dir1\dir2\icon.png" | replace:\\:/'
+  $ph = Parse-Placeholder $inner
+  $ph.Head        # var.PathWin
+  $ph.Pipeline    # pathappend('dir1\dir2\icon.png'), replace('\\','/')
+
+  # 3) Spaces around tokens
+  Write-Host "`nTest 3: Spaces around tokens" -ForegroundColor Yellow
+  $inner = '  var.Name    |  lower   | replace  : X  :  "Y Y"  '
+  $ph = Parse-Placeholder $inner
+  $ph.Head        # var.Name
+  $ph.Pipeline    # lower, replace('X','Y Y')
+
+  Write-Host "`nAll tests completed.`n"
+}
+
+
+# Run the tests:
+Test-ParsePlaceholder
 
 
