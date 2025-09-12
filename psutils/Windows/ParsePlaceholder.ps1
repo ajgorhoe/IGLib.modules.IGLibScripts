@@ -223,9 +223,9 @@ function Test-ParsePlaceholder {
     $i = 0
     foreach ($inner in $Contents) {
       $i++
-      $numLines = ([regex]::Matches($text, "`n")).Count + 1
+      $numLines = ([regex]::Matches($inner, "`n")).Count + 1
       Write-Verbose "`n  Placeholder No. $i content (normalized; $numLines line(s)):"
-
+      # Write-Verbose "    $inner"
       $expr1 = $inner.Trim() -replace '\r?\n', ' ' # normalize newlines to spaces
       $expr1 = $expr1 -replace '\s*\|\s*', ' | '    # normalize pipe spacing
       Write-Verbose "    $expr1"
