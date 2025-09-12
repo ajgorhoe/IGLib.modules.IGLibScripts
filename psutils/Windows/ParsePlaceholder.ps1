@@ -45,16 +45,40 @@ function Read-NextArg {
     while ($i -lt $len) {
       $ch = $Text[$i]
       if ($ch -eq '"') { $i++; break }
+      
+      # if ($ch -eq '\') {
+      #   if ($i + 1 -lt $len) {
+      #     $n = $Text[$i+1]
+      #     switch ($n) {
+      #       '"'{ [void]$sb.Append('"');  $i+=2; continue }
+      #       '\' { [void]$sb.Append('\'); $i+=2; continue }
+      #       default { [void]$sb.Append('\'); $i++; continue }
+      #     }
+      #   }
+      # }
+
       if ($ch -eq '\') {
         if ($i + 1 -lt $len) {
           $n = $Text[$i+1]
           switch ($n) {
-            '"'{ [void]$sb.Append('"');  $i+=2; continue }
-            '\' { [void]$sb.Append('\'); $i+=2; continue }
-            default { [void]$sb.Append('\'); $i++; continue }
+            '"' { [void]$sb.Append('"');  $i += 2; continue }
+            '\' { [void]$sb.Append('\');  $i += 2; continue }
+            default {
+              # Preserve unknown escapes literally, but DO NOT consume the next char yet.
+              # Append the backslash and advance one; the next iteration will handle the next char.
+              [void]$sb.Append('\')
+              $i += 1
+              continue
+            }
           }
+        } else {
+          # Trailing backslash inside quotes; keep it
+          [void]$sb.Append('\')
+          $i += 1
+          continue
         }
       }
+
       [void]$sb.Append($ch); $i++
     }
     $Index.Value = $i
