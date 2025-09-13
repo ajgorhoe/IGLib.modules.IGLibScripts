@@ -138,7 +138,7 @@ function Tokenize-Pipeline {
       if (-not $fname) { throw "Missing filter name after '|'." }
 
       # read 0..N args: each starts with ':' then arg (quoted or unquoted)
-      $args = @()
+      $arguments = @()
       while ($i -lt $len) {
         while ($i -lt $len -and ($Inner[$i] -match '[ \t\r\n]')) { $i++ }
         if ($i -ge $len) { break }
@@ -151,10 +151,10 @@ function Tokenize-Pipeline {
         if ($arg -eq "") {
           throw "Empty filter argument for filter '$fname'."
         }
-        $args += $arg
+        $arguments += $arg
       }
 
-      $pipeline += [pscustomobject]@{ Name = $fname; Args = $args }
+      $pipeline += [pscustomobject]@{ Name = $fname; Args = $arguments }
       continue
     }
 
@@ -182,15 +182,26 @@ function Parse-Placeholder {
   # We only tokenize here; actual value resolution + filter application
   # remain in your existing code path.
 
-  # Handle your literal-double-braces escape (if you use a sentinel),
+  # Handle literal-double-braces escape (if you use a sentinel),
   # otherwise skip — this function only parses placeholders.
-  $trimmed = $InnerText.Trim()
 
+  $expr1 = $InnerText.Trim() -replace '\r?\n', ' ' # normalize newlines to spaces
+  $expr1 = $expr1 -replace '\s*\|\s*', ' | '    # normalize pipe spacing
+  Write-Debug "  Parse-Placeholder: `'$($expr1)`'"
+
+  $trimmed = $InnerText.Trim()
   $ph = Tokenize-Pipeline -Inner $trimmed
 
   # quick sanity: head must be var.* or env.*
   if ($ph.Head -notmatch '^(var|env)\.') {
     throw "Invalid placeholder head '$($ph.Head)'. Use 'var.Name' or 'env.NAME'."
+  }
+
+  Write-Debug "    Head: `"$($ph.Head)`""
+  foreach ($filter in $ph.Pipeline) {
+    $arguments = $filter.Args -join ', '
+    $arguments = ($arr = $filter.Args | ForEach-Object { "`"$_`"" }) -join ","
+    Write-Debug "    Filter: $($filter.Name)($arguments)"
   }
 
   return $ph
@@ -199,36 +210,8 @@ function Parse-Placeholder {
 
 
 
-function Test-ParsePlaceholderHardcoded {
-  # Simple tests for Parse-Placeholder function
 
-  Write-Host "`nRunning Parse-Placeholder tests..." -ForegroundColor Cyan
-
-  # 1) Unquoted args
-  Write-Host "`nTest 1: Unquoted args" -ForegroundColor Yellow
-  $inner = 'var.MyVarLong | replace:demonstrate:show | prepend:The | append:End'
-  $ph = Parse-Placeholder $inner
-  $ph.Head        # var.MyVarLong
-  $ph.Pipeline    # replace('demonstrate','show'), prepend('The'), append('End')
-
-  # 2) Mixed quoted/unquoted
-  Write-Host "`nTest 2: Mixed quoted/unquoted args" -ForegroundColor Yellow
-  $inner = 'var.PathWin | pathappend:"dir1\dir2\icon.png" | replace:\\:/'
-  $ph = Parse-Placeholder $inner
-  $ph.Head        # var.PathWin
-  $ph.Pipeline    # pathappend('dir1\dir2\icon.png'), replace('\\','/')
-
-  # 3) Spaces around tokens
-  Write-Host "`nTest 3: Spaces around tokens" -ForegroundColor Yellow
-  $inner = '  var.Name    |  lower   | replace  : X  :  "Y Y"  '
-  $ph = Parse-Placeholder $inner
-  $ph.Head        # var.Name
-  $ph.Pipeline    # lower, replace('X','Y Y')
-
-  Write-Host "`nAll tests completed.`n"
-}
-
-
+# =============================== TESTING ============================
 
 function Test-ParsePlaceholder {
     param(
@@ -247,9 +230,9 @@ function Test-ParsePlaceholder {
       $ph = Parse-Placeholder $inner
       Write-Verbose "    Head: `"$($ph.Head)`""
       foreach ($filter in $ph.Pipeline) {
-        $args = $filter.Args -join ', '
-        $args = ($arr = $filter.Args | ForEach-Object { "`"$_`"" }) -join ","
-        Write-Verbose "    Filter: $($filter.Name)($args)"
+        $arguments = $filter.Args -join ', '
+        $arguments = ($arr = $filter.Args | ForEach-Object { "`"$_`"" }) -join ","
+        Write-Verbose "    Filter: $($filter.Name)($arguments)"
       }
     }
     Write-Verbose "`n ... Parse-Placeholder tests completed.`n"
@@ -290,4 +273,5 @@ $_PlaceholderContents = @(
 
 # Run the tests:
 Test-ParsePlaceholder $_PlaceholderContents
+
 
