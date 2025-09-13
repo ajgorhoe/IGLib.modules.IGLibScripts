@@ -7,7 +7,7 @@
 
 * [Quick ToDo](#quick-to-do)
 
-* **[Documentation - Windows Powerhell Utilities and Template Engine](#windows-powershell-utilities-and-template-engine---documentation)** (**[direct link](./Sandbox/sandbox2.md)** to external document)
+* **[Documentation - Windows Powerhell Utilities and Template Engine](#windows-powershell-utilities-and-template-engine---documentation)** (**[direct link](./WindowsPowershellUtilities.md)** to external document)
   * **[Introduction - Windows PowerShell Utilities and Template Engine](#introduction--windows-powershell-utilities)** - summary of the scripts available in this directory and basic concepts (typical parameters, etc.)
     * [Wrapper Scripts and Examples](#wrapper-scripts--examples)
     * [Auxiliary Scripts](#auxiliary-scripts)
@@ -57,7 +57,7 @@
 
 ## Windows PowerShell Utilities and Template Engine - Documentation
 
-Documentation is currently [in this external document](./Sandbox/sandbox2.md).
+Documentation is currently [in this external document](./WindowsPowershellUtilities.md).
 
 ---
 

@@ -57,22 +57,23 @@ function Read-NextArg {
       #   }
       # }
 
+      # Inside Read-NextArg, quoted-argument branch
       if ($ch -eq '\') {
         if ($i + 1 -lt $len) {
-          $n = $Text[$i+1]
-          switch ($n) {
-            '"' { [void]$sb.Append('"');  $i += 2; continue }
-            '\' { [void]$sb.Append('\');  $i += 2; continue }
-            default {
-              # Preserve unknown escapes literally, but DO NOT consume the next char yet.
-              # Append the backslash and advance one; the next iteration will handle the next char.
-              [void]$sb.Append('\')
-              $i += 1
-              continue
-            }
+          $n = $Text[$i + 1]
+          if ($n -eq '"') {
+            [void]$sb.Append('"');  $i += 2; continue
+          } elseif ($n -eq '\') {
+            [void]$sb.Append('\');  $i += 2; continue
+          } else {
+            # Preserve unknown escapes literally: append "\" and the next char.
+            [void]$sb.Append('\')
+            [void]$sb.Append($n)
+            $i += 2
+            continue
           }
         } else {
-          # Trailing backslash inside quotes; keep it
+          # Trailing backslash before closing quote -> keep it
           [void]$sb.Append('\')
           $i += 1
           continue
@@ -271,7 +272,7 @@ $_PlaceholderContents = @(
   'var.MyVarLong | replace:demonstrate:show | prepend:The | append:End'
   ,
   # 2) Mixed quoted/unquoted
-  'var.PathWin | pathappend:"dir1\dir2\icon.png" | replace:\\:/'
+  'var.PathWin | pathappend:"dir1\dir2\icon.png" | replace:\:/'
   ,
   # 3) Spaces around tokens
   '  var.Name    |  lower   | replace  : X  :  "Y Y"  '
@@ -284,7 +285,7 @@ $_PlaceholderContents = @(
 '
       var.PathWin
         | pathappend:"dir1\dir2\icon.png" | 
-        replace:\\:/
+        replace:"\\":/
         |
         prepend:"The path is: "
 '
@@ -292,8 +293,8 @@ $_PlaceholderContents = @(
   # 6) Edge case: no filters, just head
   '  var.Simple  '
   ,
-  # 7) Edge case: no spaces
-  'var.PathWin|pathappend:"dir1\\dir2\\icon.png"|replace:\\:/|lower|prepend:"The path is: "'
+  # 7) Edge case: no spaces; escaped and not escaped backslashes
+  'var.PathWin|pathappend:"dir1\\dir2\icon.png"|replace:"\\":/|lower|prepend:"The path is: "'
 )
 
 
