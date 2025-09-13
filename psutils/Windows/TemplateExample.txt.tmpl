@@ -17,8 +17,12 @@
 # ESCAPING DOUBLE BRACKETS:
 
 \{{ Escaped double curly brackets should transform to literal double brackets. \}}
+
 \{{ \{{ This should also works when escaped opening brackets are not matched...
   ... or when escaped closing brackets are not matched. \}}
+
+\{\{ Escaping with two slashes is also allowed, and it is an intermediate stage
+in replacing the usual sequences \{{ and \}}. \}\}
 
 # SIMPLE PLACEHOLDERS:
 
@@ -260,7 +264,6 @@ var.EscapedStr:
 with filter | fromesccs :
   "{{ var.EscapedStr | fromesccs }}"
   "{{ var.EscapedStr }}"
-# ToDo: conversion below throws exception
 round trip | fromesccs | esccs  (+ original for comparison):
   "{{ var.EscapedStr | fromesccs | esccs }}"
   "{{ var.EscapedStr }}"
