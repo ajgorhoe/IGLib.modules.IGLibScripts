@@ -90,6 +90,10 @@ Special-case: `.reg` (registry script files) outputs to the required **UTF-16 LE
 * `pathappend` concatenates with correct slashes.
 * `regq` quotes/escapes for .reg value strings.
 
+**Filter Argumants**
+
+See [Filter Arguments (external document, to be included here)](./FilterArguments.md)
+
 **Examples & Helpers**
 
 * `AddCode_GenerateRegScriptsFromTemplates.ps1` – example that expands:
