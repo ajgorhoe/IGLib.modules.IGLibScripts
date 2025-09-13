@@ -1521,7 +1521,6 @@ function Parse-Placeholder {
 
     $expr1 = $ExprText.Trim() -replace '\r?\n', ' ' # normalize newlines to spaces
     $expr1 = $expr1 -replace '\s*\|\s*', ' | '    # normalize pipe spacing
-    #Write-Host "  Parse-Placeholder: `"$($expr1)  `"" -ForegroundColor DarkGray
     Write-Debug "  Parse-Placeholder: `"$($expr1)  `""
 
     # Split around '|' (pipes). We’ll trim whitespace per segment.
@@ -1650,16 +1649,16 @@ $tplPath = Resolve-PathSmart $Template
 $tplText = Get-Content -LiteralPath $tplPath -Raw
 
 Write-Host "`nExpanding a template file by $($MyInvocation.MyCommand.Name)..." -ForegroundColor Green
-Write-Host "`nScript parameters:"
+Write-Verbose "`nScript parameters:"
 Write-HashTable $PSBoundParameters
-Write-Host "  Positional:"
+Write-Verbose "  Positional:"
 Write-Array $args
-Write-Host "Var:"
+Write-Verbose "Var:"
 Write-Array $Var
-Write-Host "Variables:"
+Write-Verbose "Variables:"
 Write-HashTable $Variables
-Write-Host "`nTemplate path: `n  ${tplPath}"
-Write-Host ""
+Write-Verbose "`nTemplate path: `n  ${tplPath}"
+Write-Verbose ""
 
 # Compose variables with precedence: VarsFile < Variables < Var
 $varsFromFile = Load-VarsFile $VarsFile
@@ -1702,17 +1701,17 @@ $expanded = [System.Text.RegularExpressions.Regex]::Replace(
     {
         param($m)
         $expr = $m.Groups[1].Value
-        Write-Host "Processing placeholder:`n  {{ $($expr.Trim() -replace '\r?\n', ' ') }}"
+        Write-Verbose "Processing placeholder:`n  {{ $($expr.Trim() -replace '\r?\n', ' ') }}"
         try {
             $ph   = Parse-Placeholder $expr
             $val0 = Get-InitialValue -Vars $VARS -Ns $ph.ns -Name $ph.name -Strict:$Strict
-            Write-Host "  Unfiltered value:`n  $val0"
+            Write-Verbose "  Unfiltered value:`n  $val0"
             $out  = Apply-Filters -Value $val0 -Pipeline $ph.filters
-            Write-Host "  Final value:`n  $out"
+            Write-Verbose "  Final value:`n  $out"
             if (-not $out -is [string]) {
                 Write-Warning "  Final value is not a string:"
-                Write-Host "  ${out}"
-                Write-Host "  Type: $($out.GetType().FullName))"
+                Write-Verbose "  ${out}"
+                Write-Verbose "  Type: $($out.GetType().FullName))"
             }
             # If a pipeline ends as byte[], force the template author to finish with base64/hex/gunzip/etc.
             if (Is-ByteVector $out) {
