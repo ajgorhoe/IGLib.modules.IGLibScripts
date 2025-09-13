@@ -1853,10 +1853,10 @@ $expanded = [System.Text.RegularExpressions.Regex]::Replace(
             Write-Debug ("  Head value (type): {0}" -f ($headValue.GetType().FullName))
 
             # 3) Apply filters (pipeline returned by parser)
-            $out = Apply-Filters -Value $headValue -Pipeline $ph.Pipeline
+            $expanded = Apply-Filters -Value $headValue -Pipeline $ph.Pipeline
 
             # 4) Coerce to string for output
-            if ($null -eq $out) { '' } else { [string]$out }
+            if ($null -eq $expanded) { '' } else { [string]$expanded }
         }
         catch {
             throw "Error in placeholder '{{ $bodyShown }}': $($_.Exception.Message)"
