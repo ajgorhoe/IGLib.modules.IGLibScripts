@@ -1,15 +1,14 @@
 
 
+# Debug/Verbose mode flags:
+$script:VerboseMode = $true  # Set to $true to enable debug messages
+$script:DebugMode = $true    # Set to $true to enable debug messages
+
 # Console colors:
 # Black, DarkBlue, DarkGreen, DarkCyan, DarkRed, DarkMagenta, 
 # DarkYellow, Gray, DarkGray, Blue, Green, Cyan, Red, Magenta, Yellow, White
-
-# Debug/Verbose mode flags:
-$script:VerboseMode = $true  # Set to $true to enable debug messages
-$script:DebugMode = $true  # Set to $true to enable debug messages
-
 # Console colors for messages:
-$script:FgVerbose = "Gray" # Verbose messages color
+$script:FgVerbose = "Gray"    # Verbose messages color
 $script:FgDebug = "DarkGray"  # Debug messages color
 
 function Write-Verbose {

@@ -118,22 +118,27 @@ param(
     [switch] $Strict
 )
 
+# Debug/Verbose mode flags:
 $script:VerboseMode = $true  # Set to $true to enable debug messages
-$script:DebugMode = $true  # Set to $true to enable debug messages
+$script:DebugMode = $true    # Set to $true to enable debug messages
 
-$FgVerbose = "DarkCyan" # Verbose messages color
-$FgDebug = "DarkGray"  # Debug messages color
-
-function Write-Debug {
-  param([string]$Msg)
-  # if ($script:DebugMode) { Write-Host "[DBG] $Msg" -ForegroundColor $FgDebug }
-  if ($script:DebugMode) { Write-Host "$Msg" -ForegroundColor $FgDebug }
-}
+# Console colors:
+# Black, DarkBlue, DarkGreen, DarkCyan, DarkRed, DarkMagenta, 
+# DarkYellow, Gray, DarkGray, Blue, Green, Cyan, Red, Magenta, Yellow, White
+# Console colors for messages:
+$script:FgVerbose = "Gray"    # Verbose messages color
+$script:FgDebug = "DarkGray"  # Debug messages color
 
 function Write-Verbose {
   param([string]$Msg)
-  # if ($script:DebugMode) { Write-Host "[DBG] $Msg" -ForegroundColor $FgDebug }
-  if ($script:CerboseMode) { Write-Host "$Msg" -ForegroundColor $FgVerbose }
+  if ($null -eq $script:FgVerbose) { $script:FgVerbose = "Gray" }
+  if ($script:VerboseMode) { Write-Host "$Msg" -ForegroundColor $script:FgVerbose }
+}
+
+function Write-Debug {
+  param([string]$Msg)
+  if ($null -eq $script:FgDebug) { $script:FgDebug = "DarkGray" }
+  if ($script:DebugMode) { Write-Host "$Msg" -ForegroundColor $script:FgDebug }
 }
 
 function Write-HashTable {
@@ -1635,6 +1640,9 @@ function Get-InitialValue {
         }
     }
 }
+
+
+# ========================= MAIN SCRIPT =========================
 
 # ========================= Load inputs =========================
 
