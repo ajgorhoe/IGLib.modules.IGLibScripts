@@ -473,6 +473,21 @@ with newlines also between pipes (at various places):
   }}"
 
 
+# FILTER ARGUMENTS:
+
+# TODO: transfer new implementation for filter arguments to ExpandTemplate.ps1
+# and enable, comment and expand examples below.
+
+\{{ var.MyVarLong | replace:demonstrate:show | prepend:The | append:End \}}
+\{{ var.PathWin | pathappend:"dir1\dir2\icon.png" | replace:\\:/ \}}
+\{{ var.PathWin | pathappend:myfiles | prepend:CLEAN: \}}
+\{{ var.Title | escc | replace:\":\' | fromescc \}}
+
+
+
+
+
+
 # The following environment variables need to be defined for successful
 # generation (suggested values are also provided):
 #   ENVPATHWIN = C:\Users\Uporabnik\Documents\MyDoc.md
