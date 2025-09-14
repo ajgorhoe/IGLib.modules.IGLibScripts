@@ -1291,6 +1291,41 @@ function Apply-Filters {
         [object[]] $Pipeline
     )
 
+
+    # --- SAFE debug/trace preamble (does not call methods on $null) ---
+
+    # Normalize $Pipeline to an empty array if it's $null, so enumerations are safe.
+    if ($null -eq $Pipeline) { $Pipeline = @() }
+
+    # Build a readable preview of the incoming value without calling methods on $null
+    $__valPreview = if ($null -eq $Value) { '<null>' } else { "'$Value'" }
+
+    # Build a readable preview of the pipeline; safe even if empty
+    $__pipePreview = if ($Pipeline.Count) {
+        ($Pipeline | ForEach-Object {
+            $n = $_.Name
+            $a = if ($_.Args -and $_.Args.Count) {
+                ($_.Args | ForEach-Object { '"{0}"' -f $_ }) -join ':'
+            } else { '' }
+            if ($a) { ('{0}:{1}' -f $n, $a) } else { $n }
+        }) -join ' | '
+    } else {
+        '<none>'
+    }
+
+    Write-Debug ("Apply-Filters: in={0} | {1}" -f $__valPreview, $__pipePreview)
+
+    # (Optional) per-filter trace—also null-safe:
+    foreach ($__f in $Pipeline) {
+        $n = $__f.Name
+        $a = if ($__f.Args -and $__f.Args.Count) {
+            ($__f.Args | ForEach-Object { '"{0}"' -f $_ }) -join ', '
+        } else { '' }
+        Write-Debug ('  -> {0}({1})' -f $n, $a)
+    }
+    # --- end SAFE preamble ---
+
+
     foreach ($f in $Pipeline) {
 
         # ---- Normalize access for hashtable or PSCustomObject ----
