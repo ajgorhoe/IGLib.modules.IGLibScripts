@@ -1374,6 +1374,7 @@ function Apply-Filters {
             Write-Host ("  [Apply-Filters foreach] arguments = " + $(if ($arguments) { '[' + (($arguments | % { "`"$_`"" }) -join ',') + ']' } else { '<null array>' })) -ForegroundColor "Yellow"
             Write-Host "  [Apply-Filters foreach] arg = `"$arg`"" -ForegroundColor "Yellow"
             if ($null -ne $arguments) {
+                Write-Host "  [Apply-Filters foreach] arguments type = `"$($arguments.GetType())`"" -ForegroundColor "Yellow"
                 if ($arguments.Count -gt 0) {
                     Write-Host "  [Apply-Filters foreach] arguments[0] = `"$($arguments[0])`"" -ForegroundColor "Yellow"
                 }
@@ -1713,11 +1714,32 @@ function Tokenize-Pipeline {
         $arguments += $arg
       }
 
-      $pipeline += [pscustomobject]@{ 
+    #   # Attempt to fix single-string arg case:
+    #   if ($null -ne $arguments) {
+    #     if ($arguments.GetType().Name -eq 'String') {
+    #       $arguments = @($arguments)  # normalize to string[]
+    #     }
+    #   }
+
+      $pipelineElement = [pscustomobject]@{ 
         Name = $fname; 
         Args = $arguments 
         # Args = @($arguments)   # normalize to string[] 
-    }
+      }
+
+      if ($Trace) {
+        Write-Host "  [Tokenize-Pipeline] Name: $($pipelineElement.Name)" -ForegroundColor "DarkMagenta"
+        if ($null -ne $arguments) {
+          Write-Host "  [Tokenize-Pipeline] Args type: $($pipelineElement.Args.GetType().Name)" -ForegroundColor "DarkMagenta"
+          Write-Host "  [Tokenize-Pipeline] Args[0]: $($pipelineElement.Args[0])" -ForegroundColor "DarkMagenta"
+          Write-Host "  [Tokenize-Pipeline] Args[1]: $($pipelineElement.Args[1])" -ForegroundColor "DarkMagenta"
+        } else {
+          Write-Host "  [Tokenize-Pipeline] Args: <null>" -ForegroundColor "DarkMagenta"
+        }
+      }
+
+      $pipeline += $pipelineElement
+
       continue
     }
 
