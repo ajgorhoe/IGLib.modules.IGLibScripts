@@ -1299,10 +1299,8 @@ function Apply-Filters {
 
     if ($Trace)
     {
-
         # Build a readable preview of the incoming value without calling methods on $null
         $__valPreview = if ($null -eq $Value) { '<null>' } else { "'$Value'" }
-
         # Build a readable preview of the pipeline; safe even if empty
         $__pipePreview = if ($Pipeline.Count) {
             ($Pipeline | ForEach-Object {
@@ -1315,9 +1313,7 @@ function Apply-Filters {
         } else {
             '<none>'
         }
-
         Write-Host ("  [Apply-Filters] in={0} | {1}" -f $__valPreview, $__pipePreview) -ForegroundColor "Yellow"
-
         # (Optional) per-filter trace—also null-safe:
         foreach ($__f in $Pipeline) {
             $n = $__f.Name
@@ -1327,33 +1323,50 @@ function Apply-Filters {
             Write-Host ('    -> {0}({1})' -f $n, $a) -ForegroundColor "Yellow"
         }
         # --- end SAFE preamble ---
-
     }
 
 
     foreach ($f in $Pipeline) {
 
-        # ---- Normalize access for hashtable or PSCustomObject ----
-        # ToDo: simplify this logic! Do we need both hashtable and PSCustomObject support?
-        #       (Also, multi-argument support is clunky.)
-        $isHash = ($f -is [hashtable])
-
-        $name = if ($isHash) { [string]$f['name'] } else { [string]$f.name }
-        $arg  = if ($isHash) { $f['arg'] }         else { $f.arg }
-
-        # multi-arg support (e.g., replace:"old":"new")
-        $args = @()
-        if ($isHash) {
-            if ($f.ContainsKey('args') -and $f['args']) { $args = @($f['args']) }
-            elseif ($null -ne $arg) { $args = @($arg) }
-        } else {
-            if ($f.PSObject.Properties['args'] -and $f.args) { $args = $f.args }
-            elseif ($null -ne $arg) { $args = @($arg) }
+        # Validate shape early (helpful error if something upstream regresses)
+        if (-not ($f -is [psobject] -and
+                $f.PSObject.Properties.Name -contains 'Name' -and
+                $f.PSObject.Properties.Name -contains 'Args')) {
+            throw "Invalid pipeline token: expected PSCustomObject with .Name and .Args, got: $($f.GetType().FullName)"
         }
 
-        # Convenience for single-argument filters: $arg is first arg or $null
-        $arg = $null
-        if ($args.Count -ge 1) { $arg = $args[0] }  # single arg convenience    
+        # Canonicalize
+        $name = [string]$f.Name
+        $args = if ($null -eq $f.Args) { @() } else { @($f.Args) }  # coerce to string[]
+        $arg  = if ($args.Count) { $args[0] } else { $null }        # convenience for single-arg filters
+
+        if ($Trace) {
+            $argsPreview = if ($args.Count) { ($args | ForEach-Object { '"{0}"' -f $_ }) -join ', ' } else { '<none>' }
+            Write-Host ("[Apply] {0}({1})" -f $name, $argsPreview) -ForegroundColor "Yellow"
+        }
+
+
+        # # ---- Normalize access for hashtable or PSCustomObject ----
+        # # ToDo: simplify this logic! Do we need both hashtable and PSCustomObject support?
+        # #       (Also, multi-argument support is clunky.)
+        # $isHash = ($f -is [hashtable])
+
+        # $name = if ($isHash) { [string]$f['name'] } else { [string]$f.name }
+        # $arg  = if ($isHash) { $f['arg'] }         else { $f.arg }
+
+        # # multi-arg support (e.g., replace:"old":"new")
+        # $args = @()
+        # if ($isHash) {
+        #     if ($f.ContainsKey('args') -and $f['args']) { $args = @($f['args']) }
+        #     elseif ($null -ne $arg) { $args = @($arg) }
+        # } else {
+        #     if ($f.PSObject.Properties['args'] -and $f.args) { $args = $f.args }
+        #     elseif ($null -ne $arg) { $args = @($arg) }
+        # }
+
+        # # Convenience for single-argument filters: $arg is first arg or $null
+        # $arg = $null
+        # if ($args.Count -ge 1) { $arg = $args[0] }  # single arg convenience    
 
         # --- diagnostic: show each filter before applying ---
         if ($Trace) {
