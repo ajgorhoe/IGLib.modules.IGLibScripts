@@ -1337,11 +1337,11 @@ function Apply-Filters {
 
         # Canonicalize
         $name = [string]$f.Name
-        $args = if ($null -eq $f.Args) { @() } else { @($f.Args) }  # coerce to string[]
-        $arg  = if ($args.Count) { $args[0] } else { $null }        # convenience for single-arg filters
+        $arguments = if ($null -eq $f.Args) { @() } else { @($f.Args) }  # coerce to string[]
+        $arg  = if ($arguments.Count) { $arguments[0] } else { $null }        # convenience for single-arg filters
 
         if ($Trace) {
-            $argsPreview = if ($args.Count) { ($args | ForEach-Object { '"{0}"' -f $_ }) -join ', ' } else { '<none>' }
+            $argsPreview = if ($arguments.Count) { ($arguments | ForEach-Object { '"{0}"' -f $_ }) -join ', ' } else { '<none>' }
             Write-Host ("[Apply] {0}({1})" -f $name, $argsPreview) -ForegroundColor "Yellow"
         }
 
@@ -1355,24 +1355,35 @@ function Apply-Filters {
         # $arg  = if ($isHash) { $f['arg'] }         else { $f.arg }
 
         # # multi-arg support (e.g., replace:"old":"new")
-        # $args = @()
+        # $arguments = @()
         # if ($isHash) {
-        #     if ($f.ContainsKey('args') -and $f['args']) { $args = @($f['args']) }
-        #     elseif ($null -ne $arg) { $args = @($arg) }
+        #     if ($f.ContainsKey('args') -and $f['args']) { $arguments = @($f['args']) }
+        #     elseif ($null -ne $arg) { $arguments = @($arg) }
         # } else {
-        #     if ($f.PSObject.Properties['args'] -and $f.args) { $args = $f.args }
-        #     elseif ($null -ne $arg) { $args = @($arg) }
+        #     if ($f.PSObject.Properties['args'] -and $f.args) { $arguments = $f.args }
+        #     elseif ($null -ne $arg) { $arguments = @($arg) }
         # }
 
         # # Convenience for single-argument filters: $arg is first arg or $null
         # $arg = $null
-        # if ($args.Count -ge 1) { $arg = $args[0] }  # single arg convenience    
+        # if ($arguments.Count -ge 1) { $arg = $arguments[0] }  # single arg convenience    
 
         # --- diagnostic: show each filter before applying ---
         if ($Trace) {
-            Write-Host "  [ApplyFilt foreach] name = `"$name`"" -ForegroundColor "Yellow"
-            Write-Host "  [ApplyFilt foreach] arg = `"$arg`"" -ForegroundColor "Yellow"
-            Write-Host ("  [ApplyFilt foreach] args = " + $(if ($args) { '[' + (($args | % { "`"$_`"" }) -join ',') + ']' } else { '<null array>' })) -ForegroundColor "Yellow"
+            Write-Host "  [Apply-Filters foreach] name = `"$name`"" -ForegroundColor "Yellow"
+            Write-Host ("  [Apply-Filters foreach] arguments = " + $(if ($arguments) { '[' + (($arguments | % { "`"$_`"" }) -join ',') + ']' } else { '<null array>' })) -ForegroundColor "Yellow"
+            Write-Host "  [Apply-Filters foreach] arg = `"$arg`"" -ForegroundColor "Yellow"
+            if ($null -ne $arguments) {
+                if ($arguments.Count -gt 0) {
+                    Write-Host "  [Apply-Filters foreach] arguments[0] = `"$($arguments[0])`"" -ForegroundColor "Yellow"
+                }
+                if ($arguments.Count -gt 1) {
+                    Write-Host "  [Apply-Filters foreach] arguments[1] = `"$($arguments[1])`"" -ForegroundColor "Yellow"
+                }
+                if ($arguments.Count -gt 2) {
+                    Write-Host "  [Apply-Filters foreach] arguments[2] = `"$($arguments[2])`"" -ForegroundColor "Yellow"
+                }
+            }
         }
 
 
@@ -1404,7 +1415,7 @@ function Apply-Filters {
             # -------------------- String composition -------------------------
             'prepend'     { $Value = ($(if ($null -ne $arg) { $arg } else { '' })) + (As-String $Value) }
             'append'      {
-                Write-Host "    [ApplyFilt append] Value: `"$Value`"" -ForegroundColor "Yellow"
+                Write-Host "    [Apply-Filters append] Value: `"$Value`"" -ForegroundColor "Yellow"
                 $Value = (As-String $Value) + ($(if ($null -ne $arg) { $arg } else { '' })) 
                 Write-Host "      -> `"$Value`"" -ForegroundColor "Yellow"
             }
@@ -1417,8 +1428,8 @@ function Apply-Filters {
                 }
             }
             'replace'     {
-                if ($args.Count -lt 2) { throw 'replace filter requires two arguments: replace:"old":"new"' }
-                $old = $args[0]; $new = $args[1]
+                if ($arguments.Count -lt 2) { throw 'replace filter requires two arguments: replace:"old":"new"' }
+                $old = $arguments[0]; $new = $arguments[1]
                 $Value = (As-String $Value).Replace($old, $new)   # literal, not regex
             }
             'pathappend'  { $Value = (As-String $Value) + ($(if ($null -ne $arg) { $arg } else { '' })) }
@@ -1460,10 +1471,10 @@ function Apply-Filters {
             # Uncompress byte[] → byte[] with gzip (needs additional utf16 filter to get string):
             'gunzip' { 
               $bytes = Filter-Gunzip    $Value 
-                if ($args.Count -gt 0) {
-                    switch ($args[0].ToLower()) {
+                if ($arguments.Count -gt 0) {
+                    switch ($arguments[0].ToLower()) {
                         'utf16'  { $Value = [Text.Encoding]::Unicode.GetString($bytes) }
-                        default  { throw "gunzip: unknown decode '$($args[0])' (use utf16)" }
+                        default  { throw "gunzip: unknown decode '$($arguments[0])' (use utf16)" }
                     }
                 } else {
                     $Value = $bytes  # binary mode (for chaining into utf16, base64, etc.)
@@ -1478,13 +1489,13 @@ function Apply-Filters {
             # encoded string:
             'frombase64' {
                 $bytes = Filter-FromBase64 $Value
-                if ($args.Count -gt 0) {
-                    switch ($args[0].ToLower()) {
+                if ($arguments.Count -gt 0) {
+                    switch ($arguments[0].ToLower()) {
                         'utf16'  { $Value = [Text.Encoding]::Unicode.GetString($bytes) }
                         'utf8'   { $Value = [Text.Encoding]::UTF8.GetString($bytes) }
                         'ascii'  { $Value = [Text.Encoding]::ASCII.GetString($bytes) }
                         'latin1' { $Value = [Text.Encoding]::GetEncoding(28591).GetString($bytes) }
-                        default  { throw "frombase64: unknown decode '$($args[0])' (use utf16|utf8|ascii|latin1)" }
+                        default  { throw "frombase64: unknown decode '$($arguments[0])' (use utf16|utf8|ascii|latin1)" }
                     }
                 } else {
                     $Value = $bytes  # binary mode (for chaining into gzip, etc.)
@@ -1499,13 +1510,13 @@ function Apply-Filters {
             # encoded string:
             'fromhex' {
                 $bytes = Filter-FromHex $Value
-                if ($args.Count -gt 0) {
-                    switch ($args[0].ToLower()) {
+                if ($arguments.Count -gt 0) {
+                    switch ($arguments[0].ToLower()) {
                         'utf16'  { $Value = [Text.Encoding]::Unicode.GetString($bytes) }
                         'utf8'   { $Value = [Text.Encoding]::UTF8.GetString($bytes) }
                         'ascii'  { $Value = [Text.Encoding]::ASCII.GetString($bytes) }
                         'latin1' { $Value = [Text.Encoding]::GetEncoding(28591).GetString($bytes) }
-                        default  { throw "fromhex: unknown decode '$($args[0])' (use utf16|utf8|ascii|latin1)" }
+                        default  { throw "fromhex: unknown decode '$($arguments[0])' (use utf16|utf8|ascii|latin1)" }
                     }
                 } else {
                     $Value = $bytes
@@ -1561,6 +1572,9 @@ function Apply-Filters {
 
     return $Value
 }
+
+
+# $args $args $args $args $args $args 
 
 function Normalize-Whitespace {
   param([string]$Text)
@@ -1699,7 +1713,11 @@ function Tokenize-Pipeline {
         $arguments += $arg
       }
 
-      $pipeline += [pscustomobject]@{ Name = $fname; Args = $arguments }
+      $pipeline += [pscustomobject]@{ 
+        Name = $fname; 
+        Args = $arguments 
+        # Args = @($arguments)   # normalize to string[] 
+    }
       continue
     }
 
