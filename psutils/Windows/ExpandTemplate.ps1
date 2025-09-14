@@ -118,7 +118,7 @@ param(
     [switch] $Strict
 )
 
-$Debug = $true  # Enable debug messages for development
+$Trace = $true  # Enable debug messages for development
 
 # Debug/Verbose mode flags:
 $script:VerboseMode = $true  # Set to $true to enable debug messages
@@ -1297,38 +1297,45 @@ function Apply-Filters {
     # Normalize $Pipeline to an empty array if it's $null, so enumerations are safe.
     if ($null -eq $Pipeline) { $Pipeline = @() }
 
-    # Build a readable preview of the incoming value without calling methods on $null
-    $__valPreview = if ($null -eq $Value) { '<null>' } else { "'$Value'" }
+    if ($Trace)
+    {
 
-    # Build a readable preview of the pipeline; safe even if empty
-    $__pipePreview = if ($Pipeline.Count) {
-        ($Pipeline | ForEach-Object {
-            $n = $_.Name
-            $a = if ($_.Args -and $_.Args.Count) {
-                ($_.Args | ForEach-Object { '"{0}"' -f $_ }) -join ':'
+        # Build a readable preview of the incoming value without calling methods on $null
+        $__valPreview = if ($null -eq $Value) { '<null>' } else { "'$Value'" }
+
+        # Build a readable preview of the pipeline; safe even if empty
+        $__pipePreview = if ($Pipeline.Count) {
+            ($Pipeline | ForEach-Object {
+                $n = $_.Name
+                $a = if ($_.Args -and $_.Args.Count) {
+                    ($_.Args | ForEach-Object { '"{0}"' -f $_ }) -join ':'
+                } else { '' }
+                if ($a) { ('{0}:{1}' -f $n, $a) } else { $n }
+            }) -join ' | '
+        } else {
+            '<none>'
+        }
+
+        Write-Host ("  [Apply-Filters] in={0} | {1}" -f $__valPreview, $__pipePreview) -ForegroundColor "Yellow"
+
+        # (Optional) per-filter trace—also null-safe:
+        foreach ($__f in $Pipeline) {
+            $n = $__f.Name
+            $a = if ($__f.Args -and $__f.Args.Count) {
+                ($__f.Args | ForEach-Object { '"{0}"' -f $_ }) -join ', '
             } else { '' }
-            if ($a) { ('{0}:{1}' -f $n, $a) } else { $n }
-        }) -join ' | '
-    } else {
-        '<none>'
-    }
+            Write-Host ('    -> {0}({1})' -f $n, $a) -ForegroundColor "Yellow"
+        }
+        # --- end SAFE preamble ---
 
-    Write-Debug ("Apply-Filters: in={0} | {1}" -f $__valPreview, $__pipePreview)
-
-    # (Optional) per-filter trace—also null-safe:
-    foreach ($__f in $Pipeline) {
-        $n = $__f.Name
-        $a = if ($__f.Args -and $__f.Args.Count) {
-            ($__f.Args | ForEach-Object { '"{0}"' -f $_ }) -join ', '
-        } else { '' }
-        Write-Debug ('  -> {0}({1})' -f $n, $a)
     }
-    # --- end SAFE preamble ---
 
 
     foreach ($f in $Pipeline) {
 
         # ---- Normalize access for hashtable or PSCustomObject ----
+        # ToDo: simplify this logic! Do we need both hashtable and PSCustomObject support?
+        #       (Also, multi-argument support is clunky.)
         $isHash = ($f -is [hashtable])
 
         $name = if ($isHash) { [string]$f['name'] } else { [string]$f.name }
@@ -1344,12 +1351,16 @@ function Apply-Filters {
             elseif ($null -ne $arg) { $args = @($arg) }
         }
 
+        # Convenience for single-argument filters: $arg is first arg or $null
+        $arg = $null
+        if ($args.Count -ge 1) { $arg = $args[0] }  # single arg convenience    
+
         # --- diagnostic: show each filter before applying ---
-        # if ($Debug) {
-        #     $argList = if ($args) { ($args -join '", "') } else { '' }
-        #     Write-Host ("[Apply-Filters] filter={0} args=[{1}] type(Value)={2}" -f `
-        #         $name, $argList, ($Value?.GetType().FullName)) -ForegroundColor Yellow
-        # }
+        if ($Trace) {
+            Write-Host "  [ApplyFilt foreach] name = `"$name`"" -ForegroundColor "Yellow"
+            Write-Host "  [ApplyFilt foreach] arg = `"$arg`"" -ForegroundColor "Yellow"
+            Write-Host ("  [ApplyFilt foreach] args = " + $(if ($args) { '[' + (($args | % { "`"$_`"" }) -join ',') + ']' } else { '<null array>' })) -ForegroundColor "Yellow"
+        }
 
 
         switch ($name.ToLowerInvariant()) {
@@ -1379,7 +1390,11 @@ function Apply-Filters {
 
             # -------------------- String composition -------------------------
             'prepend'     { $Value = ($(if ($null -ne $arg) { $arg } else { '' })) + (As-String $Value) }
-            'append'      { $Value = (As-String $Value) + ($(if ($null -ne $arg) { $arg } else { '' })) }
+            'append'      {
+                Write-Host "    [ApplyFilt append] Value: `"$Value`"" -ForegroundColor "Yellow"
+                $Value = (As-String $Value) + ($(if ($null -ne $arg) { $arg } else { '' })) 
+                Write-Host "      -> `"$Value`"" -ForegroundColor "Yellow"
+            }
             'default'     {
                 $s = As-String $Value
                 if ([string]::IsNullOrWhiteSpace($s)) {
@@ -1524,8 +1539,8 @@ function Apply-Filters {
             }
         }
 
-        if ($Debug) {
-            Write-Host ("[Apply-Filters] after {0} -> '{1}'" -f $name, ($Value -as [string])) `
+        if ($Trace) {
+            Write-Host ("  [Apply-Filters] after {0} -> '{1}'" -f $name, ($Value -as [string])) `
                 -ForegroundColor DarkYellow
         }
 
@@ -1886,6 +1901,9 @@ $expanded = [System.Text.RegularExpressions.Regex]::Replace(
         $bodyShown = Normalize-Whitespace -Text $body
 
         Write-Verbose "Processing placeholder:`n  {{ $bodyShown }}"
+        
+        if ($Trace) { Write-Host "[CallBack] Processing placeholder:`n  {{ $body }}" -ForegroundColor Cyan }
+
 
         try {
             # 1) Parse the placeholder into Head + Pipeline (filters with args)
@@ -1903,17 +1921,17 @@ $expanded = [System.Text.RegularExpressions.Regex]::Replace(
             }
 
 
-            if ($Debug) {
-                Write-Host "  Unfiltered value:`n  $headValue" -ForegroundColor DarkCyan
+            if ($Trace) {
+                Write-Host "  [CallBack] Unfiltered value:`n  $headValue" -ForegroundColor DarkCyan
                 if ($ph.Pipeline -and $ph.Pipeline.Count) {
                     $pipeDisplay = ($ph.Pipeline | ForEach-Object {
                         $n = $_.Name
                         $a = if ($_.Args) { ($_.Args -join '", "') } else { '' }
                         if ($a -ne '') { "$n(""$a"")" } else { "$n()" }
                     }) -join ' | '
-                    Write-Host "  Pipeline: $pipeDisplay" -ForegroundColor DarkCyan
+                    Write-Host "  [CallBack] Pipeline: $pipeDisplay" -ForegroundColor DarkCyan
                 } else {
-                    Write-Host "  Pipeline: (none)" -ForegroundColor DarkCyan
+                    Write-Host "  [CallBack] Pipeline: (none)" -ForegroundColor DarkCyan
                 }
             }
 
@@ -1923,7 +1941,7 @@ $expanded = [System.Text.RegularExpressions.Regex]::Replace(
             $expanded = Apply-Filters -Value $headValue -Pipeline $ph.Pipeline
 
 
-            if ($Debug) {
+            if ($Trace) {
                 Write-Host "  Final value:`n  $expanded" -ForegroundColor Green
             }
 
