@@ -473,17 +473,34 @@ with newlines also between pipes (at various places):
   }}"
 
 
-# FILTER ARGUMENTS:
+# FILTER ARGUMENTS without quotes:
 
-# TODO: transfer new implementation for filter arguments to ExpandTemplate.ps1
-# and enable, comment and expand examples below.
+# Filter arguments that don't contain spaces ' ', colons ':', vertical lines '|', 
+# single (') or double quotes (") or closed curly brackets '}', do NOT need to be 
+# stated in double quotes.
 
-\{{ var.MyVarLong | replace:demonstrate:show | prepend:The | append:End \}}
-\{{ var.PathWin | pathappend:"dir1\dir2\icon.png" | replace:\\:/ \}}
-\{{ var.PathWin | pathappend:myfiles | prepend:CLEAN: \}}
-\{{ var.Title | escc | replace:\":\' | fromescc \}}
+var.MyVarLong:
+  "{{ var.MyVarLong }}"
+with filters | replace:demonstrate:show | prepend:** | append:End. : 
+  "{{ var.MyVarLong | replace:demonstrate:show | prepend:** | append:End. }}"
+
+var.PathWin:
+  "{{ var.PathWin }}"
+with filters | pathappend:dir1\dir2\icon.png | replace:\:/ :
+  "{{ var.PathWin | pathappend:dir1\dir2\icon.png | replace:\:/ }}"
+
+var.PathWin:
+  "{{ var.PathWin }}"
+with filters | pathappend:myfiles | prepend:CLEAN :
+  {{ var.PathWin | pathappend:myfiles | prepend:CLEAN }}
+
+var.MyVarLong:
+  "{{ var.MyVarLong }}"
+with filters | escc | replace:longer:sample | fromescc :
+  {{ var.MyVarLong | escc | replace:longer:sample | fromescc }}
 
 
+# Some other examples of how filter arguments can be specified:
 
 
 

@@ -479,6 +479,38 @@ with newlines also between pipes (at various places):
   "The path is: C:/Program Files (x86)/Microsoft SQL Server/dir1/dir2/icon.png"
 
 
+# FILTER ARGUMENTS without quotes:
+
+# Filter arguments that don't contain spaces ' ', colons ':', vertical lines '|', 
+# single (') or double quotes (") or closed curly brackets '}', do NOT need to be 
+# stated in double quotes.
+
+var.MyVarLong:
+  "This is a longer "str", \ used to demonstrate composed filters.  "
+with filters | replace:demonstrate:show | prepend:** | append:End. : 
+  "**This is a longer "str", \ used to show composed filters.  End."
+
+var.PathWin:
+  "C:\Program Files (x86)\Microsoft SQL Server\"
+with filters | pathappend:dir1\dir2\icon.png | replace:\:/ :
+  "C:/Program Files (x86)/Microsoft SQL Server/dir1/dir2/icon.png"
+
+var.PathWin:
+  "C:\Program Files (x86)\Microsoft SQL Server\"
+with filters | pathappend:myfiles | prepend:CLEAN :
+  CLEANC:\Program Files (x86)\Microsoft SQL Server\myfiles
+
+var.MyVarLong:
+  "This is a longer "str", \ used to demonstrate composed filters.  "
+with filters | escc | replace:longer:sample | fromescc :
+  This is a sample "str", \ used to demonstrate composed filters.  
+
+
+# Some other examples of how filter arguments can be specified:
+
+
+
+
 # The following environment variables need to be defined for successful
 # generation (suggested values are also provided):
 #   ENVPATHWIN = C:\Users\Uporabnik\Documents\MyDoc.md
