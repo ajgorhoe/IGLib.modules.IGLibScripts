@@ -1338,6 +1338,7 @@ function Apply-Filters {
         # Canonicalize
         $name = [string]$f.Name
         $arguments = if ($null -eq $f.Args) { @() } else { @($f.Args) }  # coerce to string[]
+        $arguments = @($arguments)   # re-normalize to string[] 
         $arg  = if ($arguments.Count) { $arguments[0] } else { $null }        # convenience for single-arg filters
 
         if ($Trace) {
