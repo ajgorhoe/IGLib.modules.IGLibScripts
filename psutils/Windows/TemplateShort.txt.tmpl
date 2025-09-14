@@ -1,0 +1,8 @@
+
+# The append and prepend filters append or prepend strings:
+var.MyVarSimple:
+  "{{ var.MyVarSimple }}"
+with  filter | append:" or North" :
+  "{{ var.MyVarSimple | append:" or North" }}"
+with  filter | prepend:"North-" :
+  "{{ var.MyVarSimple | prepend:"North-" }}"

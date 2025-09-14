@@ -118,6 +118,8 @@ param(
     [switch] $Strict
 )
 
+$Debug = $true  # Enable debug messages for development
+
 # Debug/Verbose mode flags:
 $script:VerboseMode = $true  # Set to $true to enable debug messages
 $script:DebugMode = $true    # Set to $true to enable debug messages
@@ -1307,6 +1309,14 @@ function Apply-Filters {
             elseif ($null -ne $arg) { $args = @($arg) }
         }
 
+        # --- diagnostic: show each filter before applying ---
+        # if ($Debug) {
+        #     $argList = if ($args) { ($args -join '", "') } else { '' }
+        #     Write-Host ("[Apply-Filters] filter={0} args=[{1}] type(Value)={2}" -f `
+        #         $name, $argList, ($Value?.GetType().FullName)) -ForegroundColor Yellow
+        # }
+
+
         switch ($name.ToLowerInvariant()) {
 
             # -------------------- Basic string transforms --------------------
@@ -1478,6 +1488,12 @@ function Apply-Filters {
                 throw "Unknown filter '${name}'."
             }
         }
+
+        if ($Debug) {
+            Write-Host ("[Apply-Filters] after {0} -> '{1}'" -f $name, ($Value -as [string])) `
+                -ForegroundColor DarkYellow
+        }
+
     }
 
     return $Value
@@ -1830,6 +1846,7 @@ $expanded = [System.Text.RegularExpressions.Regex]::Replace(
         param($m)
 
         # Extract the raw placeholder body (no braces), normalize whitespace for debug
+        # $full   = $m.Value
         $body      = $m.Groups[1].Value
         $bodyShown = Normalize-Whitespace -Text $body
 
@@ -1850,10 +1867,31 @@ $expanded = [System.Text.RegularExpressions.Regex]::Replace(
                 throw "Head '$($ph.Head)' resolved to null."
             }
 
+
+            if ($Debug) {
+                Write-Host "  Unfiltered value:`n  $headValue" -ForegroundColor DarkCyan
+                if ($ph.Pipeline -and $ph.Pipeline.Count) {
+                    $pipeDisplay = ($ph.Pipeline | ForEach-Object {
+                        $n = $_.Name
+                        $a = if ($_.Args) { ($_.Args -join '", "') } else { '' }
+                        if ($a -ne '') { "$n(""$a"")" } else { "$n()" }
+                    }) -join ' | '
+                    Write-Host "  Pipeline: $pipeDisplay" -ForegroundColor DarkCyan
+                } else {
+                    Write-Host "  Pipeline: (none)" -ForegroundColor DarkCyan
+                }
+            }
+
             Write-Debug ("  Head value (type): {0}" -f ($headValue.GetType().FullName))
 
             # 3) Apply filters (pipeline returned by parser)
             $expanded = Apply-Filters -Value $headValue -Pipeline $ph.Pipeline
+
+
+            if ($Debug) {
+                Write-Host "  Final value:`n  $expanded" -ForegroundColor Green
+            }
+
 
             # 4) Coerce to string for output
             if ($null -eq $expanded) { '' } else { [string]$expanded }
