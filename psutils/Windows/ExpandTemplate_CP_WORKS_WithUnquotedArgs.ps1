@@ -118,6 +118,8 @@ param(
     [switch] $Strict
 )
 
+$Trace = $true  # Enable debug messages for development
+
 # Debug/Verbose mode flags:
 $script:VerboseMode = $true  # Set to $true to enable debug messages
 $script:DebugMode = $true    # Set to $true to enable debug messages
@@ -1289,23 +1291,103 @@ function Apply-Filters {
         [object[]] $Pipeline
     )
 
+
+    # --- SAFE debug/trace preamble (does not call methods on $null) ---
+
+    # Normalize $Pipeline to an empty array if it's $null, so enumerations are safe.
+    if ($null -eq $Pipeline) { $Pipeline = @() }
+
+    if ($Trace)
+    {
+        # Build a readable preview of the incoming value without calling methods on $null
+        $__valPreview = if ($null -eq $Value) { '<null>' } else { "'$Value'" }
+        # Build a readable preview of the pipeline; safe even if empty
+        $__pipePreview = if ($Pipeline.Count) {
+            ($Pipeline | ForEach-Object {
+                $n = $_.Name
+                $a = if ($_.Args -and $_.Args.Count) {
+                    ($_.Args | ForEach-Object { '"{0}"' -f $_ }) -join ':'
+                } else { '' }
+                if ($a) { ('{0}:{1}' -f $n, $a) } else { $n }
+            }) -join ' | '
+        } else {
+            '<none>'
+        }
+        Write-Host ("  [Apply-Filters] in={0} | {1}" -f $__valPreview, $__pipePreview) -ForegroundColor "Yellow"
+        # (Optional) per-filter trace—also null-safe:
+        foreach ($__f in $Pipeline) {
+            $n = $__f.Name
+            $a = if ($__f.Args -and $__f.Args.Count) {
+                ($__f.Args | ForEach-Object { '"{0}"' -f $_ }) -join ', '
+            } else { '' }
+            Write-Host ('    -> {0}({1})' -f $n, $a) -ForegroundColor "Yellow"
+        }
+        # --- end SAFE preamble ---
+    }
+
+
     foreach ($f in $Pipeline) {
 
-        # ---- Normalize access for hashtable or PSCustomObject ----
-        $isHash = ($f -is [hashtable])
-
-        $name = if ($isHash) { [string]$f['name'] } else { [string]$f.name }
-        $arg  = if ($isHash) { $f['arg'] }         else { $f.arg }
-
-        # multi-arg support (e.g., replace:"old":"new")
-        $args = @()
-        if ($isHash) {
-            if ($f.ContainsKey('args') -and $f['args']) { $args = @($f['args']) }
-            elseif ($null -ne $arg) { $args = @($arg) }
-        } else {
-            if ($f.PSObject.Properties['args'] -and $f.args) { $args = $f.args }
-            elseif ($null -ne $arg) { $args = @($arg) }
+        # Validate shape early (helpful error if something upstream regresses)
+        if (-not ($f -is [psobject] -and
+                $f.PSObject.Properties.Name -contains 'Name' -and
+                $f.PSObject.Properties.Name -contains 'Args')) {
+            throw "Invalid pipeline token: expected PSCustomObject with .Name and .Args, got: $($f.GetType().FullName)"
         }
+
+        # Canonicalize
+        $name = [string]$f.Name
+        $arguments = if ($null -eq $f.Args) { @() } else { @($f.Args) }  # coerce to string[]
+        $arguments = @($arguments)   # re-normalize to string[] 
+        $arg  = if ($arguments.Count) { $arguments[0] } else { $null }        # convenience for single-arg filters
+
+        if ($Trace) {
+            $argsPreview = if ($arguments.Count) { ($arguments | ForEach-Object { '"{0}"' -f $_ }) -join ', ' } else { '<none>' }
+            Write-Host ("[Apply] {0}({1})" -f $name, $argsPreview) -ForegroundColor "Yellow"
+        }
+
+
+        # # ---- Normalize access for hashtable or PSCustomObject ----
+        # # ToDo: simplify this logic! Do we need both hashtable and PSCustomObject support?
+        # #       (Also, multi-argument support is clunky.)
+        # $isHash = ($f -is [hashtable])
+
+        # $name = if ($isHash) { [string]$f['name'] } else { [string]$f.name }
+        # $arg  = if ($isHash) { $f['arg'] }         else { $f.arg }
+
+        # # multi-arg support (e.g., replace:"old":"new")
+        # $arguments = @()
+        # if ($isHash) {
+        #     if ($f.ContainsKey('args') -and $f['args']) { $arguments = @($f['args']) }
+        #     elseif ($null -ne $arg) { $arguments = @($arg) }
+        # } else {
+        #     if ($f.PSObject.Properties['args'] -and $f.args) { $arguments = $f.args }
+        #     elseif ($null -ne $arg) { $arguments = @($arg) }
+        # }
+
+        # # Convenience for single-argument filters: $arg is first arg or $null
+        # $arg = $null
+        # if ($arguments.Count -ge 1) { $arg = $arguments[0] }  # single arg convenience    
+
+        # --- diagnostic: show each filter before applying ---
+        if ($Trace) {
+            Write-Host "  [Apply-Filters foreach] name = `"$name`"" -ForegroundColor "Yellow"
+            Write-Host ("  [Apply-Filters foreach] arguments = " + $(if ($arguments) { '[' + (($arguments | % { "`"$_`"" }) -join ',') + ']' } else { '<null array>' })) -ForegroundColor "Yellow"
+            Write-Host "  [Apply-Filters foreach] arg = `"$arg`"" -ForegroundColor "Yellow"
+            if ($null -ne $arguments) {
+                Write-Host "  [Apply-Filters foreach] arguments type = `"$($arguments.GetType())`"" -ForegroundColor "Yellow"
+                if ($arguments.Count -gt 0) {
+                    Write-Host "  [Apply-Filters foreach] arguments[0] = `"$($arguments[0])`"" -ForegroundColor "Yellow"
+                }
+                if ($arguments.Count -gt 1) {
+                    Write-Host "  [Apply-Filters foreach] arguments[1] = `"$($arguments[1])`"" -ForegroundColor "Yellow"
+                }
+                if ($arguments.Count -gt 2) {
+                    Write-Host "  [Apply-Filters foreach] arguments[2] = `"$($arguments[2])`"" -ForegroundColor "Yellow"
+                }
+            }
+        }
+
 
         switch ($name.ToLowerInvariant()) {
 
@@ -1334,7 +1416,11 @@ function Apply-Filters {
 
             # -------------------- String composition -------------------------
             'prepend'     { $Value = ($(if ($null -ne $arg) { $arg } else { '' })) + (As-String $Value) }
-            'append'      { $Value = (As-String $Value) + ($(if ($null -ne $arg) { $arg } else { '' })) }
+            'append'      {
+                Write-Host "    [Apply-Filters append] Value: `"$Value`"" -ForegroundColor "Yellow"
+                $Value = (As-String $Value) + ($(if ($null -ne $arg) { $arg } else { '' })) 
+                Write-Host "      -> `"$Value`"" -ForegroundColor "Yellow"
+            }
             'default'     {
                 $s = As-String $Value
                 if ([string]::IsNullOrWhiteSpace($s)) {
@@ -1344,8 +1430,8 @@ function Apply-Filters {
                 }
             }
             'replace'     {
-                if ($args.Count -lt 2) { throw 'replace filter requires two arguments: replace:"old":"new"' }
-                $old = $args[0]; $new = $args[1]
+                if ($arguments.Count -lt 2) { throw 'replace filter requires two arguments: replace:"old":"new"' }
+                $old = $arguments[0]; $new = $arguments[1]
                 $Value = (As-String $Value).Replace($old, $new)   # literal, not regex
             }
             'pathappend'  { $Value = (As-String $Value) + ($(if ($null -ne $arg) { $arg } else { '' })) }
@@ -1387,10 +1473,10 @@ function Apply-Filters {
             # Uncompress byte[] → byte[] with gzip (needs additional utf16 filter to get string):
             'gunzip' { 
               $bytes = Filter-Gunzip    $Value 
-                if ($args.Count -gt 0) {
-                    switch ($args[0].ToLower()) {
+                if ($arguments.Count -gt 0) {
+                    switch ($arguments[0].ToLower()) {
                         'utf16'  { $Value = [Text.Encoding]::Unicode.GetString($bytes) }
-                        default  { throw "gunzip: unknown decode '$($args[0])' (use utf16)" }
+                        default  { throw "gunzip: unknown decode '$($arguments[0])' (use utf16)" }
                     }
                 } else {
                     $Value = $bytes  # binary mode (for chaining into utf16, base64, etc.)
@@ -1405,13 +1491,13 @@ function Apply-Filters {
             # encoded string:
             'frombase64' {
                 $bytes = Filter-FromBase64 $Value
-                if ($args.Count -gt 0) {
-                    switch ($args[0].ToLower()) {
+                if ($arguments.Count -gt 0) {
+                    switch ($arguments[0].ToLower()) {
                         'utf16'  { $Value = [Text.Encoding]::Unicode.GetString($bytes) }
                         'utf8'   { $Value = [Text.Encoding]::UTF8.GetString($bytes) }
                         'ascii'  { $Value = [Text.Encoding]::ASCII.GetString($bytes) }
                         'latin1' { $Value = [Text.Encoding]::GetEncoding(28591).GetString($bytes) }
-                        default  { throw "frombase64: unknown decode '$($args[0])' (use utf16|utf8|ascii|latin1)" }
+                        default  { throw "frombase64: unknown decode '$($arguments[0])' (use utf16|utf8|ascii|latin1)" }
                     }
                 } else {
                     $Value = $bytes  # binary mode (for chaining into gzip, etc.)
@@ -1426,13 +1512,13 @@ function Apply-Filters {
             # encoded string:
             'fromhex' {
                 $bytes = Filter-FromHex $Value
-                if ($args.Count -gt 0) {
-                    switch ($args[0].ToLower()) {
+                if ($arguments.Count -gt 0) {
+                    switch ($arguments[0].ToLower()) {
                         'utf16'  { $Value = [Text.Encoding]::Unicode.GetString($bytes) }
                         'utf8'   { $Value = [Text.Encoding]::UTF8.GetString($bytes) }
                         'ascii'  { $Value = [Text.Encoding]::ASCII.GetString($bytes) }
                         'latin1' { $Value = [Text.Encoding]::GetEncoding(28591).GetString($bytes) }
-                        default  { throw "fromhex: unknown decode '$($args[0])' (use utf16|utf8|ascii|latin1)" }
+                        default  { throw "fromhex: unknown decode '$($arguments[0])' (use utf16|utf8|ascii|latin1)" }
                     }
                 } else {
                     $Value = $bytes
@@ -1478,9 +1564,200 @@ function Apply-Filters {
                 throw "Unknown filter '${name}'."
             }
         }
+
+        if ($Trace) {
+            Write-Host ("  [Apply-Filters] after {0} -> '{1}'" -f $name, ($Value -as [string])) `
+                -ForegroundColor DarkYellow
+        }
+
     }
 
     return $Value
+}
+
+
+# $args $args $args $args $args $args 
+
+function Normalize-Whitespace {
+  param([string]$Text)
+  if ($null -eq $Text) { return '' }
+  # Collapse any CRLF/CR/LF and runs of whitespace to single spaces
+  ($Text -replace '[\r\n]+',' ') -replace '\s+',' '
+}
+
+function Read-NextArg {
+  param(
+    [Parameter(Mandatory)][string]$Text,
+    [Parameter(Mandatory)][ref]$Index
+  )
+  # Skips whitespace, then returns an argument string.
+  # Supports quoted args: "like this", with \" \\ escapes.
+  # Supports unquoted args until one of: space, tab, newline, ':', '|', '}'
+  $i = $Index.Value
+  $len = $Text.Length
+
+  # skip spaces
+  while ($i -lt $len -and ($Text[$i] -match '[ \t\r\n]')) { $i++ }
+  if ($i -ge $len) { $Index.Value = $i; return "" }
+
+  if ($Text[$i] -eq '"') {
+    # quoted
+    $i++  # consume opening "
+    $sb = [System.Text.StringBuilder]::new()
+    while ($i -lt $len) {
+      $ch = $Text[$i]
+      if ($ch -eq '"') { $i++; break }
+      
+      # Quoted-argument branch (handle escape sequences)
+      if ($ch -eq '\') {
+        if ($i + 1 -lt $len) {
+          $n = $Text[$i + 1]
+          if ($n -eq '"') {
+            [void]$sb.Append('"');  $i += 2; continue
+          } elseif ($n -eq '\') {
+            [void]$sb.Append('\');  $i += 2; continue
+          } else {
+            # Preserve unknown escapes literally: append "\" and the next char.
+            [void]$sb.Append('\')
+            [void]$sb.Append($n)
+            $i += 2
+            continue
+          }
+        } else {
+          # Trailing backslash before closing quote -> keep it
+          [void]$sb.Append('\')
+          $i += 1
+          continue
+        }
+      }
+
+      [void]$sb.Append($ch); $i++
+    }
+    $Index.Value = $i
+    return $sb.ToString()
+  }
+
+  # unquoted
+  $start = $i
+  while ($i -lt $len) {
+    $ch = $Text[$i]
+    if ($ch -match '[ \t\r\n]') { break }
+    if ($ch -in @(':','|','}')) { break }
+    $i++
+  }
+  $Index.Value = $i
+  return $Text.Substring($start, $i - $start)
+}
+
+function Tokenize-Pipeline {
+  param(
+    [Parameter(Mandatory)][string]$Inner  # text between {{ and }}
+  )
+  # Returns a PSCustomObject:
+  #   Head     = 'var.Name' or 'env.NAME'
+  #   Pipeline = @(@{Name='trim'; Args=@()}, @{Name='replace'; Args=@('a','b')}, ...)
+  #
+  # It respects quotes and allows unquoted filter args (no spaces/:/|/}).
+  $i = 0
+  $len = $Inner.Length
+
+  # skip leading whitespace
+  while ($i -lt $len -and ($Inner[$i] -match '[ \t\r\n]')) { $i++ }
+  if ($i -ge $len) { throw "Empty placeholder." }
+
+  # read head token up to whitespace or '|'
+  $headStart = $i
+  while ($i -lt $len) {
+    $ch = $Inner[$i]
+    if ($ch -eq '|') { break }
+    if ($ch -match '[ \t\r\n]') { break }
+    $i++
+  }
+  $head = $Inner.Substring($headStart, $i - $headStart).Trim()
+  if (-not $head) { throw "Invalid placeholder head (empty)." }
+
+  # skip spaces
+  while ($i -lt $len -and ($Inner[$i] -match '[ \t\r\n]')) { $i++ }
+
+  $pipeline = @()
+
+  while ($i -lt $len) {
+    if ($Inner[$i] -eq '|') {
+      $i++  # consume pipe
+      while ($i -lt $len -and ($Inner[$i] -match '[ \t\r\n]')) { $i++ }
+      if ($i -ge $len) { break }
+
+      # read filter name
+      $nameStart = $i
+      while ($i -lt $len) {
+        $ch = $Inner[$i]
+        if ($ch -match '[ \t\r\n:]') { break }
+        if ($ch -eq '|') { break }
+        $i++
+      }
+      $fname = $Inner.Substring($nameStart, $i - $nameStart).Trim()
+      if (-not $fname) { throw "Missing filter name after '|'." }
+
+      # read 0..N args: each starts with ':' then arg (quoted or unquoted)
+      $arguments = @()
+      while ($i -lt $len) {
+        while ($i -lt $len -and ($Inner[$i] -match '[ \t\r\n]')) { $i++ }
+        if ($i -ge $len) { break }
+        if ($Inner[$i] -eq '|') { break }
+        if ($Inner[$i] -ne ':') { break }  # no more args
+
+        $i++  # consume ':'
+        # read next arg
+        $arg = Read-NextArg -Text $Inner -Index ([ref]$i)
+        if ($arg -eq "") {
+          throw "Empty filter argument for filter '$fname'."
+        }
+        $arguments += $arg
+      }
+
+    #   # Attempt to fix single-string arg case:
+    #   if ($null -ne $arguments) {
+    #     if ($arguments.GetType().Name -eq 'String') {
+    #       $arguments = @($arguments)  # normalize to string[]
+    #     }
+    #   }
+
+      $pipelineElement = [pscustomobject]@{ 
+        Name = $fname; 
+        Args = $arguments 
+        # Args = @($arguments)   # normalize to string[] 
+      }
+
+      if ($Trace) {
+        Write-Host "  [Tokenize-Pipeline] Name: $($pipelineElement.Name)" -ForegroundColor "DarkMagenta"
+        if ($null -ne $arguments) {
+          Write-Host "  [Tokenize-Pipeline] Args type: $($pipelineElement.Args.GetType().Name)" -ForegroundColor "DarkMagenta"
+          Write-Host "  [Tokenize-Pipeline] Args[0]: $($pipelineElement.Args[0])" -ForegroundColor "DarkMagenta"
+          Write-Host "  [Tokenize-Pipeline] Args[1]: $($pipelineElement.Args[1])" -ForegroundColor "DarkMagenta"
+        } else {
+          Write-Host "  [Tokenize-Pipeline] Args: <null>" -ForegroundColor "DarkMagenta"
+        }
+      }
+
+      $pipeline += $pipelineElement
+
+      continue
+    }
+
+    # trailing spaces after last filter
+    if ($Inner[$i] -match '[ \t\r\n]') {
+      $i++
+      continue
+    }
+
+    # anything else at this point is unexpected
+    throw "Unexpected token near '$($Inner.Substring($i,[Math]::Min(12,$len-$i)))' in filter pipeline."
+  }
+
+  [pscustomobject]@{
+    Head     = $head
+    Pipeline = $pipeline
+  }
 }
 
 # ---------------------------------------------------------------------------
@@ -1489,108 +1766,78 @@ function Apply-Filters {
 # Expects "var.Name" or "env.NAME" followed by optional "| filter[: "arg"]".
 # ---------------------------------------------------------------------------
 function Parse-Placeholder {
-    <#
-    .SYNOPSIS
-      Parse the inside of {{ ... }} into namespace, name, and a filter pipeline.
+  param(
+    [Parameter(Mandatory)][string]$InnerText
+  )
+  # InnerText is everything between the braces, no braces included.
+  # We only tokenize here; actual value resolution + filter application
+  # remain in your existing code path.
 
-    .DESCRIPTION
-      Expected head forms:
-        var.Name
-        env.NAME
-      Followed by optional filters separated by pipes:
-        | filter
-        | filter:"arg"
-        | filter:"arg1":"arg2"   # multiple args supported (e.g., replace:"old":"new")
+  # Handle literal-double-braces escape (if you use a sentinel),
+  # otherwise skip — this function only parses placeholders.
 
-      Whitespace/newlines around pipes and colons are tolerated.
+  $expr1 = $InnerText.Trim() -replace '\r?\n', ' ' # normalize newlines to spaces
+  $expr1 = $expr1 -replace '\s*\|\s*', ' | '    # normalize pipe spacing
+  Write-Debug "  Parse-Placeholder: `'$($expr1)`'"
 
-    .PARAMETER ExprText
-      Raw text inside the {{ and }} delimiters.
+  $trimmed = $InnerText.Trim()
+  $ph = Tokenize-Pipeline -Inner $trimmed
 
-    .OUTPUTS
-      Hashtable:
-        @{ ns = 'var'|'env'
-           name = 'Name'
-           filters = @(
-               @{ name='filterName'; arg='<firstArg-or-$null>'; args=@('<arg1>','<arg2>',...) },
-               ...
-           )
-        }
-    #>
-    param([string]$ExprText)
+  # quick sanity: head must be var.* or env.*
+  if ($ph.Head -notmatch '^(var|env)\.') {
+    throw "Invalid placeholder head '$($ph.Head)'. Use 'var.Name' or 'env.NAME'."
+  }
 
-    $expr1 = $ExprText.Trim() -replace '\r?\n', ' ' # normalize newlines to spaces
-    $expr1 = $expr1 -replace '\s*\|\s*', ' | '    # normalize pipe spacing
-    Write-Debug "  Parse-Placeholder: `"$($expr1)  `""
+  Write-Debug "    Head: `"$($ph.Head)`""
+  foreach ($filter in $ph.Pipeline) {
+    $arguments = $filter.Args -join ', '
+    $arguments = ($arr = $filter.Args | ForEach-Object { "`"$_`"" }) -join ","
+    Write-Debug "    Filter: $($filter.Name)($arguments)"
+  }
 
-    # Split around '|' (pipes). We’ll trim whitespace per segment.
-    $parts = $ExprText -split '\|'
-    if ($parts.Count -lt 1) { throw "Empty expression in placeholder." }
-
-    # Head: var.Name or env.NAME
-    $head = $parts[0].Trim()
-    if ($head -notmatch '^(?<ns>var|env)\.(?<name>[A-Za-z_][A-Za-z0-9_\.]*)$') {
-        throw "Invalid placeholder head '${head}'. Use 'var.Name' or 'env.NAME'."
-    }
-    $ns   = $Matches['ns']
-    $name = $Matches['name']
-
-    Write-Debug "    Namespace: $ns"
-    Write-Debug "    Name:      $name"
-
-    # Filters (zero or more)
-    $filters = @()
-    for ($i = 1; $i -lt $parts.Count; $i++) {
-        $seg = $parts[$i].Trim()
-        if (-not $seg) { continue }
-
-        # Extract filter name
-        if ($seg -notmatch '^(?<fn>[A-Za-z_][A-Za-z0-9_]*)') {
-            throw "Invalid filter segment '${seg}'. Use 'filter' or 'filter:""arg""' (multiple args allowed)."
-        }
-        $fname = $Matches['fn']
-        $rest  = $seg.Substring($Matches[0].Length)
-
-        # Extract one or more quoted args of the form : "arg"
-        $fargs = @()
-        while ($rest -match '^\s*:\s*"(?:[^"\\]|\\.)*"') {
-            # capture the next quoted arg
-            if ($rest -match '^\s*:\s*"(?<arg>(?:[^"\\]|\\.)*)"') {
-                $capt = $Matches['arg']
-                # Unescape \" -> " and \\ -> \
-                $capt = $capt -replace '\\\\','\'   # \\  -> \
-                $capt = $capt -replace '\\"','"'    # \"  -> "
-                $fargs += $capt
-                $rest = $rest.Substring($Matches[0].Length)
-            } else {
-                break
-            }
-        }
-
-        # No extra junk allowed after arguments
-        if ($rest.Trim()) {
-            throw "Invalid filter segment '${seg}'. Unexpected text after arguments."
-        }
-
-        # Store both first arg (compat) and full args (for multi-arg filters like replace)
-        $filters += @{
-            name = $fname
-            arg  = ($(if ($fargs.Count -gt 0) { $fargs[0] } else { $null }))
-            args = $fargs
-        }
-
-        foreach ($f in $filters) {
-            Write-Debug "    Filter: $(($f.name))" -ForegroundColor DarkGray
-            if ($f.arg -ne $null) { Write-Debug "      First arg: '$(($f.arg))'" }
-            if ($f.args.Count -gt 1) {
-                Write-Debug "      All args:  @('$(($f.args -join "','"))')"
-            }
-        }
-
-    }
-
-    return @{ ns = $ns; name = $name; filters = $filters }
+  return $ph
 }
+
+
+
+
+
+function Resolve-HeadValue {
+    param(
+        [Parameter(Mandatory)] [string]    $Head,
+        [Parameter(Mandatory)] [hashtable] $Variables
+    )
+
+    # var.NAME  -> from -Variables (or $script:Vars if you also keep the -Var strings there)
+    if ($Head -match '^\s*var\.(.+)\s*$') {
+        $name = $Matches[1]
+        if ($Variables.ContainsKey($name)) {
+            return $Variables[$name]
+        } 
+        # elseif ($script:Vars -and $script:Vars.ContainsKey($name)) {
+        #     # If you keep string-based -Var pairs in $script:Vars, honor them too
+        #     return $script:Vars[$name]
+        # } 
+        else {
+            throw "Unknown variable 'var.$name'."
+        }
+    }
+
+    # env.NAME -> environment variable
+    if ($Head -match '^\s*env\.([A-Za-z0-9_]+)\s*$') {
+        $envName = $Matches[1]
+        $val = [System.Environment]::GetEnvironmentVariable($envName)
+        if ($null -eq $val) {
+            throw "Environment variable '$envName' is not defined."
+        }
+        return $val
+    }
+
+    throw "Invalid placeholder head '$Head'. Use 'var.Name' or 'env.NAME'."
+}
+
+
+
 
 # ---------------------------------------------------------------------------
 # Helper: Get-InitialValue
@@ -1698,31 +1945,69 @@ $tplText = $tplText -replace "\\}}", "\}\}"
 $expanded = [System.Text.RegularExpressions.Regex]::Replace(
     $tplText,
     $pattern,
+    
     {
         param($m)
-        $expr = $m.Groups[1].Value
-        Write-Verbose "Processing placeholder:`n  {{ $($expr.Trim() -replace '\r?\n', ' ') }}"
+
+        # Extract the raw placeholder body (no braces), normalize whitespace for debug
+        # $full   = $m.Value
+        $body      = $m.Groups[1].Value
+        $bodyShown = Normalize-Whitespace -Text $body
+
+        Write-Verbose "Processing placeholder:`n  {{ $bodyShown }}"
+        
+        if ($Trace) { Write-Host "[CallBack] Processing placeholder:`n  {{ $body }}" -ForegroundColor Cyan }
+
+
         try {
-            $ph   = Parse-Placeholder $expr
-            $val0 = Get-InitialValue -Vars $VARS -Ns $ph.ns -Name $ph.name -Strict:$Strict
-            Write-Verbose "  Unfiltered value:`n  $val0"
-            $out  = Apply-Filters -Value $val0 -Pipeline $ph.filters
-            Write-Verbose "  Final value:`n  $out"
-            if (-not $out -is [string]) {
-                Write-Warning "  Final value is not a string:"
-                Write-Verbose "  ${out}"
-                Write-Verbose "  Type: $($out.GetType().FullName))"
+            # 1) Parse the placeholder into Head + Pipeline (filters with args)
+            $ph = Parse-Placeholder -InnerText $body
+
+            Write-Debug ("  Parsed head   : {0}" -f $ph.Head)
+            foreach ($f in $ph.Pipeline) {
+                Write-Debug ("  Filter        : {0}({1})" -f $f.Name, (($f.Args -join '", "') -replace '^','"' -replace '$','"'))
             }
-            # If a pipeline ends as byte[], force the template author to finish with base64/hex/gunzip/etc.
-            if (Is-ByteVector $out) {
-                throw "Placeholder resulted in binary data. Add a final text-producing filter (e.g., base64, hex, gunzip, utf16)."
-            }            
-            return $out
-        } catch {
-            $errors.Add("Error in placeholder '{{ ${expr} }}': $($_.Exception.Message)")
-            return "<ERROR:$expr>"
+
+            # 2) Resolve head value (var./env.)
+            $headValue = Resolve-HeadValue -Head $ph.Head -Variables $VARS
+            if ($null -eq $headValue) {
+                throw "Head '$($ph.Head)' resolved to null."
+            }
+
+
+            if ($Trace) {
+                Write-Host "  [CallBack] Unfiltered value:`n  $headValue" -ForegroundColor DarkCyan
+                if ($ph.Pipeline -and $ph.Pipeline.Count) {
+                    $pipeDisplay = ($ph.Pipeline | ForEach-Object {
+                        $n = $_.Name
+                        $a = if ($_.Args) { ($_.Args -join '", "') } else { '' }
+                        if ($a -ne '') { "$n(""$a"")" } else { "$n()" }
+                    }) -join ' | '
+                    Write-Host "  [CallBack] Pipeline: $pipeDisplay" -ForegroundColor DarkCyan
+                } else {
+                    Write-Host "  [CallBack] Pipeline: (none)" -ForegroundColor DarkCyan
+                }
+            }
+
+            Write-Debug ("  Head value (type): {0}" -f ($headValue.GetType().FullName))
+
+            # 3) Apply filters (pipeline returned by parser)
+            $expanded = Apply-Filters -Value $headValue -Pipeline $ph.Pipeline
+
+
+            if ($Trace) {
+                Write-Host "  Final value:`n  $expanded" -ForegroundColor Green
+            }
+
+
+            # 4) Coerce to string for output
+            if ($null -eq $expanded) { '' } else { [string]$expanded }
+        }
+        catch {
+            throw "Error in placeholder '{{ $bodyShown }}': $($_.Exception.Message)"
         }
     }
+
 )
 
 # Backward transform double curly brackets escaping:
