@@ -98,6 +98,7 @@ $VariablesHashTab = @{ MyVarSimple=$MyVarSimple; MyVarLong=$MyVarLong;
     ForUrlEncoding=$ForUrlEncoding; ForXMLEncoding=$ForXMLEncoding }
 
 
+    
 
 # Running on the SHORT TEMPLATE FILE (for quick testing):
 

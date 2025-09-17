@@ -502,45 +502,59 @@ with filters | escc | replace:longer:sample | fromescc :
 
 # Some other examples of DIFFERENT FORMS (filter arguments, etc.):
 
-# Unquoted args
-var.MyVarLong | replace:demonstrate:show | prepend:The | append:End
-  {{ var.MyVarLong | replace:demonstrate:show | prepend:The | append:End }}
+# Unquoted args:
+var.MyVarLong: 
+  "{{ var.MyVarLong }}"
+var.MyVarLong | replace:demonstrate:show | prepend:* | append:End.  :
+  "{{ var.MyVarLong | replace:demonstrate:show | prepend:* | append:End. }}"
 
-# Mixed quoted/unquoted
-var.PathWin | pathappend:"dir1\dir2\icon.png" | replace:\:/
+# Mixed quoted/unquoted args:
+var.PathWin:
+  "{{ var.PathWin }}"
+var.PathWin | pathappend:"dir1\dir2\icon.png" | replace:\:/  :
   {{ var.PathWin | pathappend:"dir1\dir2\icon.png" | replace:\:/ }}
 
-# Spaces around tokens
-var.Name    |  lower   | replace  : X  :  "Y Y"
+# Spaces around tokens:
+var.MyVarLong:
+  "{{ var.MyVarLong }}"
+var.MyVarLong    |  lower   | replace  : longer  :  "medium length"  :
+  "{{ var.MyVarLong    |  lower   | replace  : longer  :  "medium length" }}"
 
-# Newlines in placeholder - simple
-{{
-  var.Name    
-  |  lower 
-}}
+# Newlines in placeholder - simple:
+var.MyVarSimple:
+  "{{ var.MyVarSimple }}"
+  var.MyVarSimple    
+  |  lower   :
+  "{{
+    var.MyVarSimple    
+    |  lower 
+  }}"
 
-# Newlines in placeholder - more complex
-    var.PathWin
-      | pathappend:"dir1\dir2\icon.png" | 
-      replace:"\\":/
-      |
-      prepend:"The path is: "
-{{
-    var.PathWin
-      | pathappend:"dir1\dir2\icon.png" | 
-      replace:"\\":/
-      |
-      prepend:"The path is: "  
-}}
-
+# Newlines in placeholder - more complex:
+var.PathWin:
+  "{{ var.PathWin }}"
+var.PathWin
+  | pathappend:"dir1\dir2\icon.png" | 
+  replace:"\\":/
+  |
+  prepend:"The path is: "  :
+  "{{
+      var.PathWin
+        | pathappend:"dir1\dir2\icon.png" | 
+        replace:"\\":/
+        |
+        prepend:"The path is: "  
+  }}"
 
 # Edge case: no filters, just head
-var.Simple
-{{ var.Simple }}
+var.MyVarSimple:
+  "{{ var.MyVarSimple }}"
 
-# Edge case: no spaces; escaped and not escaped backslashes
-var.PathWin|pathappend:"dir1\\dir2\icon.png"|replace:"\\":/|lower|prepend:"The path is: "
-  {{ var.PathWin|pathappend:"dir1\\dir2\icon.png"|replace:"\\":/|lower|prepend:"The path is: " }}
+# Edge case: no spaces; escaped and not escaped backslashes:
+var.PathWin:
+  "{{ var.PathWin }}"
+var.PathWin|pathappend:"dir1\\dir2\icon.png"|replace:"\\":/|lower|prepend:"The path is:  :
+  "{{ var.PathWin|pathappend:"dir1\\dir2\icon.png"|replace:"\\":/|lower|prepend:"The path is: " }}"
 
 
 # The following environment variables need to be defined for successful

@@ -118,11 +118,11 @@ param(
     [switch] $Strict
 )
 
-$Trace = $true  # Enable debug messages for development
+$Trace = $false  # Enable debug messages for development
 
 # Debug/Verbose mode flags:
 $script:VerboseMode = $true  # Set to $true to enable debug messages
-$script:DebugMode = $true    # Set to $true to enable debug messages
+$script:DebugMode = $false    # Set to $true to enable debug messages
 
 # Console colors:
 # Black, DarkBlue, DarkGreen, DarkCyan, DarkRed, DarkMagenta, 
@@ -1417,9 +1417,13 @@ function Apply-Filters {
             # -------------------- String composition -------------------------
             'prepend'     { $Value = ($(if ($null -ne $arg) { $arg } else { '' })) + (As-String $Value) }
             'append'      {
-                Write-Host "    [Apply-Filters append] Value: `"$Value`"" -ForegroundColor "Yellow"
+                if ($Trace) {
+                    Write-Host "    [Apply-Filters append] Value: `"$Value`"" -ForegroundColor "Yellow"
+                }
                 $Value = (As-String $Value) + ($(if ($null -ne $arg) { $arg } else { '' })) 
-                Write-Host "      -> `"$Value`"" -ForegroundColor "Yellow"
+                if ($Trace) {
+                    Write-Host "      -> `"$Value`"" -ForegroundColor "Yellow"
+                }
             }
             'default'     {
                 $s = As-String $Value
