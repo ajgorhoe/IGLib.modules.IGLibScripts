@@ -1,5 +1,7 @@
 
 *.bak
+/~$*.docx
+/~$*.doc
 .vs
 bin
 obj
