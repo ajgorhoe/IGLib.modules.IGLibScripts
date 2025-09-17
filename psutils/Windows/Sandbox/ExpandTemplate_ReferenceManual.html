@@ -1,7 +1,6 @@
 <!DOCTYPE html>
 <html lang="en-US">
   <head>
-
     <meta http-equiv="content-type" content="text/html; charset=UTF-8">
     <meta charset="UTF-8">
   </head>
@@ -82,14 +81,24 @@
     <ul data-start="1188" data-end="1261">
       <li data-start="1188" data-end="1225">
         <p data-start="1190" data-end="1225">Use <code
-            data-start="1194" data-end="1200">{{{{</code> → outputs
+            data-start="1194" data-end="1200">\{{</code> → outputs
           literal <code data-start="1219" data-end="1223">{{</code></p>
       </li>
       <li data-start="1226" data-end="1261">
         <p data-start="1228" data-end="1261">Use <code
-            data-start="1232" data-end="1238">}}}}</code> → outputs
+            data-start="1232" data-end="1238">\}}</code> → outputs
           literal <code data-start="1257" data-end="1261">}}</code></p>
       </li>
+      <li data-start="1226" data-end="1261">Use <code data-start="1194"
+          data-end="1200">\{\{</code> → outputs literal <code
+          data-start="1219" data-end="1223">{{</code></li>
+      <li data-start="1226" data-end="1261">Use <code data-start="1232"
+          data-end="1238">\}\}</code> → outputs literal <code
+          data-start="1257" data-end="1261">}}</code></li>
+    </ul>
+    The second pair has the advantage that it is a bit safer for
+    processing by custom parsers, at the cost of lesser readibility.<br>
+    <ul data-start="1188" data-end="1261">
     </ul>
     <hr data-start="1263" data-end="1266">
     <h2 data-start="1268" data-end="1283">3. Variables</h2>
@@ -408,8 +417,7 @@ Upper:    {{ </span><span><span class="hljs-keyword">var</span></span><span>.MyV
         <div class="overflow-y-auto p-4" dir="ltr"><code
             class="whitespace-pre!"><span><span>{{ </span><span><span
                   class="hljs-keyword">var</span></span><span>.MyVar |
-                reverse }}
-              </span></span></code></div>
+                reverse }} </span></span></code></div>
       </div>
       <p data-start="4409" data-end="4592" data-is-last-node=""
         data-is-only-node=""><br>
