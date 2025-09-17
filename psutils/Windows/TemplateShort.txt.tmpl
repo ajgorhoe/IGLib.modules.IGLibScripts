@@ -1,29 +1,31 @@
 
+# A SHORT TEMPLATE FILE for testing specific areas of placeholder expansion:
+
 # The append and prepend filters append or prepend strings:
 var.MyVarSimple:
-  "\{{ var.MyVarSimple \}}"
+  "{{ var.MyVarSimple }}"
 with  filter | append:" or North" :
   "{{ var.MyVarSimple | append:" or North" }}"
-with  filter | prepend:"North-" :
-  "{{ var.MyVarSimple | prepend:"North-" }}"
+with  filter | prepend:North- :
+  "{{ var.MyVarSimple | prepend:North- }}"
 
 var.PathWin without filters:
-  "\{{ var.PathWin \}}"
+  "{{ var.PathWin }}"
 with a single one-parametric filter, | prepend:"The path is: "
   "{{ var.PathWin | prepend:"The path is: " }}"
-with three filters, | pathappend:"dir1\dir2\icon.png" | replace:"\\":"/" | prepend:"The path is: " :
-  "{{ var.PathWin | pathappend:"dir1\dir2\icon.png" | replace:"\\":"/" | prepend:"The path is: " }}"
+with three filters, | pathappend:dir1\dir2\icon.png | replace:\:/ | prepend:"The path is: " :
+  "{{ var.PathWin | pathappend:dir1\dir2\icon.png | replace:\:/ | prepend:"The path is: " }}"
 
 
 # The replace filter replaces a substring in the input string:
 var.MyVarLong without filters:
-  "\{{ var.MyVarLong \}}"
-with filter | replace:"demonstrate":"show" :
-  "{{ var.MyVarLong | replace:"demonstrate":"show" }}"
+  "{{ var.MyVarLong }}"
+with filter | replace:demonstrate:"show" :
+  "{{ var.MyVarLong | replace:demonstrate:"show" }}"
 
 
 # The append and prepend filters append or prepend strings:
 var.MyVarSimple:
-  "\{{ var.MyVarSimple \}}"
-with  filter | prepend:"North-" :
-  "{{ var.MyVarSimple | prepend:"North-" }}"
+  "{{ var.MyVarSimple }}"
+with  filter | prepend:North- :
+  "{{ var.MyVarSimple | prepend:North- }}"
