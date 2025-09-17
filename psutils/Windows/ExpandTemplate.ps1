@@ -118,11 +118,11 @@ param(
     [switch] $Strict
 )
 
-$Trace = $false  # Enable debug messages for development
+$Trace = $false  # Enable fine-grained trace mode (just for development/debugging)
 
 # Debug/Verbose mode flags:
 $script:VerboseMode = $true  # Set to $true to enable debug messages
-$script:DebugMode = $false    # Set to $true to enable debug messages
+$script:DebugMode = $true    # Set to $true to enable debug messages
 
 # Console colors:
 # Black, DarkBlue, DarkGreen, DarkCyan, DarkRed, DarkMagenta, 

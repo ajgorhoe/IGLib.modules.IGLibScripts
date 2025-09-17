@@ -524,7 +524,7 @@ var.MyVarLong    |  lower   | replace  : longer  :  "medium length"  :
 var.MyVarSimple:
   "{{ var.MyVarSimple }}"
   var.MyVarSimple    
-  |  lower   :
+  |  lower  :
   "{{
     var.MyVarSimple    
     |  lower 
@@ -550,15 +550,17 @@ var.PathWin
 var.MyVarSimple:
   "{{ var.MyVarSimple }}"
 
-# Edge case: no spaces; escaped and not escaped backslashes:
+# Edge case: no spaces; escaped and not escaped backslashes in quoted filter arguments,
+# auoted and unquoted arguments:
 var.PathWin:
   "{{ var.PathWin }}"
-var.PathWin|pathappend:"dir1\\dir2\icon.png"|replace:"\\":/|lower|prepend:"The path is:  :
-  "{{ var.PathWin|pathappend:"dir1\\dir2\icon.png"|replace:"\\":/|lower|prepend:"The path is: " }}"
+var.PathWin|pathappend:"dir1\\dir2\icon.png"|replace:"\\":/|lower|prepend:"The path is: "|append:.  :
+  "{{var.PathWin|pathappend:"dir1\\dir2\icon.png"|replace:"\\":/|lower|prepend:"The path is: "|append:.}}"
 
 
 # The following environment variables need to be defined for successful
-# generation (suggested values are also provided):
+# generation (suggested values are also provided; actual definitions are
+# in Samples_GenerateFileFromTemplate.ps1):
 #   ENVPATHWIN = C:\Users\Uporabnik\Documents\MyDoc.md
 #   ENVPATHUNIX = /home/uporabnik/doc/MyDoc.md
 #   ENVSIMPLE = EnvSimpleValue
