@@ -1,377 +1,15 @@
 <!DOCTYPE html>
 <html lang="en-US">
-  <head><meta charset="UTF-8"></head>
-  
+  <head>
+
+    <meta http-equiv="content-type" content="text/html; charset=UTF-8">
+    <meta charset="UTF-8">
+  </head>
   <body>
     <br>
-    <br>
-    <h1>Template Engine Manuals (ExpandTemplate.ps1)<br>
-    </h1>
-    <br>
-    <br>
-    <div class="text-base my-auto mx-auto
-      [--thread-content-margin:--spacing(4)]
-      thread-sm:[--thread-content-margin:--spacing(6)]
-      thread-lg:[--thread-content-margin:--spacing(16)]
-      px-(--thread-content-margin)">
-      <div class="[--thread-content-max-width:40rem]
-        thread-sm:[--thread-content-max-width:40rem]
-        thread-lg:[--thread-content-max-width:48rem] mx-auto
-        max-w-(--thread-content-max-width) flex-1 group/turn-messages
-        focus-visible:outline-hidden relative flex w-full min-w-0
-        flex-col agent-turn" tabindex="-1">
-        <div class="flex max-w-full flex-col grow">
-          <div data-message-author-role="assistant"
-            data-message-id="12f7f72e-aec2-41e0-b81a-c1720b90d7ae"
-            dir="auto" class="min-h-8 text-message relative flex w-full
-            flex-col items-end gap-2 text-start break-words
-            whitespace-normal [.text-message+&amp;]:mt-5"
-            data-message-model-slug="gpt-5">
-            <div class="flex w-full flex-col gap-1 empty:hidden
-              first:pt-[3px]">
-              <div class="markdown prose dark:prose-invert w-full
-                break-words light markdown-new-styling">
-                <hr data-start="201" data-end="204">
-                <h1 data-start="206" data-end="240">ExpandTemplate.ps1 –
-                  User Manual</h1>
-                <h2 data-start="242" data-end="253">Overview</h2>
-                <p data-start="254" data-end="482"><code
-                    data-start="254" data-end="274">ExpandTemplate.ps1</code>
-                  is a <strong data-start="280" data-end="309">template
-                    expansion engine</strong> written in PowerShell.<br
-                    data-start="332" data-end="335">
-                  It takes a text template file with <strong
-                    data-start="370" data-end="386">placeholders</strong>
-                  (<code data-start="388" data-end="399">{{ ... }}</code>)
-                  and expands them using <strong data-start="424"
-                    data-end="437">variables</strong>, <strong
-                    data-start="439" data-end="464">environment
-                    variables</strong>, and <strong data-start="470"
-                    data-end="481">filters</strong>.</p>
-                <p data-start="484" data-end="503">It is designed for:</p>
-                <ul data-start="504" data-end="633">
-                  <li data-start="504" data-end="536">
-                    <p data-start="506" data-end="536">Generating
-                      configuration files</p>
-                  </li>
-                  <li data-start="537" data-end="570">
-                    <p data-start="539" data-end="570">Testing
-                      escape/unescape filters</p>
-                  </li>
-                  <li data-start="571" data-end="633">
-                    <p data-start="573" data-end="633">Automating
-                      documentation and scripts with parameterized text</p>
-                  </li>
-                </ul>
-                <hr data-start="635" data-end="638">
-                <h2 data-start="640" data-end="649">Syntax</h2>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-    <pre class="overflow-visible!" data-start="651" data-end="900"><div class="contain-inline-size rounded-2xl relative bg-token-sidebar-surface-primary"><div class="overflow-y-auto p-4" dir="ltr"><code class="whitespace-pre! language-powershell"><span>.\ExpandTemplate.ps1 `
-    -Template &lt;TemplateFile&gt; `
-    -Output &lt;OutputFile&gt; `
-    [-Var &lt;"Name=Value"[,...]&gt;] `
-    [-Variables &lt;Hashtable&gt;] `
-    [-VarsFile &lt;FileWithVars&gt;] `
-    [-Encoding &lt;Encoding&gt;] `
-    [-Verbose] [-Debug]
-</span></code></div></div></pre>
-    <hr data-start="902" data-end="905">
-    <h2 data-start="907" data-end="920">Parameters</h2>
-    <h3 data-start="922" data-end="946"><code data-start="926"
-        data-end="946">-Template &lt;string&gt;</code></h3>
-    <p data-start="947" data-end="1011">Path to the template file (<code
-        data-start="974" data-end="982">*.tmpl</code>) that contains
-      placeholders.</p>
-    <h3 data-start="1013" data-end="1035"><code data-start="1017"
-        data-end="1035">-Output &lt;string&gt;</code></h3>
-    <p data-start="1036" data-end="1069">Path to the expanded output
-      file.</p>
-    <h3 data-start="1071" data-end="1100"><code data-start="1075"
-        data-end="1100">-Var &lt;array of strings&gt;</code></h3>
-    <p data-start="1101" data-end="1211">Inline variable assignments in
-      the form <code data-start="1141" data-end="1153">Name=Value</code>.<br
-        data-start="1154" data-end="1157">
-      Can be repeated multiple times, or passed as an array:</p>
-    <pre class="overflow-visible!" data-start="1213" data-end="1305"><div class="contain-inline-size rounded-2xl relative bg-token-sidebar-surface-primary"><div class="overflow-y-auto p-4" dir="ltr"><code class="whitespace-pre! language-powershell"><span>-Var "Name1=Value1", "Name2=Value2"
--Var @("Name1=Value1", "Name2=Value2")
-</span></code></div></div></pre>
-    <h3 data-start="1307" data-end="1335"><code data-start="1311"
-        data-end="1335">-Variables &lt;hashtable&gt;</code></h3>
-    <p data-start="1336" data-end="1365">Hashtable of variables, e.g.:</p>
-    <pre class="overflow-visible!" data-start="1367" data-end="1434"><div class="contain-inline-size rounded-2xl relative bg-token-sidebar-surface-primary"><div class="overflow-y-auto p-4" dir="ltr"><code class="whitespace-pre! language-powershell"><span>-Variables @{ Project="MyProj"; Version="1.2.3" }
-</span></code></div></div></pre>
-    <h3 data-start="1436" data-end="1460"><code data-start="1440"
-        data-end="1460">-VarsFile &lt;string&gt;</code></h3>
-    <p data-start="1461" data-end="1589">Optional file with variable
-      assignments (line format: <code data-start="1515" data-end="1527">Name=Value</code>).<br
-        data-start="1529" data-end="1532">
-      Values from <code data-start="1544" data-end="1550">-Var</code>
-      and <code data-start="1555" data-end="1567">-Variables</code>
-      override <code data-start="1577" data-end="1588">-VarsFile</code>.</p>
-    <h3 data-start="1591" data-end="1615"><code data-start="1595"
-        data-end="1615">-Encoding &lt;string&gt;</code></h3>
-    <p data-start="1616" data-end="1661">Encoding of the output file.
-      Default: <code data-start="1654" data-end="1660">UTF8</code>.</p>
-    <h3 data-start="1663" data-end="1688"><code data-start="1667"
-        data-end="1677">-Verbose</code> / <code data-start="1680"
-        data-end="1688">-Debug</code></h3>
-    <p data-start="1689" data-end="1776">Enable detailed or very
-      detailed tracing of placeholder parsing and filter application.</p>
-    <hr data-start="1778" data-end="1781">
-    <h2 data-start="1783" data-end="1798">Placeholders</h2>
-    <h3 data-start="1800" data-end="1810">Format</h3>
-    <pre class="overflow-visible!" data-start="1812" data-end="1875"><div class="contain-inline-size rounded-2xl relative bg-token-sidebar-surface-primary"><div class="overflow-y-auto p-4" dir="ltr"><code class="whitespace-pre! language-text"><span><span>{{ head | filter1[:arg1[:arg2...]] | filter2 ... }}
-</span></span></code></div></div></pre>
-    <ul data-start="1877" data-end="2055">
-      <li data-start="1877" data-end="2001">
-        <p data-start="1879" data-end="1888"><strong data-start="1879"
-            data-end="1887">Head</strong>:</p>
-        <ul data-start="1891" data-end="2001">
-          <li data-start="1891" data-end="1963">
-            <p data-start="1893" data-end="1963"><code data-start="1893"
-                data-end="1903">var.Name</code> → variable defined via <code
-                data-start="1927" data-end="1933">-Var</code>, <code
-                data-start="1935" data-end="1947">-Variables</code>, or
-              <code data-start="1952" data-end="1963">-VarsFile</code></p>
-          </li>
-          <li data-start="1966" data-end="2001">
-            <p data-start="1968" data-end="2001"><code data-start="1968"
-                data-end="1978">env.NAME</code> → environment variable</p>
-          </li>
-        </ul>
-      </li>
-      <li data-start="2002" data-end="2055">
-        <p data-start="2004" data-end="2055"><strong data-start="2004"
-            data-end="2015">Filters</strong>: Transformations applied
-          left-to-right.</p>
-      </li>
-    </ul>
-    <h3 data-start="2057" data-end="2069">Examples</h3>
-    <pre class="overflow-visible!" data-start="2071" data-end="2310"><div class="contain-inline-size rounded-2xl relative bg-token-sidebar-surface-primary"><div class="overflow-y-auto p-4" dir="ltr"><code class="whitespace-pre! language-text"><span><span>{{ var.Project }}               → expands to "MyProj"
-{{ env.USERNAME | upper }}      → expands to uppercase user name
-{{ var.PathWin | pathappend:"bin" }}
-                                → expands to a path with "bin" appended
-</span></span></code></div></div></pre>
-    <hr data-start="2312" data-end="2315">
-    <h2 data-start="2317" data-end="2327">Filters</h2>
-    <h3 data-start="2329" data-end="2352">String Manipulation</h3>
-    <ul data-start="2353" data-end="2547">
-      <li data-start="2353" data-end="2385">
-        <p data-start="2355" data-end="2385"><code data-start="2355"
-            data-end="2362">lower</code> – convert to lowercase</p>
-      </li>
-      <li data-start="2386" data-end="2418">
-        <p data-start="2388" data-end="2418"><code data-start="2388"
-            data-end="2395">upper</code> – convert to uppercase</p>
-      </li>
-      <li data-start="2419" data-end="2445">
-        <p data-start="2421" data-end="2445"><code data-start="2421"
-            data-end="2427">trim</code> – trim whitespace</p>
-      </li>
-      <li data-start="2446" data-end="2475">
-        <p data-start="2448" data-end="2475"><code data-start="2448"
-            data-end="2461">append:Text</code> – append text</p>
-      </li>
-      <li data-start="2476" data-end="2507">
-        <p data-start="2478" data-end="2507"><code data-start="2478"
-            data-end="2492">prepend:Text</code> – prepend text</p>
-      </li>
-      <li data-start="2508" data-end="2547">
-        <p data-start="2510" data-end="2547"><code data-start="2510"
-            data-end="2527">replace:Old:New</code> – replace substring</p>
-      </li>
-    </ul>
-    <h3 data-start="2549" data-end="2566">Path Handling</h3>
-    <ul data-start="2567" data-end="2807">
-      <li data-start="2567" data-end="2610">
-        <p data-start="2569" data-end="2610"><code data-start="2569"
-            data-end="2586">pathappend:Part</code> – append path
-          component</p>
-      </li>
-      <li data-start="2611" data-end="2665">
-        <p data-start="2613" data-end="2665"><code data-start="2613"
-            data-end="2622">pathwin</code> / <code data-start="2625"
-            data-end="2637">pathwinabs</code> – normalize to Windows
-          path</p>
-      </li>
-      <li data-start="2666" data-end="2722">
-        <p data-start="2668" data-end="2722"><code data-start="2668"
-            data-end="2679">pathlinux</code> / <code data-start="2682"
-            data-end="2696">pathlinuxabs</code> – normalize to Linux
-          path</p>
-      </li>
-      <li data-start="2723" data-end="2773">
-        <p data-start="2725" data-end="2773"><code data-start="2725"
-            data-end="2733">pathos</code> / <code data-start="2736"
-            data-end="2747">pathosabs</code> – normalize to current OS</p>
-      </li>
-      <li data-start="2774" data-end="2807">
-        <p data-start="2776" data-end="2807"><code data-start="2776"
-            data-end="2787">pathquote</code> – quote path safely</p>
-      </li>
-    </ul>
-    <h3 data-start="2809" data-end="2830">Escaping/Encoding</h3>
-    <ul data-start="2831" data-end="3098">
-      <li data-start="2831" data-end="2868">
-        <p data-start="2833" data-end="2868"><code data-start="2833"
-            data-end="2840">esccs</code> / <code data-start="2843"
-            data-end="2854">fromesccs</code> – C# escaping</p>
-      </li>
-      <li data-start="2869" data-end="2912">
-        <p data-start="2871" data-end="2912"><code data-start="2871"
-            data-end="2880">escjava</code> / <code data-start="2883"
-            data-end="2896">fromescjava</code> – Java escaping</p>
-      </li>
-      <li data-start="2913" data-end="2951">
-        <p data-start="2915" data-end="2951"><code data-start="2915"
-            data-end="2921">escc</code> / <code data-start="2924"
-            data-end="2934">fromescc</code> – C/C++ escaping</p>
-      </li>
-      <li data-start="2952" data-end="2997">
-        <p data-start="2954" data-end="2997"><code data-start="2954"
-            data-end="2962">urlenc</code> / <code data-start="2965"
-            data-end="2973">urldec</code> – URL encoding/decoding</p>
-      </li>
-      <li data-start="2998" data-end="3045">
-        <p data-start="3000" data-end="3045"><code data-start="3000"
-            data-end="3008">xmlenc</code> / <code data-start="3011"
-            data-end="3019">xmldec</code> – XML escaping/unescaping</p>
-      </li>
-      <li data-start="3046" data-end="3070">
-        <p data-start="3048" data-end="3070"><code data-start="3048"
-            data-end="3054">regq</code> – regex quoting</p>
-      </li>
-      <li data-start="3071" data-end="3098">
-        <p data-start="3073" data-end="3098"><code data-start="3073"
-            data-end="3081">regesc</code> – regex escaping</p>
-      </li>
-    </ul>
-    <h3 data-start="3100" data-end="3112">Examples</h3>
-    <pre class="overflow-visible!" data-start="3114" data-end="3389"><div class="contain-inline-size rounded-2xl relative bg-token-sidebar-surface-primary"><div class="overflow-y-auto p-4" dir="ltr"><code class="whitespace-pre! language-text"><span><span>{{ var.MyVarSimple | append:"_end" }}
- → "value_end"
-
-{{ var.MyVarLong | replace:"demo":"test" | upper }}
- → all "demo" replaced with "test", result in uppercase
-
-{{ var.PathWin | pathappend:"dir1\dir2\file.txt" | replace:"\\":"/" }}
- → normalized Unix-style path
-</span></span></code></div></div></pre>
-    <hr data-start="3391" data-end="3394">
-    <h2 data-start="3396" data-end="3424">Unquoted Filter Arguments</h2>
-    <p data-start="3426" data-end="3487">Filter arguments <strong
-        data-start="3443" data-end="3465">do not need quotes</strong> if
-      they contain only:</p>
-    <ul data-start="3488" data-end="3556">
-      <li data-start="3488" data-end="3518">
-        <p data-start="3490" data-end="3518">letters, digits,
-          underscores</p>
-      </li>
-      <li data-start="3519" data-end="3534">
-        <p data-start="3521" data-end="3534">no whitespace</p>
-      </li>
-      <li data-start="3535" data-end="3556">
-        <p data-start="3537" data-end="3556">no <code data-start="3540"
-            data-end="3543">:</code>, <code data-start="3545"
-            data-end="3548">|</code>, or <code data-start="3553"
-            data-end="3556">}</code></p>
-      </li>
-    </ul>
-    <p data-start="3558" data-end="3567">Examples:</p>
-    <pre class="overflow-visible!" data-start="3569" data-end="3651"><div class="contain-inline-size rounded-2xl relative bg-token-sidebar-surface-primary"><div class="overflow-y-auto p-4" dir="ltr"><code class="whitespace-pre! language-text"><span><span>{{ var.MyVarSimple | append:suffix }}
-{{ var.PathWin | replace:\\:/ }}
-</span></span></code></div></div></pre>
-    <p data-start="3653" data-end="3734">Quoted form is still valid (and
-      required if spaces or special chars are present):</p>
-    <pre class="overflow-visible!" data-start="3736" data-end="3792"><div class="contain-inline-size rounded-2xl relative bg-token-sidebar-surface-primary"><div class="overflow-y-auto p-4" dir="ltr"><code class="whitespace-pre! language-text"><span><span>{{ var.MyVarSimple | append:" with space" }}
-</span></span></code></div></div></pre>
-    <hr data-start="3794" data-end="3797">
-    <h2 data-start="3799" data-end="3823">Escaping Placeholders</h2>
-    <p data-start="3825" data-end="3868">To emit literal <code
-        data-start="3841" data-end="3845">{{</code> or <code
-        data-start="3849" data-end="3853">}}</code> in the output:</p>
-    <pre class="overflow-visible!" data-start="3870" data-end="3929"><div class="contain-inline-size rounded-2xl relative bg-token-sidebar-surface-primary"><div class="overflow-y-auto p-4" dir="ltr"><code class="whitespace-pre! language-text"><span><span>{{ "{{" }} → outputs {{
-{{ "}}" }} → outputs }}
-</span></span></code></div></div></pre>
-    <hr data-start="3931" data-end="3934">
-    <h2 data-start="3936" data-end="3953">Error Handling</h2>
-    <ul data-start="3955" data-end="4141">
-      <li data-start="3955" data-end="3997">
-        <p data-start="3957" data-end="3997">Unknown filters → error
-          with filter name</p>
-      </li>
-      <li data-start="3998" data-end="4043">
-        <p data-start="4000" data-end="4043">Unclosed placeholders →
-          error with position</p>
-      </li>
-      <li data-start="4044" data-end="4104">
-        <p data-start="4046" data-end="4104">Null input to filters →
-          warning/error depending on context</p>
-      </li>
-      <li data-start="4105" data-end="4141">
-        <p data-start="4107" data-end="4141">Variables not found → empty
-          string</p>
-      </li>
-    </ul>
-    <hr data-start="4143" data-end="4146">
-    <h2 data-start="4148" data-end="4158">Example</h2>
-    <p data-start="4160" data-end="4186">Template (<code
-        data-start="4170" data-end="4184">example.tmpl</code>):</p>
-    <pre class="overflow-visible!" data-start="4188" data-end="4355"><div class="contain-inline-size rounded-2xl relative bg-token-sidebar-surface-primary"><div class="overflow-y-auto p-4" dir="ltr"><code class="whitespace-pre! language-text"><span><span>Project: {{ var.Project }}
-User:    {{ env.USERNAME | upper }}
-Path:    {{ var.PathWin | pathappend:bin | replace:\\:/ }}
-Escaped: {{ var.Special | escc }}
-</span></span></code></div></div></pre>
-    <p data-start="4357" data-end="4362">Call:</p>
-    <pre class="overflow-visible!" data-start="4364" data-end="4540"><div class="contain-inline-size rounded-2xl relative bg-token-sidebar-surface-primary"><div class="overflow-y-auto p-4" dir="ltr"><code class="whitespace-pre! language-powershell"><span>.\ExpandTemplate.ps1 `
-  -Template example.tmpl `
-  -Output example.txt `
-  -Var "Project=DemoApp" `
-  -Variables @{ PathWin="C:\apps\demo\"; Special="A\nB" }
-</span></code></div></div></pre>
-    <p data-start="4542" data-end="4565">Output (<code data-start="4550"
-        data-end="4563">example.txt</code>):</p>
     <div class="flex w-full flex-col gap-1 empty:hidden first:pt-[3px]">
       <div class="markdown prose dark:prose-invert w-full break-words
-        light markdown-new-styling">
-        <pre class="overflow-visible!" data-start="4567" data-end="4654"><div class="contain-inline-size rounded-2xl relative bg-token-sidebar-surface-primary"><div class="overflow-y-auto p-4" dir="ltr"><code class="whitespace-pre! language-text"><span><span>Project: DemoApp
-User:    ADMINUSER
-Path:    C:/apps/demo/bin
-Escaped: A\nB
-</span></span></code></div></div></pre>
-        <hr data-start="4656" data-end="4659">
-        <h2 data-start="4661" data-end="4686">Notes &amp; Best Practices</h2>
-        <ul data-start="4687" data-end="4953">
-          <li data-start="4687" data-end="4752">
-            <p data-start="4689" data-end="4752">Use <code
-                data-start="4693" data-end="4701">-Debug</code> to trace
-              placeholder parsing and filter pipelines.</p>
-          </li>
-          <li data-start="4753" data-end="4796">
-            <p data-start="4755" data-end="4796">Use <code
-                data-start="4759" data-end="4769">-Verbose</code> for
-              higher-level overview.</p>
-          </li>
-          <li data-start="4797" data-end="4869">
-            <p data-start="4799" data-end="4869">Prefer quoted arguments
-              unless you’re confident about unquoted safety.</p>
-          </li>
-          <li data-start="4870" data-end="4953">
-            <p data-start="4872" data-end="4953">Keep template files in
-              version control; generated files should not be checked in.</p>
-          </li>
-        </ul>
-        <hr data-start="4955" data-end="4958"><br>
-        <br>
-        <br>
-        <br>
-        <br>
-        <br>
-        <br>
+        light markdown-new-styling"> <br>
         <hr data-start="352" data-end="355">
         <h1 data-start="357" data-end="394">ExpandTemplate.ps1 Reference
           Manual</h1>
@@ -758,18 +396,26 @@ Upper:    {{ </span><span><span class="hljs-keyword">var</span></span><span>.MyV
 </span></code></div></div></pre>
       </li>
       <li data-start="4338" data-end="4402">
-        <p data-start="4341" data-end="4359">Use in template:</p>
+        <ol>
+          <li>Use in template:
+            <p data-start="4409" data-end="4592" data-is-last-node=""
+              data-is-only-node=""></p>
+          </li>
+        </ol>
       </li>
-      <ol data-start="4129" data-end="4402">
-        <li value="4" data-start="4338" data-end="4402">
-          <pre class="overflow-visible!" data-start="4363" data-end="4402"><div class="contain-inline-size rounded-2xl relative bg-token-sidebar-surface-primary"><div class="overflow-y-auto p-4" dir="ltr"><code class="whitespace-pre!"><span><span>{{ </span><span><span class="hljs-keyword">var</span></span><span>.MyVar | reverse }}
-</span></span></code></div></div></pre>
-        </li>
-      </ol>
-      <hr data-start="4404" data-end="4407">
+      <div class="contain-inline-size rounded-2xl relative
+        bg-token-sidebar-surface-primary">
+        <div class="overflow-y-auto p-4" dir="ltr"><code
+            class="whitespace-pre!"><span><span>{{ </span><span><span
+                  class="hljs-keyword">var</span></span><span>.MyVar |
+                reverse }}
+              </span></span></code></div>
+      </div>
       <p data-start="4409" data-end="4592" data-is-last-node=""
         data-is-only-node=""><br>
-        <br>
+      </p>
+      <p data-start="4409" data-end="4592" data-is-last-node=""
+        data-is-only-node=""><br>
         <strong data-start="4411" data-end="4431"></strong></p>
     </div>
     <br>
