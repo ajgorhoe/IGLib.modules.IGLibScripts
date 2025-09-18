@@ -116,15 +116,16 @@ param(
     [string[]] $Var,
     [string] $VarsFile,
     [switch] $Strict,
-    [Switch] $OutVerbose,
-    [Switch] $OutDebug,
-    [Switch] $OutTrace
+    [switch] $OutVerbose,
+    [switch] $OutDebug,
+    [switch] $OutTrace
 )
 
+
 # Debug/Verbose/Trace mode flags and their default values:
-$script:VerboseMode = $true   # Set to $true to enable debug messages
-$script:DebugMode =   $false   # Set to $true to enable debug messages
-$script:TraceMode =   $false  # Enable fine-grained trace mode (just for development/debugging)
+$script:VerboseMode = $true   # Enable verbose messages by default
+$script:DebugMode   = $false  # Debug messages off by default
+$script:TraceMode   = $false  # Fine-grained trace mode off by default
 
 # Switch on effects with hierarchy:
 if ($true -eq $OutTrace) { 
