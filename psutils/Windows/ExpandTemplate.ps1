@@ -115,16 +115,35 @@ param(
     [hashtable] $Variables,
     [string[]] $Var,
     [string] $VarsFile,
-    [switch] $Strict
+    [switch] $Strict,
+    [Switch] $OutVerbose,
+    [Switch] $OutDebug,
+    [Switch] $OutTrace
 )
 
-$Trace = $false  # Enable fine-grained trace mode (just for development/debugging)
+# Debug/Verbose/Trace mode flags and their default values:
+$script:VerboseMode = $true   # Set to $true to enable debug messages
+$script:DebugMode =   $false   # Set to $true to enable debug messages
+$script:TraceMode =   $false  # Enable fine-grained trace mode (just for development/debugging)
 
-# Debug/Verbose mode flags:
-$script:VerboseMode = $true  # Set to $true to enable debug messages
-$script:DebugMode = $true    # Set to $true to enable debug messages
+# Switch on effects with hierarchy:
+if ($true -eq $OutTrace) { 
+    $script:TraceMode = $true; $script:DebugMode = $true; $script:VerboseMode = $true
+}  
+if ($true -eq $OutDebug) { 
+    $script:DebugMode = $true; $script:VerboseMode = $true
+}  
+if ($true -eq $OutVerbose) { 
+    $script:VerboseMode = $true
+}  
+if ($true -eq $OutDebug) { $OutVerbose = $true }  
 
-# Console colors:
+# Override modes from switches if explicitly provided
+if ($PSBoundParameters.ContainsKey('OutVerbose')) { $script:VerboseMode = [bool]$OutVerbose }
+if ($PSBoundParameters.ContainsKey('OutDebug'))   { $script:DebugMode   = [bool]$OutDebug }
+if ($PSBoundParameters.ContainsKey('OutTrace'))   { $script:TraceMode   = [bool]$OutTrace }
+
+# Available console colors:
 # Black, DarkBlue, DarkGreen, DarkCyan, DarkRed, DarkMagenta, 
 # DarkYellow, Gray, DarkGray, Blue, Green, Cyan, Red, Magenta, Yellow, White
 # Console colors for messages:
@@ -1297,7 +1316,7 @@ function Apply-Filters {
     # Normalize $Pipeline to an empty array if it's $null, so enumerations are safe.
     if ($null -eq $Pipeline) { $Pipeline = @() }
 
-    if ($Trace)
+    if ($script:TraceMode)
     {
         # Build a readable preview of the incoming value without calling methods on $null
         $__valPreview = if ($null -eq $Value) { '<null>' } else { "'$Value'" }
@@ -1341,7 +1360,7 @@ function Apply-Filters {
         $arguments = @($arguments)   # re-normalize to string[] 
         $arg  = if ($arguments.Count) { $arguments[0] } else { $null }        # convenience for single-arg filters
 
-        if ($Trace) {
+        if ($script:TraceMode) {
             $argsPreview = if ($arguments.Count) { ($arguments | ForEach-Object { '"{0}"' -f $_ }) -join ', ' } else { '<none>' }
             Write-Host ("[Apply] {0}({1})" -f $name, $argsPreview) -ForegroundColor "Yellow"
         }
@@ -1370,7 +1389,7 @@ function Apply-Filters {
         # if ($arguments.Count -ge 1) { $arg = $arguments[0] }  # single arg convenience    
 
         # --- diagnostic: show each filter before applying ---
-        if ($Trace) {
+        if ($script:TraceMode) {
             Write-Host "  [Apply-Filters foreach] name = `"$name`"" -ForegroundColor "Yellow"
             Write-Host ("  [Apply-Filters foreach] arguments = " + $(if ($arguments) { '[' + (($arguments | % { "`"$_`"" }) -join ',') + ']' } else { '<null array>' })) -ForegroundColor "Yellow"
             Write-Host "  [Apply-Filters foreach] arg = `"$arg`"" -ForegroundColor "Yellow"
@@ -1417,11 +1436,11 @@ function Apply-Filters {
             # -------------------- String composition -------------------------
             'prepend'     { $Value = ($(if ($null -ne $arg) { $arg } else { '' })) + (As-String $Value) }
             'append'      {
-                if ($Trace) {
+                if ($script:TraceMode) {
                     Write-Host "    [Apply-Filters append] Value: `"$Value`"" -ForegroundColor "Yellow"
                 }
                 $Value = (As-String $Value) + ($(if ($null -ne $arg) { $arg } else { '' })) 
-                if ($Trace) {
+                if ($script:TraceMode) {
                     Write-Host "      -> `"$Value`"" -ForegroundColor "Yellow"
                 }
             }
@@ -1569,7 +1588,7 @@ function Apply-Filters {
             }
         }
 
-        if ($Trace) {
+        if ($script:TraceMode) {
             Write-Host ("  [Apply-Filters] after {0} -> '{1}'" -f $name, ($Value -as [string])) `
                 -ForegroundColor DarkYellow
         }
@@ -1732,7 +1751,7 @@ function Tokenize-Pipeline {
         # Args = @($arguments)   # normalize to string[] 
       }
 
-      if ($Trace) {
+      if ($script:TraceMode) {
         Write-Host "  [Tokenize-Pipeline] Name: $($pipelineElement.Name)" -ForegroundColor "DarkMagenta"
         if ($null -ne $arguments) {
           Write-Host "  [Tokenize-Pipeline] Args type: $($pipelineElement.Args.GetType().Name)" -ForegroundColor "DarkMagenta"
@@ -1918,7 +1937,7 @@ $expanded = [System.Text.RegularExpressions.Regex]::Replace(
 
         Write-Verbose "Processing placeholder:`n  {{ $bodyShown }}"
         
-        if ($Trace) { Write-Host "[CallBack] Processing placeholder:`n  {{ $body }}" -ForegroundColor Cyan }
+        if ($script:TraceMode) { Write-Host "[CallBack] Processing placeholder:`n  {{ $body }}" -ForegroundColor Cyan }
 
 
         try {
@@ -1937,7 +1956,7 @@ $expanded = [System.Text.RegularExpressions.Regex]::Replace(
             }
 
 
-            if ($Trace) {
+            if ($script:TraceMode) {
                 Write-Host "  [CallBack] Unfiltered value:`n  $headValue" -ForegroundColor DarkCyan
                 if ($ph.Pipeline -and $ph.Pipeline.Count) {
                     $pipeDisplay = ($ph.Pipeline | ForEach-Object {
@@ -1957,7 +1976,7 @@ $expanded = [System.Text.RegularExpressions.Regex]::Replace(
             $expanded = Apply-Filters -Value $headValue -Pipeline $ph.Pipeline
 
 
-            if ($Trace) {
+            if ($script:TraceMode) {
                 Write-Host "  Final value:`n  $expanded" -ForegroundColor Green
             }
 

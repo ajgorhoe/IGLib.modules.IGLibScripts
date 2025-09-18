@@ -46,13 +46,15 @@ $EscapedStrSimple = "sq \' dq \`" bsl \\ nl \n cr \r ht \t vt \v bsp \b ff \f nu
 $ForUrlEncoding = "Café Münchën!.#.$.&. .'.(.).*.+.,./.:.;.=.?.@.[.]"
 $ForXMLEncoding = "`"Hello & Goodbye!`"  5 < 6 & 7 > 4  <a id=e55>#e55</a>"
 # Run the template engine to generate the output file:
-./ExpandTemplate.ps1 -Template TemplateExample.txt.tmpl  `
-  -Output TemplateExample.txt  `
-  -Var @( "MyVarSimple=$MyVarSimple", "MyVarLong=$MyVarLong",
-    "PathWin=$PathWin", "PathUnix=$PathUnix",
-    "DirtyRelativePath=$DirtyRelativePath", "DirtyAbsolutePath=$DirtyAbsolutePath",
-    "EscapedStr=$EscapedStr", "EscapedStrSimple=$EscapedStrSimple", 
-    "ForUrlEncoding=$ForUrlEncoding", "ForXMLEncoding=$ForXMLEncoding" )
+Measure-Command {
+  ./ExpandTemplate.ps1 -Template TemplateExample.txt.tmpl  `
+    -Output TemplateExample.txt  `
+    -Var @( "MyVarSimple=$MyVarSimple", "MyVarLong=$MyVarLong",
+      "PathWin=$PathWin", "PathUnix=$PathUnix",
+      "DirtyRelativePath=$DirtyRelativePath", "DirtyAbsolutePath=$DirtyAbsolutePath",
+      "EscapedStr=$EscapedStr", "EscapedStrSimple=$EscapedStrSimple", 
+      "ForUrlEncoding=$ForUrlEncoding", "ForXMLEncoding=$ForXMLEncoding" )
+}
 
 # Just another form of the above, without parentheses for the array parameter:
 ./ExpandTemplate.ps1 -Template TemplateExample.txt.tmpl  `
