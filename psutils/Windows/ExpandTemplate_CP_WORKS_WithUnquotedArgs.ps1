@@ -118,7 +118,7 @@ param(
     [switch] $Strict
 )
 
-$Trace = $false  # Enable fine-grained trace mode (just for development/debugging)
+$Trace = $true  # Enable debug messages for development
 
 # Debug/Verbose mode flags:
 $script:VerboseMode = $true  # Set to $true to enable debug messages
@@ -1417,13 +1417,9 @@ function Apply-Filters {
             # -------------------- String composition -------------------------
             'prepend'     { $Value = ($(if ($null -ne $arg) { $arg } else { '' })) + (As-String $Value) }
             'append'      {
-                if ($Trace) {
-                    Write-Host "    [Apply-Filters append] Value: `"$Value`"" -ForegroundColor "Yellow"
-                }
+                Write-Host "    [Apply-Filters append] Value: `"$Value`"" -ForegroundColor "Yellow"
                 $Value = (As-String $Value) + ($(if ($null -ne $arg) { $arg } else { '' })) 
-                if ($Trace) {
-                    Write-Host "      -> `"$Value`"" -ForegroundColor "Yellow"
-                }
+                Write-Host "      -> `"$Value`"" -ForegroundColor "Yellow"
             }
             'default'     {
                 $s = As-String $Value

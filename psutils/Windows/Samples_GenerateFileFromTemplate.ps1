@@ -54,7 +54,6 @@ $ForXMLEncoding = "`"Hello & Goodbye!`"  5 < 6 & 7 > 4  <a id=e55>#e55</a>"
     "EscapedStr=$EscapedStr", "EscapedStrSimple=$EscapedStrSimple", 
     "ForUrlEncoding=$ForUrlEncoding", "ForXMLEncoding=$ForXMLEncoding" )
 
-
 # Just another form of the above, without parentheses for the array parameter:
 ./ExpandTemplate.ps1 -Template TemplateExample.txt.tmpl  `
   -Output TemplateExample.txt  `
@@ -99,3 +98,14 @@ $VariablesHashTab = @{ MyVarSimple=$MyVarSimple; MyVarLong=$MyVarLong;
     ForUrlEncoding=$ForUrlEncoding; ForXMLEncoding=$ForXMLEncoding }
 
 
+    
+
+# Running on the SHORT TEMPLATE FILE (for quick testing):
+
+./ExpandTemplate.ps1 -Template TemplateShort.txt.tmpl  `
+  -Output TemplateShort.txt  `
+  -Var @( "MyVarSimple=$MyVarSimple", "MyVarLong=$MyVarLong",
+    "PathWin=$PathWin", "PathUnix=$PathUnix",
+    "DirtyRelativePath=$DirtyRelativePath", "DirtyAbsolutePath=$DirtyAbsolutePath",
+    "EscapedStr=$EscapedStr", "EscapedStrSimple=$EscapedStrSimple", 
+    "ForUrlEncoding=$ForUrlEncoding", "ForXMLEncoding=$ForXMLEncoding" )

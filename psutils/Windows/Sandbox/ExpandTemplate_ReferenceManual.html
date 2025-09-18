@@ -1,0 +1,435 @@
+<!DOCTYPE html>
+<html lang="en-US">
+  <head>
+    <meta http-equiv="content-type" content="text/html; charset=UTF-8">
+    <meta charset="UTF-8">
+  </head>
+  <body>
+    <br>
+    <div class="flex w-full flex-col gap-1 empty:hidden first:pt-[3px]">
+      <div class="markdown prose dark:prose-invert w-full break-words
+        light markdown-new-styling"> <br>
+        <hr data-start="352" data-end="355">
+        <h1 data-start="357" data-end="394">ExpandTemplate.ps1 Reference
+          Manual</h1>
+        <h2 data-start="396" data-end="410">1. Overview</h2>
+        <p data-start="411" data-end="573"><code data-start="411"
+            data-end="431">ExpandTemplate.ps1</code> is a lightweight
+          template engine implemented in PowerShell.<br data-start="491"
+            data-end="494">
+          It expands placeholders in a template file (<code
+            data-start="538" data-end="545">.tmpl</code>) into an output
+          file using:</p>
+        <ul data-start="574" data-end="689">
+          <li data-start="574" data-end="625">
+            <p data-start="576" data-end="625"><strong data-start="576"
+                data-end="589">Variables</strong> (<code
+                data-start="591" data-end="597">-Var</code>, <code
+                data-start="599" data-end="611">-Variables</code>, <code
+                data-start="613" data-end="624">-VarsFile</code>)</p>
+          </li>
+          <li data-start="626" data-end="653">
+            <p data-start="628" data-end="653"><strong data-start="628"
+                data-end="653">Environment variables</strong></p>
+          </li>
+          <li data-start="654" data-end="689">
+            <p data-start="656" data-end="689"><strong data-start="656"
+                data-end="667">Filters</strong> (string transformers)</p>
+          </li>
+        </ul>
+        <p data-start="691" data-end="797">Its design is similar to
+          template engines like Jinja or Mustache, but with
+          PowerShell-style extensibility.</p>
+        <hr data-start="799" data-end="802">
+        <h2 data-start="804" data-end="816">2. Syntax</h2>
+        <h3 data-start="818" data-end="834">Placeholders</h3>
+      </div>
+    </div>
+    <pre class="overflow-visible!" data-start="835" data-end="913"><div class="contain-inline-size rounded-2xl relative bg-token-sidebar-surface-primary"><div class="overflow-y-auto p-4" dir="ltr"><code class="whitespace-pre!"><span><span>{{ </span><span><span class="hljs-keyword">var</span></span><span>.Name | filter1:arg1:arg2 | filter2 }}
+{{ env.ENVVAR | filter }}
+</span></span></code></div></div></pre>
+    <ul data-start="915" data-end="1158">
+      <li data-start="915" data-end="960">
+        <p data-start="917" data-end="960">Placeholders are enclosed in
+          <code data-start="946" data-end="950">{{</code> and <code
+            data-start="955" data-end="959">}}</code>.</p>
+      </li>
+      <li data-start="961" data-end="1089">
+        <p data-start="963" data-end="986">The <strong data-start="967"
+            data-end="975">head</strong> is either:</p>
+        <ul data-start="989" data-end="1089">
+          <li data-start="989" data-end="1045">
+            <p data-start="991" data-end="1045"><code data-start="991"
+                data-end="1001">var.Name</code> — a variable passed via
+              script parameters</p>
+          </li>
+          <li data-start="1048" data-end="1089">
+            <p data-start="1050" data-end="1089"><code data-start="1050"
+                data-end="1063">env.ENVNAME</code> — an environment
+              variable</p>
+          </li>
+        </ul>
+      </li>
+      <li data-start="1090" data-end="1158">
+        <p data-start="1092" data-end="1158">After the head, a <strong
+            data-start="1110" data-end="1122">pipeline</strong> of
+          filters can be chained with <code data-start="1154"
+            data-end="1157">|</code>.</p>
+      </li>
+    </ul>
+    <h3 data-start="1160" data-end="1187">Escaping Literal Braces</h3>
+    <ul data-start="1188" data-end="1261">
+      <li data-start="1188" data-end="1225">
+        <p data-start="1190" data-end="1225">Use <code
+            data-start="1194" data-end="1200">\{{</code> → outputs
+          literal <code data-start="1219" data-end="1223">{{</code></p>
+      </li>
+      <li data-start="1226" data-end="1261">
+        <p data-start="1228" data-end="1261">Use <code
+            data-start="1232" data-end="1238">\}}</code> → outputs
+          literal <code data-start="1257" data-end="1261">}}</code></p>
+      </li>
+      <li data-start="1226" data-end="1261">Use <code data-start="1194"
+          data-end="1200">\{\{</code> → outputs literal <code
+          data-start="1219" data-end="1223">{{</code></li>
+      <li data-start="1226" data-end="1261">Use <code data-start="1232"
+          data-end="1238">\}\}</code> → outputs literal <code
+          data-start="1257" data-end="1261">}}</code></li>
+    </ul>
+    The second pair has the advantage that it is a bit safer for
+    processing by custom parsers, at the cost of lesser readibility.<br>
+    <ul data-start="1188" data-end="1261">
+    </ul>
+    <hr data-start="1263" data-end="1266">
+    <h2 data-start="1268" data-end="1283">3. Variables</h2>
+    <h3 data-start="1285" data-end="1296">Sources</h3>
+    <ol data-start="1297" data-end="1581">
+      <li data-start="1297" data-end="1407">
+        <p data-start="1300" data-end="1342"><strong data-start="1300"
+            data-end="1326"><code data-start="1302" data-end="1308">-Var</code>
+            (CLI arguments)</strong><br data-start="1326"
+            data-end="1329">
+          Example:</p>
+      </li>
+    </ol>
+    <div class="markdown prose dark:prose-invert w-full break-words
+      light markdown-new-styling">
+      <li data-start="1297" data-end="1407">
+        <pre class="overflow-visible!" data-start="1346" data-end="1407"><div class="contain-inline-size rounded-2xl relative bg-token-sidebar-surface-primary"><div class="overflow-y-auto p-4" dir="ltr"><code class="whitespace-pre! language-powershell"><span>-Var @("MyVar=Hello", "Path=C:\temp")
+</span></code></div></div></pre>
+      </li>
+      <li data-start="1408" data-end="1528">
+        <p data-start="1411" data-end="1455"><strong data-start="1411"
+            data-end="1439"><code data-start="1413" data-end="1425">-Variables</code>
+            (hashtable)</strong><br data-start="1439" data-end="1442">
+          Example:</p>
+      </li>
+      <ol data-start="1297" data-end="1581">
+        <li value="2" data-start="1408" data-end="1528">
+          <pre class="overflow-visible!" data-start="1459" data-end="1528"><div class="contain-inline-size rounded-2xl relative bg-token-sidebar-surface-primary"><div class="overflow-y-auto p-4" dir="ltr"><code class="whitespace-pre! language-powershell"><span>-Variables @{ MyVar="Hello"; Path="C:\temp" }
+</span></code></div></div></pre>
+        </li>
+        <li data-start="1529" data-end="1581">
+          <p data-start="1532" data-end="1581"><strong data-start="1532"
+              data-end="1579"><code data-start="1534" data-end="1545">-VarsFile</code>
+              (JSON or simple key=value file)</strong></p>
+        </li>
+      </ol>
+      <h3 data-start="1583" data-end="1597">Precedence</h3>
+      <p data-start="1598" data-end="1630"><code data-start="1598"
+          data-end="1608">VarsFile</code> &lt; <code data-start="1611"
+          data-end="1622">Variables</code> &lt; <code data-start="1625"
+          data-end="1630">Var</code></p>
+      <hr data-start="1632" data-end="1635">
+      <h2 data-start="1637" data-end="1650">4. Filters</h2>
+      <h3 data-start="1652" data-end="1669">General Notes</h3>
+      <ul data-start="1670" data-end="1943">
+        <li data-start="1670" data-end="1727">
+          <p data-start="1672" data-end="1727">Filters are <strong
+              data-start="1684" data-end="1704">case-insensitive</strong>
+            (<code data-start="1706" data-end="1714">append</code> = <code
+              data-start="1717" data-end="1725">APPEND</code>).</p>
+        </li>
+        <li data-start="1728" data-end="1871">
+          <p data-start="1730" data-end="1747">Filter arguments:</p>
+          <ul data-start="1750" data-end="1871">
+            <li data-start="1750" data-end="1805">
+              <p data-start="1752" data-end="1805"><strong
+                  data-start="1752" data-end="1762">Quoted</strong>: <code
+                  data-start="1764" data-end="1784">"text with spaces"</code>,
+                <code data-start="1786" data-end="1805">"C:\path\to\file"</code></p>
+            </li>
+            <li data-start="1808" data-end="1871">
+              <p data-start="1810" data-end="1871"><strong
+                  data-start="1810" data-end="1822">Unquoted</strong>: <code
+                  data-start="1824" data-end="1830">word</code> (no
+                whitespace, <code data-start="1847" data-end="1850">:</code>,
+                <code data-start="1852" data-end="1855">|</code>, or <code
+                  data-start="1860" data-end="1863">}</code> inside)</p>
+            </li>
+          </ul>
+        </li>
+        <li data-start="1872" data-end="1943">
+          <p data-start="1874" data-end="1909">Escaping inside quoted
+            arguments:</p>
+          <ul data-start="1912" data-end="1943">
+            <li data-start="1912" data-end="1926">
+              <p data-start="1914" data-end="1926"><code
+                  data-start="1914" data-end="1918">\"</code> → <code
+                  data-start="1921" data-end="1924">"</code></p>
+            </li>
+            <li data-start="1929" data-end="1943">
+              <p data-start="1931" data-end="1943"><code
+                  data-start="1931" data-end="1935">\\</code> → <code
+                  data-start="1938" data-end="1941">\</code></p>
+            </li>
+          </ul>
+        </li>
+      </ul>
+      <h3 data-start="1945" data-end="1968">String Manipulation</h3>
+      <ul data-start="1969" data-end="2172">
+        <li data-start="1969" data-end="1999">
+          <p data-start="1971" data-end="1999"><code data-start="1971"
+              data-end="1978">upper</code> → Uppercase string</p>
+        </li>
+        <li data-start="2000" data-end="2030">
+          <p data-start="2002" data-end="2030"><code data-start="2002"
+              data-end="2009">lower</code> → Lowercase string</p>
+        </li>
+        <li data-start="2031" data-end="2060">
+          <p data-start="2033" data-end="2060"><code data-start="2033"
+              data-end="2039">trim</code> → Trim whitespace</p>
+        </li>
+        <li data-start="2061" data-end="2094">
+          <p data-start="2063" data-end="2094"><code data-start="2063"
+              data-end="2076">append:TEXT</code> → Append string</p>
+        </li>
+        <li data-start="2095" data-end="2130">
+          <p data-start="2097" data-end="2130"><code data-start="2097"
+              data-end="2111">prepend:TEXT</code> → Prepend string</p>
+        </li>
+        <li data-start="2131" data-end="2172">
+          <p data-start="2133" data-end="2172"><code data-start="2133"
+              data-end="2150">replace:OLD:NEW</code> → Replace substring</p>
+        </li>
+      </ul>
+      <h3 data-start="2174" data-end="2195">Path Manipulation</h3>
+      <ul data-start="2196" data-end="2432">
+        <li data-start="2196" data-end="2243">
+          <p data-start="2198" data-end="2243"><code data-start="2198"
+              data-end="2218">pathappend:SUBPATH</code> → Join as path
+            segment</p>
+        </li>
+        <li data-start="2244" data-end="2320">
+          <p data-start="2246" data-end="2320"><code data-start="2246"
+              data-end="2255">pathwin</code> / <code data-start="2258"
+              data-end="2270">pathwinabs</code> → Normalize to Windows
+            path (relative/absolute)</p>
+        </li>
+        <li data-start="2321" data-end="2379">
+          <p data-start="2323" data-end="2379"><code data-start="2323"
+              data-end="2334">pathlinux</code> / <code
+              data-start="2337" data-end="2351">pathlinuxabs</code> →
+            Normalize to Linux path</p>
+        </li>
+        <li data-start="2380" data-end="2432">
+          <p data-start="2382" data-end="2432"><code data-start="2382"
+              data-end="2390">pathos</code> / <code data-start="2393"
+              data-end="2404">pathosabs</code> → Normalize to current OS</p>
+        </li>
+      </ul>
+      <h3 data-start="2434" data-end="2457">Escaping/Unescaping</h3>
+      <ul data-start="2458" data-end="2696">
+        <li data-start="2458" data-end="2503">
+          <p data-start="2460" data-end="2503"><code data-start="2460"
+              data-end="2467">esccs</code> / <code data-start="2470"
+              data-end="2481">fromesccs</code> → C#-style escaping</p>
+        </li>
+        <li data-start="2504" data-end="2555">
+          <p data-start="2506" data-end="2555"><code data-start="2506"
+              data-end="2515">escjava</code> / <code data-start="2518"
+              data-end="2531">fromescjava</code> → Java-style escaping</p>
+        </li>
+        <li data-start="2556" data-end="2602">
+          <p data-start="2558" data-end="2602"><code data-start="2558"
+              data-end="2564">escc</code> / <code data-start="2567"
+              data-end="2577">fromescc</code> → C/C++-style escaping</p>
+        </li>
+        <li data-start="2603" data-end="2653">
+          <p data-start="2605" data-end="2653"><code data-start="2605"
+              data-end="2613">escurl</code> / <code data-start="2616"
+              data-end="2628">fromescurl</code> → URL percent-encoding</p>
+        </li>
+        <li data-start="2654" data-end="2696">
+          <p data-start="2656" data-end="2696"><code data-start="2656"
+              data-end="2664">escxml</code> / <code data-start="2667"
+              data-end="2679">fromescxml</code> → XML entities</p>
+        </li>
+      </ul>
+      <h3 data-start="2698" data-end="2715">Regex-related</h3>
+      <ul data-start="2716" data-end="2801">
+        <li data-start="2716" data-end="2752">
+          <p data-start="2718" data-end="2752"><code data-start="2718"
+              data-end="2726">regesc</code> → Regex-escape a string</p>
+        </li>
+        <li data-start="2753" data-end="2801">
+          <p data-start="2755" data-end="2801"><code data-start="2755"
+              data-end="2761">regq</code> → Wrap in <code
+              data-start="2772" data-end="2781">\Q...\E</code> for regex
+            quoting</p>
+        </li>
+      </ul>
+      <hr data-start="2803" data-end="2806">
+      <h2 data-start="2808" data-end="2822">5. Examples</h2>
+      <h3 data-start="2824" data-end="2846">Simple Replacement</h3>
+      <p data-start="2847" data-end="2856">Template:</p>
+      <pre class="overflow-visible!" data-start="2857" data-end="2886"><div class="contain-inline-size rounded-2xl relative bg-token-sidebar-surface-primary"><div class="overflow-y-auto p-4" dir="ltr"><code class="whitespace-pre!"><span><span>Hello {{ </span><span><span class="hljs-keyword">var</span></span><span>.Name }}!
+</span></span></code></div></div></pre>
+      <p data-start="2887" data-end="2892">Vars:</p>
+      <pre class="overflow-visible!" data-start="2893" data-end="2928"><div class="contain-inline-size rounded-2xl relative bg-token-sidebar-surface-primary"><div class="overflow-y-auto p-4" dir="ltr"><code class="whitespace-pre! language-powershell"><span>-Var "Name=World"
+</span></code></div></div></pre>
+      <p data-start="2929" data-end="2936">Output:</p>
+      <pre class="overflow-visible!" data-start="2937" data-end="2957"><div class="contain-inline-size rounded-2xl relative bg-token-sidebar-surface-primary"><div class="overflow-y-auto p-4" dir="ltr"><code class="whitespace-pre!"><span><span><span class="hljs-attribute">Hello</span></span><span> World!
+</span></span></code></div></div></pre>
+      <h3 data-start="2959" data-end="2970">Filters</h3>
+      <pre class="overflow-visible!" data-start="2971" data-end="3038"><div class="contain-inline-size rounded-2xl relative bg-token-sidebar-surface-primary"><div class="overflow-y-auto p-4" dir="ltr"><code class="whitespace-pre!"><span><span>Original: {{ </span><span><span class="hljs-keyword">var</span></span><span>.MyVar }}
+Upper:    {{ </span><span><span class="hljs-keyword">var</span></span><span>.MyVar | upper }}
+</span></span></code></div></div></pre>
+      <h3 data-start="3040" data-end="3049">Paths</h3>
+      <pre class="overflow-visible!" data-start="3050" data-end="3131"><div class="contain-inline-size rounded-2xl relative bg-token-sidebar-surface-primary"><div class="overflow-y-auto p-4" dir="ltr"><code class="whitespace-pre!"><span><span><span class="hljs-variable">Win</span></span><span> </span><span><span class="hljs-built_in">Path</span></span><span><span class="hljs-operator">:</span></span><span> </span><span><span class="hljs-punctuation">{</span></span><span><span class="hljs-punctuation">{</span></span><span> </span><span><span class="hljs-variable">var</span></span><span><span class="hljs-operator">.</span></span><span><span class="hljs-built_in">Path</span></span><span> </span><span><span class="hljs-operator">|</span></span><span> </span><span><span class="hljs-variable">pathwin</span></span><span> </span><span><span class="hljs-punctuation">}</span></span><span><span class="hljs-punctuation">}</span></span><span>
+</span><span><span class="hljs-variable">Linux</span></span><span> </span><span><span class="hljs-built_in">Path</span></span><span><span class="hljs-operator">:</span></span><span> </span><span><span class="hljs-punctuation">{</span></span><span><span class="hljs-punctuation">{</span></span><span> </span><span><span class="hljs-variable">var</span></span><span><span class="hljs-operator">.</span></span><span><span class="hljs-built_in">Path</span></span><span> </span><span><span class="hljs-operator">|</span></span><span> </span><span><span class="hljs-variable">pathlinux</span></span><span> </span><span><span class="hljs-punctuation">}</span></span><span><span class="hljs-punctuation">}</span></span><span>
+</span></span></code></div></div></pre>
+      <h3 data-start="3133" data-end="3145">Escaping</h3>
+      <pre class="overflow-visible!" data-start="3146" data-end="3240"><div class="contain-inline-size rounded-2xl relative bg-token-sidebar-surface-primary"><div class="overflow-y-auto p-4" dir="ltr"><code class="whitespace-pre!"><span><span><span class="hljs-built_in">C</span></span><span> </span><span><span class="hljs-variable">string</span></span><span> </span><span><span class="hljs-variable">literal</span></span><span><span class="hljs-operator">:</span></span><span> </span><span><span class="hljs-punctuation">{</span></span><span><span class="hljs-punctuation">{</span></span><span> </span><span><span class="hljs-variable">var</span></span><span><span class="hljs-operator">.</span></span><span><span class="hljs-built_in">Input</span></span><span> </span><span><span class="hljs-operator">|</span></span><span> </span><span><span class="hljs-variable">escc</span></span><span> </span><span><span class="hljs-punctuation">}</span></span><span><span class="hljs-punctuation">}</span></span><span>
+</span><span><span class="hljs-built_in">Round</span></span><span><span class="hljs-operator">-</span></span><span><span class="hljs-variable">trip</span></span><span><span class="hljs-operator">:</span></span><span> </span><span><span class="hljs-punctuation">{</span></span><span><span class="hljs-punctuation">{</span></span><span> </span><span><span class="hljs-variable">var</span></span><span><span class="hljs-operator">.</span></span><span><span class="hljs-built_in">Input</span></span><span> </span><span><span class="hljs-operator">|</span></span><span> </span><span><span class="hljs-variable">escc</span></span><span> </span><span><span class="hljs-operator">|</span></span><span> </span><span><span class="hljs-variable">fromescc</span></span><span> </span><span><span class="hljs-punctuation">}</span></span><span><span class="hljs-punctuation">}</span></span><span>
+</span></span></code></div></div></pre>
+      <hr data-start="3242" data-end="3245">
+      <h2 data-start="3247" data-end="3270">6. Advanced Behavior</h2>
+      <ul data-start="3272" data-end="3601">
+        <li data-start="3272" data-end="3376">
+          <p data-start="3274" data-end="3376"><strong data-start="3274"
+              data-end="3309">Filter arguments without quotes</strong>
+            are accepted when they don’t contain whitespace, <code
+              data-start="3359" data-end="3362">:</code>, <code
+              data-start="3364" data-end="3367">|</code>, or <code
+              data-start="3372" data-end="3375">}</code>.</p>
+        </li>
+        <li data-start="3377" data-end="3457">
+          <p data-start="3379" data-end="3457"><strong data-start="3379"
+              data-end="3405">Round-trip correctness</strong>: <code
+              data-start="3407" data-end="3424">fromesc* | esc*</code>
+            should match <code data-start="3438" data-end="3448">fromesc*</code>
+            alone.</p>
+        </li>
+        <li data-start="3458" data-end="3601">
+          <p data-start="3460" data-end="3481"><strong data-start="3460"
+              data-end="3480">Canonicalization</strong>:</p>
+          <ul data-start="3484" data-end="3601">
+            <li data-start="3484" data-end="3507">
+              <p data-start="3486" data-end="3507">Null character → <code
+                  data-start="3503" data-end="3507">\0</code></p>
+            </li>
+            <li data-start="3510" data-end="3541">
+              <p data-start="3512" data-end="3541">Control characters →
+                <code data-start="3533" data-end="3541">\uXXXX</code></p>
+            </li>
+            <li data-start="3544" data-end="3570">
+              <p data-start="3546" data-end="3570">Non-ASCII BMP → <code
+                  data-start="3562" data-end="3570">\uXXXX</code></p>
+            </li>
+            <li data-start="3573" data-end="3601">
+              <p data-start="3575" data-end="3601">Outside BMP → <code
+                  data-start="3589" data-end="3601">\UXXXXXXXX</code></p>
+            </li>
+          </ul>
+        </li>
+      </ul>
+      <hr data-start="3603" data-end="3606">
+      <h2 data-start="3608" data-end="3623">7. Debugging</h2>
+      <ul data-start="3625" data-end="3832">
+        <li data-start="3625" data-end="3684">
+          <p data-start="3627" data-end="3684"><code data-start="3627"
+              data-end="3637">-Verbose</code> → High-level tracing
+            (placeholders, values).</p>
+        </li>
+        <li data-start="3685" data-end="3745">
+          <p data-start="3687" data-end="3745"><code data-start="3687"
+              data-end="3695">-Debug</code> → Low-level tracing (filter
+            application, args).</p>
+        </li>
+        <li data-start="3746" data-end="3832">
+          <p data-start="3748" data-end="3832">Internal dev flag <code
+              data-start="3766" data-end="3774">$Trace</code> (if
+            enabled in script) → extremely detailed step-by-step.</p>
+        </li>
+      </ul>
+      <hr data-start="3834" data-end="3837">
+      <h2 data-start="3839" data-end="3856">8. Limitations</h2>
+      <ul data-start="3858" data-end="4071">
+        <li data-start="3858" data-end="3940">
+          <p data-start="3860" data-end="3940"><strong data-start="3860"
+              data-end="3889">Nested variable expansion</strong> (e.g. <code
+              data-start="3896" data-end="3922">{{ var.{{ var.Name }} }}</code>)
+            not supported.</p>
+        </li>
+        <li data-start="3941" data-end="4015">
+          <p data-start="3943" data-end="4015">No loops/conditionals —
+            this is a straight text expander with filters.</p>
+        </li>
+        <li data-start="4016" data-end="4071">
+          <p data-start="4018" data-end="4071">Performance optimized for
+            clarity, not massive scale.</p>
+        </li>
+      </ul>
+      <hr data-start="4073" data-end="4076">
+      <h2 data-start="4078" data-end="4110">9. Extending with New
+        Filters</h2>
+      <p data-start="4112" data-end="4128">To add a filter:</p>
+      <ol data-start="4129" data-end="4402">
+        <li data-start="4129" data-end="4158">
+          <p data-start="4132" data-end="4158">Open <code
+              data-start="4137" data-end="4157">ExpandTemplate.ps1</code>.</p>
+        </li>
+        <li data-start="4159" data-end="4185">
+          <p data-start="4162" data-end="4185">Locate <code
+              data-start="4169" data-end="4184">Apply-Filters</code>.</p>
+        </li>
+        <li data-start="4186" data-end="4337">
+          <p data-start="4189" data-end="4231">Add a new <code
+              data-start="4199" data-end="4223">switch ($name) { ... }</code>
+            clause:</p>
+        </li>
+      </ol>
+      <li data-start="4186" data-end="4337">
+        <pre class="overflow-visible!" data-start="4235" data-end="4337"><div class="contain-inline-size rounded-2xl relative bg-token-sidebar-surface-primary"><div class="overflow-y-auto p-4" dir="ltr"><code class="whitespace-pre! language-powershell"><span>'reverse' { $val = -join ($val.ToCharArray() | [Array]::Reverse()); continue }
+</span></code></div></div></pre>
+      </li>
+      <li data-start="4338" data-end="4402">
+        <ol>
+          <li>Use in template:
+            <p data-start="4409" data-end="4592" data-is-last-node=""
+              data-is-only-node=""></p>
+          </li>
+        </ol>
+      </li>
+      <div class="contain-inline-size rounded-2xl relative
+        bg-token-sidebar-surface-primary">
+        <div class="overflow-y-auto p-4" dir="ltr"><code
+            class="whitespace-pre!"><span><span>{{ </span><span><span
+                  class="hljs-keyword">var</span></span><span>.MyVar |
+                reverse }} </span></span></code></div>
+      </div>
+      <p data-start="4409" data-end="4592" data-is-last-node=""
+        data-is-only-node=""><br>
+      </p>
+      <p data-start="4409" data-end="4592" data-is-last-node=""
+        data-is-only-node=""><br>
+        <strong data-start="4411" data-end="4431"></strong></p>
+    </div>
+    <br>
+    <br>
+    <br>
+    <br>
+    <br>
+  </body>
+</html>

@@ -473,8 +473,94 @@ with newlines also between pipes (at various places):
   }}"
 
 
+# FILTER ARGUMENTS without quotes:
+
+# Filter arguments that don't contain spaces ' ', colons ':', vertical lines '|', 
+# single (') or double quotes (") or closed curly brackets '}', do NOT need to be 
+# stated in double quotes.
+
+var.MyVarLong:
+  "{{ var.MyVarLong }}"
+with filters | replace:demonstrate:show | prepend:** | append:End. : 
+  "{{ var.MyVarLong | replace:demonstrate:show | prepend:** | append:End. }}"
+
+var.PathWin:
+  "{{ var.PathWin }}"
+with filters | pathappend:dir1\dir2\icon.png | replace:\:/ :
+  "{{ var.PathWin | pathappend:dir1\dir2\icon.png | replace:\:/ }}"
+
+var.PathWin:
+  "{{ var.PathWin }}"
+with filters | pathappend:myfiles | prepend:CLEAN :
+  {{ var.PathWin | pathappend:myfiles | prepend:CLEAN }}
+
+var.MyVarLong:
+  "{{ var.MyVarLong }}"
+with filters | escc | replace:longer:sample | fromescc :
+  {{ var.MyVarLong | escc | replace:longer:sample | fromescc }}
+
+
+# Some other examples of DIFFERENT FORMS (filter arguments, etc.):
+
+# Unquoted args:
+var.MyVarLong: 
+  "{{ var.MyVarLong }}"
+var.MyVarLong | replace:demonstrate:show | prepend:* | append:End.  :
+  "{{ var.MyVarLong | replace:demonstrate:show | prepend:* | append:End. }}"
+
+# Mixed quoted/unquoted args:
+var.PathWin:
+  "{{ var.PathWin }}"
+var.PathWin | pathappend:"dir1\dir2\icon.png" | replace:\:/  :
+  {{ var.PathWin | pathappend:"dir1\dir2\icon.png" | replace:\:/ }}
+
+# Spaces around tokens:
+var.MyVarLong:
+  "{{ var.MyVarLong }}"
+var.MyVarLong    |  lower   | replace  : longer  :  "medium length"  :
+  "{{ var.MyVarLong    |  lower   | replace  : longer  :  "medium length" }}"
+
+# Newlines in placeholder - simple:
+var.MyVarSimple:
+  "{{ var.MyVarSimple }}"
+  var.MyVarSimple    
+  |  lower  :
+  "{{
+    var.MyVarSimple    
+    |  lower 
+  }}"
+
+# Newlines in placeholder - more complex:
+var.PathWin:
+  "{{ var.PathWin }}"
+var.PathWin
+  | pathappend:"dir1\dir2\icon.png" | 
+  replace:"\\":/
+  |
+  prepend:"The path is: "  :
+  "{{
+      var.PathWin
+        | pathappend:"dir1\dir2\icon.png" | 
+        replace:"\\":/
+        |
+        prepend:"The path is: "  
+  }}"
+
+# Edge case: no filters, just head
+var.MyVarSimple:
+  "{{ var.MyVarSimple }}"
+
+# Edge case: no spaces; escaped and not escaped backslashes in quoted filter arguments,
+# auoted and unquoted arguments:
+var.PathWin:
+  "{{ var.PathWin }}"
+var.PathWin|pathappend:"dir1\\dir2\icon.png"|replace:"\\":/|lower|prepend:"The path is: "|append:.  :
+  "{{var.PathWin|pathappend:"dir1\\dir2\icon.png"|replace:"\\":/|lower|prepend:"The path is: "|append:.}}"
+
+
 # The following environment variables need to be defined for successful
-# generation (suggested values are also provided):
+# generation (suggested values are also provided; actual definitions are
+# in Samples_GenerateFileFromTemplate.ps1):
 #   ENVPATHWIN = C:\Users\Uporabnik\Documents\MyDoc.md
 #   ENVPATHUNIX = /home/uporabnik/doc/MyDoc.md
 #   ENVSIMPLE = EnvSimpleValue
