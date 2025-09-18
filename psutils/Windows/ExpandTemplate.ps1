@@ -1806,6 +1806,15 @@ function Parse-Placeholder {
 
 
 
+
+
+
+
+
+
+
+
+
 function Resolve-HeadValue {
     param(
         [Parameter(Mandatory)] [string]    $Head,
@@ -1838,57 +1847,6 @@ function Resolve-HeadValue {
     }
 
     throw "Invalid placeholder head '$Head'. Use 'var.Name' or 'env.NAME'."
-}
-
-
-
-
-# ---------------------------------------------------------------------------
-# Helper: Get-InitialValue
-# Resolves the initial value of a placeholder from var.* or env.*.
-# Missing values cause an error and the script aborts.
-# ---------------------------------------------------------------------------
-function Get-InitialValue {
-    <#
-    .SYNOPSIS
-      Resolve the base value for a placeholder (var.* or env.*).
-
-    .PARAMETER Vars
-      Hashtable of user variables.
-
-    .PARAMETER Ns
-      'var' or 'env'.
-
-    .PARAMETER Name
-      Variable or environment variable name.
-
-    .PARAMETER Strict
-      Reserved for future use (current behavior always errors on missing values).
-
-    .OUTPUTS
-      [string] The resolved value.
-    #>
-    param([hashtable]$Vars, [string]$Ns, [string]$Name, [switch]$Strict)
-
-    switch ($Ns) {
-        'var' {
-            if (-not $Vars.ContainsKey($Name)) {
-                $msg = "Undefined user variable '${Name}' ({{ var.${Name} }})."
-                throw $msg
-            }
-            return [string]$Vars[$Name]
-        }
-        'env' {
-            $val = [System.Environment]::GetEnvironmentVariable($Name, 'Process')
-            if (-not $val) { $val = [System.Environment]::GetEnvironmentVariable($Name, 'User') }
-            if (-not $val) { $val = [System.Environment]::GetEnvironmentVariable($Name, 'Machine') }
-            if (-not $val) {
-                $msg = "Environment variable '${Name}' not defined ({{ env.${Name} }})."
-                throw $msg
-            }
-            return [string]$val
-        }
-    }
 }
 
 
