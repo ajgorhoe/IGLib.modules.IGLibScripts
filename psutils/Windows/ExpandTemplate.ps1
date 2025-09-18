@@ -1812,6 +1812,281 @@ function Parse-Placeholder {
 
 
 
+function Expand-PlaceholdersStreaming {
+  param(
+    [Parameter(Mandatory)][string]$Text,
+    [Parameter(Mandatory)][hashtable]$Variables,
+    [switch]$Trace
+  )
+
+  $sb   = [System.Text.StringBuilder]::new()
+  $pos  = 0
+  $len  = $Text.Length
+
+  # Small helpers
+  function Peek([int]$i) {
+    if ($i -ge 0 -and $i -lt $len) { $Text[$i] } else { $null }
+  }
+  function IsEscapedOpen([int]$i) {
+    # \{{ should be treated as literal
+    ($i -gt 0) -and ($Text[$i-1] -eq '\')
+  }
+  function IsEscapedClose([int]$i) {
+    # \}} should be treated as literal
+    ($i -gt 0) -and ($Text[$i-1] -eq '\')
+  }
+
+  while ($pos -lt $len) {
+    $i = $Text.IndexOf('{{', $pos)
+    if ($i -lt 0) {
+      [void]$sb.Append($Text.Substring($pos))
+      break
+    }
+
+    # copy literal up to '{{'
+    [void]$sb.Append($Text.Substring($pos, $i - $pos))
+
+    # escaped open? emit literally and continue
+    if (IsEscapedOpen $i) {
+      # keep one '{' (the second one) because the backslash escapes the first
+      # or simply drop the backslash and output '{{'
+      [void]$sb.Append('{{')
+      $pos = $i + 2
+      continue
+    }
+
+    # find matching '}}' taking care of escapes
+    $j = $i + 2
+    $found = $false
+    while ($j -lt $len) {
+      if ((Peek($j) -eq '}') -and (Peek($j+1) -eq '}')) {
+        if (-not (IsEscapedClose $j)) { $found = $true; break }
+        # it’s escaped, emit a '}' and keep scanning
+        $j += 2
+        continue
+      }
+      $j++
+    }
+    if (-not $found) {
+      throw "Unclosed placeholder. Expected '}}' near index $i."
+    }
+
+    $inner = $Text.Substring($i + 2, $j - ($i + 2))
+
+    if ($Trace) {
+      Write-Host "Processing placeholder:`n  {{ $inner }}"
+    }
+
+    try {
+      # parse → { Head, Pipeline }
+      $ph = Parse-Placeholder -InnerText $inner
+
+      # resolve head value
+      $headVal = Resolve-Head `
+        -Head $ph.Head `
+        -Variables $Variables `
+        -Trace:$Trace
+
+      # apply filters
+      $expanded = Apply-Filters `
+        -Value $headVal `
+        -Pipeline $ph.Pipeline `
+        -Trace:$Trace
+
+      [void]$sb.Append([string]$expanded)
+    }
+    catch {
+      throw "Error in placeholder '{{ $inner }}': $($_.Exception.Message)"
+    }
+
+    $pos = $j + 2
+  }
+
+  $sb.ToString()
+}
+
+function Resolve-Head {
+  param(
+    [Parameter(Mandatory)][string]$Head,
+    [Parameter(Mandatory)][hashtable]$Variables,
+    [switch]$Trace
+  )
+
+  # Expected heads:
+  #   var.Name
+  #   env.NAME
+  $parts = $Head.Split('.', 2)
+  if ($parts.Count -lt 2) {
+    throw "Invalid placeholder head '$Head'. Use 'var.Name' or 'env.NAME'."
+  }
+  $ns   = $parts[0].Trim()
+  $name = $parts[1].Trim()
+
+  switch ($ns.ToLowerInvariant()) {
+    'var' {
+      if (-not $Variables.ContainsKey($name)) {
+        throw "Variable '$name' not defined."
+      }
+      $val = $Variables[$name]
+      if ($Trace) { Write-Host "  Head var.$name = $val" }
+      return $val
+    }
+    'env' {
+      $val = [System.Environment]::GetEnvironmentVariable($name)
+      if ($null -eq $val) {
+        throw "Environment variable '$name' not defined."
+      }
+      if ($Trace) { Write-Host "  Head env.$name = $val" }
+      return $val
+    }
+    default {
+      throw "Invalid namespace '$ns' in head '$Head'."
+    }
+  }
+}
+
+
+
+
+
+
+
+function Expand-PlaceholdersStreaming {
+  param(
+    [Parameter(Mandatory)][string]$Text,
+    [Parameter(Mandatory)][hashtable]$Variables,
+    [switch]$Trace
+  )
+
+  $sb   = [System.Text.StringBuilder]::new()
+  $pos  = 0
+  $len  = $Text.Length
+
+  # Small helpers
+  function Peek([int]$i) {
+    if ($i -ge 0 -and $i -lt $len) { $Text[$i] } else { $null }
+  }
+  function IsEscapedOpen([int]$i) {
+    # \{{ should be treated as literal
+    ($i -gt 0) -and ($Text[$i-1] -eq '\')
+  }
+  function IsEscapedClose([int]$i) {
+    # \}} should be treated as literal
+    ($i -gt 0) -and ($Text[$i-1] -eq '\')
+  }
+
+  while ($pos -lt $len) {
+    $i = $Text.IndexOf('{{', $pos)
+    if ($i -lt 0) {
+      [void]$sb.Append($Text.Substring($pos))
+      break
+    }
+
+    # copy literal up to '{{'
+    [void]$sb.Append($Text.Substring($pos, $i - $pos))
+
+    # escaped open? emit literally and continue
+    if (IsEscapedOpen $i) {
+      # keep one '{' (the second one) because the backslash escapes the first
+      # or simply drop the backslash and output '{{'
+      [void]$sb.Append('{{')
+      $pos = $i + 2
+      continue
+    }
+
+    # find matching '}}' taking care of escapes
+    $j = $i + 2
+    $found = $false
+    while ($j -lt $len) {
+      if ((Peek($j) -eq '}') -and (Peek($j+1) -eq '}')) {
+        if (-not (IsEscapedClose $j)) { $found = $true; break }
+        # it’s escaped, emit a '}' and keep scanning
+        $j += 2
+        continue
+      }
+      $j++
+    }
+    if (-not $found) {
+      throw "Unclosed placeholder. Expected '}}' near index $i."
+    }
+
+    $inner = $Text.Substring($i + 2, $j - ($i + 2))
+
+    if ($Trace) {
+      Write-Host "Processing placeholder:`n  {{ $inner }}"
+    }
+
+    try {
+      # parse → { Head, Pipeline }
+      $ph = Parse-Placeholder -InnerText $inner
+
+      # resolve head value
+      $headVal = Resolve-Head `
+        -Head $ph.Head `
+        -Variables $Variables `
+        -Trace:$Trace
+
+      # apply filters
+      $expanded = Apply-Filters `
+        -Value $headVal `
+        -Pipeline $ph.Pipeline `
+        -Trace:$Trace
+
+      [void]$sb.Append([string]$expanded)
+    }
+    catch {
+      throw "Error in placeholder '{{ $inner }}': $($_.Exception.Message)"
+    }
+
+    $pos = $j + 2
+  }
+
+  $sb.ToString()
+}
+
+function Resolve-Head {
+  param(
+    [Parameter(Mandatory)][string]$Head,
+    [Parameter(Mandatory)][hashtable]$Variables,
+    [switch]$Trace
+  )
+
+  # Expected heads:
+  #   var.Name
+  #   env.NAME
+  $parts = $Head.Split('.', 2)
+  if ($parts.Count -lt 2) {
+    throw "Invalid placeholder head '$Head'. Use 'var.Name' or 'env.NAME'."
+  }
+  $ns   = $parts[0].Trim()
+  $name = $parts[1].Trim()
+
+  switch ($ns.ToLowerInvariant()) {
+    'var' {
+      if (-not $Variables.ContainsKey($name)) {
+        throw "Variable '$name' not defined."
+      }
+      $val = $Variables[$name]
+      if ($Trace) { Write-Host "  Head var.$name = $val" }
+      return $val
+    }
+    'env' {
+      $val = [System.Environment]::GetEnvironmentVariable($name)
+      if ($null -eq $val) {
+        throw "Environment variable '$name' not defined."
+      }
+      if ($Trace) { Write-Host "  Head env.$name = $val" }
+      return $val
+    }
+    default {
+      throw "Invalid namespace '$ns' in head '$Head'."
+    }
+  }
+}
+
+
+
+
 
 
 
@@ -1904,6 +2179,9 @@ $errors  = New-Object System.Collections.Generic.List[string]
 $tplText = $tplText -replace "\\{{", "\{\{"
 $tplText = $tplText -replace "\\}}", "\}\}"
 
+$UseRegex = $true  # switch to toggle between regex and streaming parser
+if ($true -eq $UseRegex) {
+
 $expanded = [System.Text.RegularExpressions.Regex]::Replace(
     $tplText,
     $pattern,
@@ -1971,6 +2249,11 @@ $expanded = [System.Text.RegularExpressions.Regex]::Replace(
     }
 
 )
+
+} else {
+    Expand-PlaceholdersStreaming -Text $tplText -Variables $VARS -Trace:$Trace
+}
+
 
 # Backward transform double curly brackets escaping:
 $expanded = $expanded -replace "\\{\\{", "{{"
