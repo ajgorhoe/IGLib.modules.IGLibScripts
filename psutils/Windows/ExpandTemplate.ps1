@@ -1899,7 +1899,9 @@ function Expand-PlaceholdersStreaming {
         
         # === The 3-step pipeline to get placeholder substituted value ===
         $innerShown = Normalize-Whitespace -Text $inner
-        Write-Verbose "Processing placeholder:`n  {{ $innerShown }}"
+        
+        Write-Verbose "Processing placeholder, indices $open - ${close}:"
+        Write-Verbose "  {{ $innerShown }}"
         if ($script:TraceMode) { Write-Host "[Pipeline] Processing placeholder:`n  {{ $body }}" -ForegroundColor Cyan }
 
         # 1) Parse the placeholder into Head + Pipeline (filters with args)
@@ -1909,16 +1911,16 @@ function Expand-PlaceholdersStreaming {
         $headValue = Resolve-HeadValue -Head $ph.Head -Variables $Variables
 
         if ($script:TraceMode) {
-            Write-Host "  [CallBack] Unfiltered value:`n  $headValue" -ForegroundColor DarkCyan
+            Write-Host "  [Pipeline] Unfiltered value:`n  $headValue" -ForegroundColor DarkCyan
             if ($ph.Pipeline -and $ph.Pipeline.Count) {
                 $pipeDisplay = ($ph.Pipeline | ForEach-Object {
                     $n = $_.Name
                     $a = if ($_.Args) { ($_.Args -join '", "') } else { '' }
                     if ($a -ne '') { "$n(""$a"")" } else { "$n()" }
                 }) -join ' | '
-                Write-Host "  [CallBack] Pipeline: $pipeDisplay" -ForegroundColor DarkCyan
+                Write-Host "  [Pipeline] Pipeline: $pipeDisplay" -ForegroundColor DarkCyan
             } else {
-                Write-Host "  [CallBack] Pipeline: (none)" -ForegroundColor DarkCyan
+                Write-Host "  [Pipeline] (none)" -ForegroundColor DarkCyan
             }
         }
 
