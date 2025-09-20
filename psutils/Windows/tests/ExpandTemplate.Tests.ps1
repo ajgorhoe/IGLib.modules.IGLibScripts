@@ -1,9 +1,20 @@
-$here = Split-Path -Parent $MyInvocation.MyCommand.Path
-$script = Join-Path $here '..\ExpandTemplate.ps1'
+# tests/ExpandTemplate.Tests.ps1
+
+# Resolve the folder the test file is in
+$here = Split-Path -Parent $PSCommandPath
+
+# ExpandTemplate.ps1 sits in the parent directory 
+$sutPath = Join-Path $here '../ExpandTemplate.ps1'
+
+if (-not (Test-Path -LiteralPath $sutPath)) {
+  throw "Cannot find ExpandTemplate.ps1 at: $sutPath"
+}
+
+# Dot-source the script so its functions are available in this scope
+. $sutPath
 
 Describe 'ExpandTemplate streaming expansion' {
   BeforeAll {
-    . $script
     $vars = @{ MyVarSimple = 'NorthEast' }
     $env:ENVSIMPLE = 'abc'
   }

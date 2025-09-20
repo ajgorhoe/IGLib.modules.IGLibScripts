@@ -125,7 +125,7 @@ Measure-Command {
 # Run all tests in the tests subdirectory:
 Invoke-Pester -Path .\tests -Output Detailed
 
-# Run all tests in a single terst file:
+# Run all tests in a single test file:
 Invoke-Pester .\tests\ExpandTemplate.Tests.ps1 -Output Detailed
 
 # Run a specific test by its name:
