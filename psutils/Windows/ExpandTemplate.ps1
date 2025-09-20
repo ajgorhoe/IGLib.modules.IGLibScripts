@@ -2043,81 +2043,87 @@ $errors  = New-Object System.Collections.Generic.List[string]
 $tplText = $tplText -replace "\\{{", "\{\{"
 $tplText = $tplText -replace "\\}}", "\}\}"
 
-# TODO:
-# At some point, consider switching to the streaming parser and REMOVE the
-# possibility of regex-based one. The streaming parser is more robust. For now, keep both
-# options for compatibility and testing.
-$UseRegex = $false  # switch to toggle between regex and streaming parser
-if ($true -eq $UseRegex) {
 
-    $expanded = [System.Text.RegularExpressions.Regex]::Replace(
-        $tplText,
-        $pattern,
+
+
+
+# # TODO:
+# # At some point, consider switching to the streaming parser and REMOVE the
+# # possibility of regex-based one. The streaming parser is more robust. For now, keep both
+# # options for compatibility and testing.
+# $UseRegex = $false  # switch to toggle between regex and streaming parser
+# if ($true -eq $UseRegex) {
+
+#     $expanded = [System.Text.RegularExpressions.Regex]::Replace(
+#         $tplText,
+#         $pattern,
         
-        {
-            param($m)
+#         {
+#             param($m)
 
-            # Extract the raw placeholder body (no braces), normalize whitespace for debug
-            # $full   = $m.Value
-            $body      = $m.Groups[1].Value
-            $bodyShown = Normalize-Whitespace -Text $body
+#             # Extract the raw placeholder body (no braces), normalize whitespace for debug
+#             # $full   = $m.Value
+#             $body      = $m.Groups[1].Value
+#             $bodyShown = Normalize-Whitespace -Text $body
 
-            Write-Verbose "Processing placeholder:`n  {{ $bodyShown }}"
+#             Write-Verbose "Processing placeholder:`n  {{ $bodyShown }}"
             
-            if ($script:TraceMode) { Write-Host "[CallBack] Processing placeholder:`n  {{ $body }}" -ForegroundColor Cyan }
+#             if ($script:TraceMode) { Write-Host "[CallBack] Processing placeholder:`n  {{ $body }}" -ForegroundColor Cyan }
 
-            try {
-                # 1) Parse the placeholder into Head + Pipeline (filters with args)
-                $ph = Parse-Placeholder -InnerText $body
+#             try {
+#                 # 1) Parse the placeholder into Head + Pipeline (filters with args)
+#                 $ph = Parse-Placeholder -InnerText $body
 
-                Write-Debug ("  Parsed head   : {0}" -f $ph.Head)
-                foreach ($f in $ph.Pipeline) {
-                    Write-Debug ("  Filter        : {0}({1})" -f $f.Name, (($f.Args -join '", "') -replace '^','"' -replace '$','"'))
-                }
+#                 Write-Debug ("  Parsed head   : {0}" -f $ph.Head)
+#                 foreach ($f in $ph.Pipeline) {
+#                     Write-Debug ("  Filter        : {0}({1})" -f $f.Name, (($f.Args -join '", "') -replace '^','"' -replace '$','"'))
+#                 }
 
-                # 2) Resolve head value (var./env.)
-                $headValue = Resolve-HeadValue -Head $ph.Head -Variables $VARS
-                if ($null -eq $headValue) {
-                    throw "Head '$($ph.Head)' resolved to null."
-                }
+#                 # 2) Resolve head value (var./env.)
+#                 $headValue = Resolve-HeadValue -Head $ph.Head -Variables $VARS
+#                 if ($null -eq $headValue) {
+#                     throw "Head '$($ph.Head)' resolved to null."
+#                 }
 
-                if ($script:TraceMode) {
-                    Write-Host "  [CallBack] Unfiltered value:`n  $headValue" -ForegroundColor DarkCyan
-                    if ($ph.Pipeline -and $ph.Pipeline.Count) {
-                        $pipeDisplay = ($ph.Pipeline | ForEach-Object {
-                            $n = $_.Name
-                            $a = if ($_.Args) { ($_.Args -join '", "') } else { '' }
-                            if ($a -ne '') { "$n(""$a"")" } else { "$n()" }
-                        }) -join ' | '
-                        Write-Host "  [CallBack] Pipeline: $pipeDisplay" -ForegroundColor DarkCyan
-                    } else {
-                        Write-Host "  [CallBack] Pipeline: (none)" -ForegroundColor DarkCyan
-                    }
-                }
+#                 if ($script:TraceMode) {
+#                     Write-Host "  [CallBack] Unfiltered value:`n  $headValue" -ForegroundColor DarkCyan
+#                     if ($ph.Pipeline -and $ph.Pipeline.Count) {
+#                         $pipeDisplay = ($ph.Pipeline | ForEach-Object {
+#                             $n = $_.Name
+#                             $a = if ($_.Args) { ($_.Args -join '", "') } else { '' }
+#                             if ($a -ne '') { "$n(""$a"")" } else { "$n()" }
+#                         }) -join ' | '
+#                         Write-Host "  [CallBack] Pipeline: $pipeDisplay" -ForegroundColor DarkCyan
+#                     } else {
+#                         Write-Host "  [CallBack] Pipeline: (none)" -ForegroundColor DarkCyan
+#                     }
+#                 }
 
-                Write-Debug ("  Head value (type): {0}" -f ($headValue.GetType().FullName))
+#                 Write-Debug ("  Head value (type): {0}" -f ($headValue.GetType().FullName))
 
-                # 3) Apply filters (pipeline returned by parser)
-                $expanded = Apply-Filters -Value $headValue -Pipeline $ph.Pipeline
-
-
-                if ($script:TraceMode) {
-                    Write-Host "  Final value:`n  $expanded" -ForegroundColor Green
-                }
+#                 # 3) Apply filters (pipeline returned by parser)
+#                 $expanded = Apply-Filters -Value $headValue -Pipeline $ph.Pipeline
 
 
-                # 4) Coerce to string for output
-                if ($null -eq $expanded) { '' } else { [string]$expanded }
-            }
-            catch {
-                throw "Error in placeholder '{{ $bodyShown }}': $($_.Exception.Message)"
-            }
-        }
+#                 if ($script:TraceMode) {
+#                     Write-Host "  Final value:`n  $expanded" -ForegroundColor Green
+#                 }
 
-    )
-} else {
+
+#                 # 4) Coerce to string for output
+#                 if ($null -eq $expanded) { '' } else { [string]$expanded }
+#             }
+#             catch {
+#                 throw "Error in placeholder '{{ $bodyShown }}': $($_.Exception.Message)"
+#             }
+#         }
+
+#     )
+# } 
+
+# else {
     $expanded = Expand-PlaceholdersStreaming -Text $tplText -Variables $VARS
-}
+# }
 
 
 # Backward transform double curly brackets escaping:
