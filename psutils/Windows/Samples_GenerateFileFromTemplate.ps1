@@ -111,3 +111,32 @@ $VariablesHashTab = @{ MyVarSimple=$MyVarSimple; MyVarLong=$MyVarLong;
     "DirtyRelativePath=$DirtyRelativePath", "DirtyAbsolutePath=$DirtyAbsolutePath",
     "EscapedStr=$EscapedStr", "EscapedStrSimple=$EscapedStrSimple", 
     "ForUrlEncoding=$ForUrlEncoding", "ForXMLEncoding=$ForXMLEncoding" )
+
+
+
+# TESTS with Pester:
+
+# Before running the tests, ensure that the preconditions are met:
+Measure-Command {
+  ./tests/LoadPester.ps1
+}
+
+
+# Run all tests in the tests subdirectory:
+Invoke-Pester -Path .\tests -Output Detailed
+
+# Run all tests in a single test file:
+Invoke-Pester .\tests\ExpandTemplate.Tests.ps1 -Output Detailed
+
+# Run a specific test by its name:
+Invoke-Pester -Path .\tests -TestName 'expands simple var and filters'
+
+# Tag the It/Describe blocks, then run by tag:
+Invoke-Pester -Path .\tests -Tag 'streaming'
+
+# For CI (sets exit code on failure):
+Invoke-Pester -Path .\tests -CI -EnableExit
+
+
+
+
