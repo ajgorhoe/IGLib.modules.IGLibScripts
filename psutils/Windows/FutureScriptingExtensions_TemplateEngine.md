@@ -1,4 +1,4 @@
-
+ 
 ### Notes - Possible Scripting Extensions of the ExpandTemplate.ps1 (the Template Engine)
 
 This idea is about allowing ***computed values*** inside templates. Recommended are two tiers of “power,” each with its own markup so users immediately understand the risk level:
