@@ -1,17 +1,14 @@
 # tests/ExpandTemplate.Tests.ps1
 
-# Resolve paths
-$here   = Split-Path -Parent $PSCommandPath
-$sutPath = Join-Path $here '..\ExpandTemplate.ps1'  # relative to this test file
+# --- Reliable path resolution (works under Pester v5 on PS 5.1/7+) ---
+$here    = $PSScriptRoot  # folder containing THIS test file
+$sutPath = [System.IO.Path]::GetFullPath( (Join-Path $here '..\ExpandTemplate.ps1') )
+
+if (-not (Test-Path -LiteralPath $sutPath)) {
+  throw "Cannot find ExpandTemplate.ps1 at: $sutPath"
+}
 
 Describe 'ExpandTemplate streaming expansion (integration)' {
-
-  BeforeAll {
-    # Ensure the SUT exists
-    if (-not (Test-Path -LiteralPath $sutPath)) {
-      throw "Cannot find ExpandTemplate.ps1 at: $sutPath"
-    }
-  }
 
   It 'expands simple var and filters' {
     $tpl = @"
@@ -24,7 +21,6 @@ upper: {{ var.MyVarSimple | upper }}
     $tmpOut = Join-Path $env:TEMP "out_$([guid]::NewGuid()).txt"
     Set-Content -LiteralPath $tmpTpl -Value $tpl -Encoding UTF8
 
-    # Call the script (execute, not dot-source)
     & $sutPath -Template $tmpTpl -Output $tmpOut -Variables @{ MyVarSimple = 'NorthEast' } | Out-Null
 
     $out = Get-Content -LiteralPath $tmpOut -Raw
@@ -32,7 +28,7 @@ upper: {{ var.MyVarSimple | upper }}
     $out | Should -Match 'lower:\s+northeast'
     $out | Should -Match 'upper:\s+NORTHEAST'
 
-    Remove-Item $tmpTpl,$tmpOut -Force
+    Remove-Item $tmpTpl,$tmpOut -Force -ErrorAction SilentlyContinue
   }
 
   It 'keeps escaped braces literal and expands env var' {
@@ -48,7 +44,7 @@ upper: {{ var.MyVarSimple | upper }}
     $out | Should -Match '\{\{ not a placeholder \}\}'
     $out | Should -Match 'abc'
 
-    Remove-Item $tmpTpl,$tmpOut -Force
+    Remove-Item $tmpTpl,$tmpOut -Force -ErrorAction SilentlyContinue
   }
 
   It 'does not emit empty {{}} for real placeholders' {
@@ -63,6 +59,6 @@ upper: {{ var.MyVarSimple | upper }}
     $out | Should -Not -Match '\{\{\}\}'
     $out | Should -Match 'X\s+NorthEast\s+Y'
 
-    Remove-Item $tmpTpl,$tmpOut -Force
+    Remove-Item $tmpTpl,$tmpOut -Force -ErrorAction SilentlyContinue
   }
 }
