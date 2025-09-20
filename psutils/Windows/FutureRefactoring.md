@@ -1,6 +1,9 @@
 
 # Short-term Refactoring Plan
 
+**Remark**:
+This refactoring **task has been completed**.
+
 ## Thoughts about Current Design
 
 I was thinking about how substitution of placeholders works in the current ExpandTemplate.ps1. A single Regex::Replace performs all placeholder substitutions at once, which seems like an  elegant solution, but has its disadvantages.
