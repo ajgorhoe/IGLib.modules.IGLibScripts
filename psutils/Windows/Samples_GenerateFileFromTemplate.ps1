@@ -111,3 +111,16 @@ $VariablesHashTab = @{ MyVarSimple=$MyVarSimple; MyVarLong=$MyVarLong;
     "DirtyRelativePath=$DirtyRelativePath", "DirtyAbsolutePath=$DirtyAbsolutePath",
     "EscapedStr=$EscapedStr", "EscapedStrSimple=$EscapedStrSimple", 
     "ForUrlEncoding=$ForUrlEncoding", "ForXMLEncoding=$ForXMLEncoding" )
+
+
+
+# TESTS with Pester:
+
+# Before running the tests, ensure that the preconditions are met:
+Measure-Command {
+  ./tests/LoadPester.ps1
+}
+
+
+
+
