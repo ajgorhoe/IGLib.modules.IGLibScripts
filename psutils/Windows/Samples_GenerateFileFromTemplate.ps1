@@ -46,13 +46,15 @@ $EscapedStrSimple = "sq \' dq \`" bsl \\ nl \n cr \r ht \t vt \v bsp \b ff \f nu
 $ForUrlEncoding = "Café Münchën!.#.$.&. .'.(.).*.+.,./.:.;.=.?.@.[.]"
 $ForXMLEncoding = "`"Hello & Goodbye!`"  5 < 6 & 7 > 4  <a id=e55>#e55</a>"
 # Run the template engine to generate the output file:
-./ExpandTemplate.ps1 -Template TemplateExample.txt.tmpl  `
-  -Output TemplateExample.txt  `
-  -Var @( "MyVarSimple=$MyVarSimple", "MyVarLong=$MyVarLong",
-    "PathWin=$PathWin", "PathUnix=$PathUnix",
-    "DirtyRelativePath=$DirtyRelativePath", "DirtyAbsolutePath=$DirtyAbsolutePath",
-    "EscapedStr=$EscapedStr", "EscapedStrSimple=$EscapedStrSimple", 
-    "ForUrlEncoding=$ForUrlEncoding", "ForXMLEncoding=$ForXMLEncoding" )
+Measure-Command {
+  ./ExpandTemplate.ps1 -Template TemplateExample.txt.tmpl  `
+    -Output TemplateExample.txt  `
+    -Var @( "MyVarSimple=$MyVarSimple", "MyVarLong=$MyVarLong",
+      "PathWin=$PathWin", "PathUnix=$PathUnix",
+      "DirtyRelativePath=$DirtyRelativePath", "DirtyAbsolutePath=$DirtyAbsolutePath",
+      "EscapedStr=$EscapedStr", "EscapedStrSimple=$EscapedStrSimple", 
+      "ForUrlEncoding=$ForUrlEncoding", "ForXMLEncoding=$ForXMLEncoding" )
+}
 
 # Just another form of the above, without parentheses for the array parameter:
 ./ExpandTemplate.ps1 -Template TemplateExample.txt.tmpl  `
@@ -109,3 +111,32 @@ $VariablesHashTab = @{ MyVarSimple=$MyVarSimple; MyVarLong=$MyVarLong;
     "DirtyRelativePath=$DirtyRelativePath", "DirtyAbsolutePath=$DirtyAbsolutePath",
     "EscapedStr=$EscapedStr", "EscapedStrSimple=$EscapedStrSimple", 
     "ForUrlEncoding=$ForUrlEncoding", "ForXMLEncoding=$ForXMLEncoding" )
+
+
+
+# TESTS with Pester:
+
+# Before running the tests, ensure that the preconditions are met:
+Measure-Command {
+  ./tests/LoadPester.ps1
+}
+
+
+# Run all tests in the tests subdirectory:
+Invoke-Pester -Path .\tests -Output Detailed
+
+# Run all tests in a single test file:
+Invoke-Pester .\tests\ExpandTemplate.Tests.ps1 -Output Detailed
+
+# Run a specific test by its name:
+Invoke-Pester -Path .\tests -TestName 'expands simple var and filters'
+
+# Tag the It/Describe blocks, then run by tag:
+Invoke-Pester -Path .\tests -Tag 'streaming'
+
+# For CI (sets exit code on failure):
+Invoke-Pester -Path .\tests -CI -EnableExit
+
+
+
+
