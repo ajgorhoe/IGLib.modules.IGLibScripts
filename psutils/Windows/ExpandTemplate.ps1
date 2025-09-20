@@ -1823,10 +1823,6 @@ function Parse-Placeholder {
 }
 
 
-
-
-
-
 function Expand-PlaceholdersStreaming {
   [CmdletBinding()]
   [OutputType([string])]
@@ -1835,15 +1831,12 @@ function Expand-PlaceholdersStreaming {
     [string] $Text,
 
     # Hashtable you pass around in the rest of the script
-    [hashtable] $Variables,
+    [hashtable] $Variables
 
-    # Optional local trace; also honors $script:TraceMode if present
-    [switch] $Trace
   )
 
   # PS 5.1–compatible trace flag
-  $traceEnabled = $Trace.IsPresent -or ([bool]$script:TraceMode)
-  if ($traceEnabled) { Write-Host "[Expand-PlaceholdersStreaming] Input length: $($Text.Length)" -ForegroundColor DarkCyan }
+  if ($script:TraceMode) { Write-Host "[Expand-PlaceholdersStreaming] Input length: $($Text.Length)" -ForegroundColor DarkCyan }
 
   # Helper: true if an odd number of backslashes appear immediately before index $idx
   function Test-IsEscapedAt([string]$s, [int]$idx) {
@@ -1873,7 +1866,7 @@ function Expand-PlaceholdersStreaming {
       }
       [void]$sb.Append('{{')
       $cursor = $open + 2
-      if ($traceEnabled) { Write-Host "  [lit] \\{{ → {{ at $open" -ForegroundColor DarkGray }
+      if ($script:TraceMode) { Write-Host "  [lit] \\{{ → {{ at $open" -ForegroundColor DarkGray }
       continue
     }
 
@@ -1900,9 +1893,9 @@ function Expand-PlaceholdersStreaming {
 
     if ([string]::IsNullOrWhiteSpace($innerTrim)) {
       [void]$sb.Append('{{}}')
-      if ($traceEnabled) { Write-Host "  [lit] empty placeholder → '{{}}' ($open..$close)" -ForegroundColor DarkGray }
+      if ($script:TraceMode) { Write-Host "  [lit] empty placeholder → '{{}}' ($open..$close)" -ForegroundColor DarkGray }
     } else {
-      if ($traceEnabled) { Write-Host "  [exp] {{$innerTrim}}" -ForegroundColor DarkCyan }
+      if ($script:TraceMode) { Write-Host "  [exp] {{$innerTrim}}" -ForegroundColor DarkCyan }
       try {
         # === The 3-step pipeline, same as your Regex callback ===
         $ph = Parse-Placeholder -InnerText $inner
@@ -1926,23 +1919,15 @@ function Expand-PlaceholdersStreaming {
   # Literalize escaped braces outside placeholders
   $result = $sb.ToString().Replace('\{{', '{{').Replace('\}}', '}}')
 
-  if ($traceEnabled) { Write-Host "[Expand-PlaceholdersStreaming] Output length: $($result.Length)" -ForegroundColor DarkCyan }
+  if ($script:TraceMode) { Write-Host "[Expand-PlaceholdersStreaming] Output length: $($result.Length)" -ForegroundColor DarkCyan }
   return $result
 }
-
-
-
-
-
-
-
 
 
 function Resolve-Head {
   param(
     [Parameter(Mandatory)][string]$Head,
-    [Parameter(Mandatory)][hashtable]$Variables,
-    [switch]$Trace
+    [Parameter(Mandatory)][hashtable]$Variables
   )
 
   # Expected heads:
@@ -1961,7 +1946,7 @@ function Resolve-Head {
         throw "Variable '$name' not defined."
       }
       $val = $Variables[$name]
-      if ($Trace) { Write-Host "  Head var.$name = $val" }
+      if ($script:TraceMode) { Write-Host "  Head var.$name = $val" }
       return $val
     }
     'env' {
@@ -1969,7 +1954,7 @@ function Resolve-Head {
       if ($null -eq $val) {
         throw "Environment variable '$name' not defined."
       }
-      if ($Trace) { Write-Host "  Head env.$name = $val" }
+      if ($script:TraceMode) { Write-Host "  Head env.$name = $val" }
       return $val
     }
     default {
@@ -1977,10 +1962,6 @@ function Resolve-Head {
     }
   }
 }
-
-
-
-
 
 
 
@@ -2145,7 +2126,7 @@ $expanded = [System.Text.RegularExpressions.Regex]::Replace(
 )
 
 } else {
-    $expanded = Expand-PlaceholdersStreaming -Text $tplText -Variables $VARS -Trace:$Trace
+    $expanded = Expand-PlaceholdersStreaming -Text $tplText -Variables $VARS
 }
 
 
