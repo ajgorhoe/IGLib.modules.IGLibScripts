@@ -122,5 +122,21 @@ Measure-Command {
 }
 
 
+# Run all tests in the tests subdirectory:
+Invoke-Pester -Path .\tests -Output Detailed
+
+# Run all tests in a single terst file:
+Invoke-Pester .\tests\ExpandTemplate.Tests.ps1 -Output Detailed
+
+# Run a specific test by its name:
+Invoke-Pester -Path .\tests -TestName 'expands simple var and filters'
+
+# Tag the It/Describe blocks, then run by tag:
+Invoke-Pester -Path .\tests -Tag 'streaming'
+
+# For CI (sets exit code on failure):
+Invoke-Pester -Path .\tests -CI -EnableExit
+
+
 
 

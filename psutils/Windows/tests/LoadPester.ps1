@@ -12,9 +12,8 @@ Get-Module Pester -ListAvailable | Select Name,Version,Path
 Write-Host "`Installing at least version 5 of Pester..."
 Install-Module Pester -Scope CurrentUser -Force -SkipPublisherCheck
 
-# Ensure v5 is the one loaded:
-Write-Host "`nEnsuring that Pester v5 is loaded..."
-Write-Host "`Installing at least version 5 of Pester..."
+# Ensure v5 (at least) is the one loaded:
+Write-Host "`nEnsuring that Pester v. at least 5 is loaded..."
 Remove-Module Pester -ErrorAction SilentlyContinue
 Import-Module Pester -MinimumVersion 5.0.0
 
