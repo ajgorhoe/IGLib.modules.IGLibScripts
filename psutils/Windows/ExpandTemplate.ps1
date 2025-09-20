@@ -1924,47 +1924,6 @@ function Expand-PlaceholdersStreaming {
 }
 
 
-function Resolve-Head {
-  param(
-    [Parameter(Mandatory)][string]$Head,
-    [Parameter(Mandatory)][hashtable]$Variables
-  )
-
-  # Expected heads:
-  #   var.Name
-  #   env.NAME
-  $parts = $Head.Split('.', 2)
-  if ($parts.Count -lt 2) {
-    throw "Invalid placeholder head '$Head'. Use 'var.Name' or 'env.NAME'."
-  }
-  $ns   = $parts[0].Trim()
-  $name = $parts[1].Trim()
-
-  switch ($ns.ToLowerInvariant()) {
-    'var' {
-      if (-not $Variables.ContainsKey($name)) {
-        throw "Variable '$name' not defined."
-      }
-      $val = $Variables[$name]
-      if ($script:TraceMode) { Write-Host "  Head var.$name = $val" }
-      return $val
-    }
-    'env' {
-      $val = [System.Environment]::GetEnvironmentVariable($name)
-      if ($null -eq $val) {
-        throw "Environment variable '$name' not defined."
-      }
-      if ($script:TraceMode) { Write-Host "  Head env.$name = $val" }
-      return $val
-    }
-    default {
-      throw "Invalid namespace '$ns' in head '$Head'."
-    }
-  }
-}
-
-
-
 function Resolve-HeadValue {
     param(
         [Parameter(Mandatory)] [string]    $Head,
@@ -2073,7 +2032,6 @@ $expanded = [System.Text.RegularExpressions.Regex]::Replace(
         
         if ($script:TraceMode) { Write-Host "[CallBack] Processing placeholder:`n  {{ $body }}" -ForegroundColor Cyan }
 
-
         try {
             # 1) Parse the placeholder into Head + Pipeline (filters with args)
             $ph = Parse-Placeholder -InnerText $body
@@ -2088,7 +2046,6 @@ $expanded = [System.Text.RegularExpressions.Regex]::Replace(
             if ($null -eq $headValue) {
                 throw "Head '$($ph.Head)' resolved to null."
             }
-
 
             if ($script:TraceMode) {
                 Write-Host "  [CallBack] Unfiltered value:`n  $headValue" -ForegroundColor DarkCyan
@@ -2124,7 +2081,6 @@ $expanded = [System.Text.RegularExpressions.Regex]::Replace(
     }
 
 )
-
 } else {
     $expanded = Expand-PlaceholdersStreaming -Text $tplText -Variables $VARS
 }
