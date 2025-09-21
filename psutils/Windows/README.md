@@ -1,6 +1,3 @@
- 
-
-
 
 # Windows Utility Scripts
   
