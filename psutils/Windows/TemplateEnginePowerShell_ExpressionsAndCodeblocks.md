@@ -372,10 +372,198 @@ Proposal for **initial implementation**:
 * The **runspace helpers** (`New-TemplateRunspace`, `Evaluate-RunspaceExpression`, `Invoke-RunspaceCode`),
 * Small, composable changes to the streaming callback to wire it all together.
 
+
+
 ---
 ---
 ---
 
+
+
+
+
+# Security Risks & Mitigations (Appendix to “Expressions & Code Blocks”)
+
+> **Purpose:** Identify realistic threats for a template engine that can evaluate expressions and run PowerShell code, and prescribe layered mitigations.
+> **Scope:** Applies to the proposed heads `expr:`, `exprps:`, `ps:` and to nested placeholders inside code. Also outlines **optional provenance controls** via file signing (catalogs / Authenticode).
+
+---
+
+### 1) Threat model (what we defend against)
+
+| Threat                               | Examples                                                                                                               |
+| ------------------------------------ | ---------------------------------------------------------------------------------------------------------------------- |
+| **Code injection via template data** | Attacker controls a `-Var` value or vars file entry that gets spliced into `{{ ps: … }}` or `{{ exprps: … }}` as code. |
+| **Abuse of “safe” expressions**      | Using disallowed constructs in `{{ expr: … }}` (methods, pipelines, `[Type]`), or abusing object formatting/getters.   |
+| **Runspace abuse in Full mode**      | `ps:` / `exprps:` executing destructive cmdlets or long-running workloads; importing modules that broaden surface.     |
+| **Resource exhaustion**              | Infinite loops, `Start-Sleep`, huge outputs causing memory pressure.                                                   |
+| **Untrusted inputs**                 | Templates or vars files modified in transit (supply-chain).                                                            |
+| **Path / environment abuse**         | Path traversal when building file paths; unexpected env var influence.                                                 |
+
+**Non-goals:** Preventing a fully trusted template author from writing harmful code on purpose. (We still constrain it by sandbox, timeouts, output caps.)
+
+---
+
+### 2) Security posture (layered)
+
+1. **Mode gating (coarse):**
+   `-ExpressionMode Disabled|Safe|Full` (default **Disabled**).
+
+   * **Disabled:** no `expr:`/`exprps:`/`ps:`.
+   * **Safe:** only `expr:` (no runspace; AST-allow-list).
+   * **Full:** `expr:` + `exprps:` + `ps:` (shared sandboxed runspace).
+
+2. **Data → code boundary (fine):**
+   Nested placeholders inside `ps:`/`exprps:` **must** render **single, valid PS tokens**:
+
+   * Use **tokenizing filters**: `psstring`, `asint`, `asdouble`, `asbool`, `psarray`, `pshashtable`, `psident`.
+   * **Verifier** checks each injected piece is exactly **one** allowed token.
+   * In **Strict** mode, require an explicit tokenizing filter; otherwise default to `psstring` (safe default).
+
+3. **Safe expressions (`expr:`):**
+   Evaluated without runspace; **AST allow-list** rejects pipelines, methods, types, scriptblocks, etc.
+   Optional `-ExprAllowRunspaceVars` (Full mode) lets `expr:` read runspace vars **only via a sanitized snapshot** (primitives / arrays / plain hashtables / PSCustomObject NoteProperties).
+
+4. **Runspace sandbox (Full mode):**
+
+   * Isolated runspace, no profiles, no auto-import.
+   * Optional minimal **allow-list** of modules/cmdlets (or default built-ins with caution).
+   * **Timeout** per block, **output cap**, optional working directory.
+   * Consider `LanguageMode = ConstrainedLanguage` where applicable (defense-in-depth).
+
+5. **Provenance (optional, strong):**
+
+   * `-SignaturePolicy Off|Warn|Require`, `-TrustedSignerThumbprint`, `-TrustedCatalogPath`.
+   * Catalogs for bulk verification; Authenticode for `.psd1`/`.ps1`.
+   * Optionally `-RequireSignedVarsFile` (forbid inline `-Var` when signatures enforced).
+
+---
+
+### 3) Risks & mitigations (mapping)
+
+| Risk                                            | Concrete example                       | Mitigations (mandatory → optional)                                                                                                             |                                                                                                                                   |
+| ----------------------------------------------- | -------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------- |
+| **Inline code injection** in `ps:`/`exprps:`    | \`{{ ps: \$n = {{ var.Max              | RAW }} }}`where`RAW = "1; Remove-Item C:"\`                                                                                                    | **Tokenizing filters** + **single-token verifier**; in **Strict** require explicit token filter; default **psstring** if omitted. |
+| **Breaking out of strings**                     | Name contains `' ; …`                  | `psstring` doubles single quotes → safe literal; verifier ensures one token.                                                                   |                                                                                                                                   |
+| **Dangerous constructs in `expr:`**             | `{{ expr: [IO.File]::Delete('C:\') }}` | **AST allow-list** blocks `[Type]`, methods, pipelines.                                                                                        |                                                                                                                                   |
+| **Object-side effects on stringify**            | Getter runs on ToString/property       | In **Safe** mode, `expr:` never sees runspace objects. In Full with `-ExprAllowRunspaceVars`, **sanitize** to primitives / simple shapes only. |                                                                                                                                   |
+| **Unbounded execution**                         | `Start-Sleep 999`, `while ($true) {}`  | **Timeout** per `ps:`/`exprps:`; stop pipeline & fail.                                                                                         |                                                                                                                                   |
+| **Huge outputs**                                | `Get-Content bigfile`                  | **Output cap** (e.g., 256 KB) → truncate with “… (truncated)”.                                                                                 |                                                                                                                                   |
+| **Module-based expansion of surface**           | `Import-Module ...`                    | Runspace with **no profiles**, optional module **allow-list** only.                                                                            |                                                                                                                                   |
+| **Path traversal / unsafe path building**       | `..\..\Windows\System32`               | Use path filters (`pathwin`/`pathunix`), **psstring**, consider optional **-AllowedOutputRoots** check.                                        |                                                                                                                                   |
+| **Supply-chain tampering**                      | Template altered post-release          | **Catalog/Authenticode**: `-SignaturePolicy Require`, thumbprint pinning, timestamping.                                                        |                                                                                                                                   |
+| **Inline `-Var` bypass** under signature policy | User passes unverified values          | Optional `-RequireSignedVarsFile` to **disallow inline `-Var`** when signatures enforced.                                                      |                                                                                                                                   |
+
+---
+
+### 4) Tokenizing filters (data-only injection)
+
+* `psstring` → `'text'` (single-quoted; `'` escaped → `''`)
+* `asint` / `asdouble` / `asbool` → validated numeric/bool literals (invariant culture)
+* `psident` → strict identifier (`[A-Za-z_][A-Za-z0-9_]*`)
+* `psarray` → `@('a','b')` (each element `psstring`)
+* `pshashtable` → `@{ 'k'='v' }` (keys/values `psstring`; optional support for `key=value` lines)
+
+**Policy:**
+
+* **Strict on:** every nested placeholder inside code **must** use a tokenizing filter; error if omitted.
+* **Strict off (default):** auto-apply `psstring` when omitted.
+
+**Verifier:**
+Each injected piece is parsed with the PS tokenizer and must become **exactly one** allowed token (StringLiteral / StringExpandable / Number / Variable (if you choose to permit via `psident`)). Otherwise fail with a clear error.
+
+---
+
+### 5) Safe expression (AST allow-list)
+
+**Allowed:** constants, `()`, unary/binary arithmetic & comparisons, arrays, indexing, **property access** (instance, non-static), `$vars` and `$env` (and **sanitized** `$a` etc. only if `-ExprAllowRunspaceVars`).
+
+**Disallowed:** method calls (`InvokeMemberExpressionAst`), `[Type]` (`TypeExpressionAst`), pipelines, scriptblocks, `;`, `&`, redirection, assignment.
+
+**Why:** Prevents side effects and code execution; keeps `expr:` deterministic and fast.
+
+**Optional:** With `-ExprAllowRunspaceVars`, build a sanitized map of runspace variables (primitives / arrays / plain hashtables / PSCustomObject NoteProperties), inject into the evaluator, still under the allow-list.
+
+---
+
+### 6) Runspace sandbox (Full mode)
+
+* **Isolation:** new runspace per expansion, **no** profiles, **no** auto-imported modules.
+  Optionally load a small, explicit module/cmdlet allow-list (e.g., `Microsoft.PowerShell.Utility`).
+* **Language mode:** `ConstrainedLanguage` where applicable (helps block some dynamic features).
+* **Timeouts & caps:** kill on overrun; cap output (truncate with note).
+* **Working directory:** default to template folder; optionally expose `-ExpressionWorkingDir`.
+* **Data injection:** only via nested placeholders → tokenizing filters → verifier (no `$vars` passed directly).
+
+---
+
+### 7) Provenance & integrity (optional but recommended)
+
+**CLI:**
+
+~~~
+-SignaturePolicy Off|Warn|Require
+-TrustedSignerThumbprint <string[]>
+-TrustedCatalogPath <path>
+-RequireSignedVarsFile
+~~~
+
+**Catalogs (preferred for sets of files):**
+Create with `New-FileCatalog` → sign with `Set-AuthenticodeSignature` → verify with `Test-FileCatalog` and signer thumbprint pinning.
+
+**Authenticode (per-file):**
+For `.psd1`/`.ps1` (and `.psm1`) use `Set-AuthenticodeSignature` / `Get-AuthenticodeSignature`.
+
+**Policy:**
+
+* **Require:** fail if unverified; forbid inline `-Var` if `-RequireSignedVarsFile` is used.
+* **Warn:** allow but log clear warnings.
+* **Off:** skip checks.
+
+**Operational notes:** time-stamp signatures; ensure CRL/OCSP reachability in locked-down environments; pin trusted signers explicitly.
+
+---
+
+### 8) Developer checklist
+
+**During implementation**
+
+* [ ] Add tokenizing filters + single-token verifier; integrate into `ps:`/`exprps:` nested expansion path.
+* [ ] Implement `expr:` AST allow-list with clear errors.
+* [ ] Create runspace with isolated `InitialSessionState`; add timeout & output cap.
+* [ ] Disallow filters after `ps:` (produce error).
+* [ ] Add `-ExpressionMode`, `-ExpressionTimeoutSeconds`, `-ExpressionMaxOutputKB`, `-ExpressionWorkingDir`, `-ExprAllowRunspaceVars`.
+* [ ] Optional provenance flags & verification gate.
+
+**Tests (Pester)**
+
+* [ ] Injection attempts (`;`, `$(`, backticks) are blocked by verifier.
+* [ ] `expr:` rejects methods/types/pipelines; accepts arithmetic & property access.
+* [ ] `ps:` times out; output cap truncates; no filters allowed.
+* [ ] Nested placeholders require token filters under `-Strict` (or default to `psstring` otherwise).
+* [ ] Sanitization: `-ExprAllowRunspaceVars` denies complex objects; accepts primitives/arrays/simple hashes.
+* [ ] Provenance: enforce `-SignaturePolicy Require` with catalog & signer pinning; reject inline `-Var` under `-RequireSignedVarsFile`.
+
+---
+
+### 9) Author guidance (docs snippet)
+
+* Use `{{ expr: … }}` for quick math/string/lookup; **no code, no methods, no types**.
+* Use `{{ exprps: … }}` for full expressions that read variables set by `ps:`.
+* Use `{{ ps: … }}` for setup/side-effects; it **does not produce output**.
+* When injecting template data into `ps:`/`exprps:` bodies, **always use tokenizing filters** like `psstring`, `asint`, `psarray`.
+* Turn on **Strict** to require explicit token filters at injection points.
+* Prefer signed templates/vars in production; consider `-SignaturePolicy Require`.
+
+---
+
+### 10) Summary
+
+* **Runtime safety**: AST allow-list for `expr:`, sandboxed runspace for `ps:`/`exprps:`, enforced single-token injection with safe defaults.
+* **Provenance**: optional but strong—catalogs / Authenticode with signer pinning and timestamping.
+* **Defaults** keep existing templates unchanged; **Safe** mode is fast and side-effect-free; **Full** mode is powerful but controlled.
+
+This appendix complements the feature proposal with concrete, layered defenses so you can ship expressions and code blocks with confidence—and turn the dials tighter where needed.
 
 
 
