@@ -1262,4 +1262,79 @@ In **Strict** mode, authors must use one of the tokenizing filters for any neste
 
 If you want, I can help you **wire the nested-expansion pass** for `ps:`/`exprps:` in your current streaming callback (it’s \~20–30 lines), but the pieces above will drop in cleanly and give you the safety you need.
 
+---
+---
+
+## Dilemma: Whether to Allow Variables in Expressions
+
+Great question—and your intuition is mostly right. Letting `{{ expr: ... }}` read variables like `$a` **doesn’t add “new” capability beyond what `{{ ps: ... }}` already has** when you’re in **Full** mode. The real issue isn’t raw *power*, it’s the **guarantees** you want from the “safe” tier and how cleanly you can enforce them.
+
+Here’s the distilled take:
+
+### What actually changes if `expr:` can see `$a`?
+
+* **Security:** In Full mode you already permit `ps:`. So, *in principle*, `expr:` reading `$a` doesn’t expand the attack surface much.
+* **Safety guarantees:** The *safe tier* promise (“no side effects, deterministic, data-only”) can get fuzzy if `$a` can be **any object** whose **property getters** or **formatters** might run code when accessed/stringified.
+* **Complexity:** Your “safe” evaluator is simplest when it **doesn’t touch the PS runspace at all**. Reading `$a` couples it to runspace state (and to PS object behaviors).
+
+### A clean policy that keeps both power and safety
+
+I recommend this split:
+
+1. **ExpressionMode = Safe**
+   `expr:` **cannot** see `$a`. It only sees `vars`/`env` via your safe rules (or nested placeholders).
+   ➜ Preserves the strong “no runspace, no side effects” guarantee.
+
+2. **ExpressionMode = Full** (you already have `ps:`)
+   Offer an **opt-in** switch to allow runspace vars in `expr:`:
+
+   * `-ExprAllowRunspaceVars` (default **off**)
+   * When **on**, `expr:` may reference `$a` **but still under the AST allow-list** (no methods, no pipelines, no `[Type]`).
+   * To avoid accidental side effects via weird objects, don’t let `expr:` touch arbitrary PS objects. Instead, feed it a **sanitized snapshot** of runspace variables.
+
+#### “Sanitized snapshot” (keeps `expr:` safe even in Full)
+
+When evaluating `expr:` with `$a` access enabled:
+
+* Build a small hashtable `$safe` from the runspace just before evaluation:
+
+  * Allow **only primitives** (string, int, double, decimal, bool), **arrays of primitives**, and **hashtables of string→primitive**.
+  * For `PSCustomObject`, include **NoteProperty** values (skip **ScriptProperty** to avoid executing getters).
+  * **Reject** everything else (throw a clear error: “\$var type not allowed in expr”).
+* Evaluate `expr:` **against `$safe`**, not against the live runspace.
+  (Implementation-wise, inject `$a` etc. into the safe evaluator’s session from `$safe`, or interpret the AST and pull values from `$safe`.)
+
+This way, even if `ps:` created complex or dangerous objects, `expr:` only sees **plain data**.
+
+### Minimal ruleset (quick to implement, easy to explain)
+
+* **Safe mode**: `expr:` sees only `vars`/`env`. No `$a`.
+* **Full mode**:
+
+  * `ps:` unrestricted (with sandbox + timeout).
+  * `exprps:` unrestricted expression (with sandbox + timeout).
+  * `expr:`:
+
+    * Still uses the **AST allow-list** (no methods/pipelines/types).
+    * If `-ExprAllowRunspaceVars` **off** ⇒ no `$a`.
+    * If **on** ⇒ `$a` is available **only if** its value passes the **sanitizer** (primitive / arrays / plain hashtable / PSCustomObject NoteProperties). Otherwise error.
+
+#### Why this is the sweet spot
+
+* Keeps the **safe tier** truly predictable in Safe mode.
+* Lets advanced users enjoy the convenience of `$a` in expressions in Full mode **without** turning `expr:` into a backdoor for side effects.
+* Easy to document and test.
+
+### Tiny sketch (how you’d wire it)
+
+* At `expr:` evaluation time in Full mode:
+
+  1. If `-ExprAllowRunspaceVars`:
+
+     * Build `$safe` from the runspace (copy allowed variables & shapes).
+     * Inject `$safe` vars into the expression evaluator’s scope.
+  2. Enforce the same **AST allow-list** you already use (no methods, pipelines, `[Type]`).
+  3. Evaluate and stringify with invariant culture; apply filters.
+
+If you want, I can draft the `Get-SanitizedRunspaceVariables` helper (a dozen lines) and the tiny changes to your `Evaluate-SafeExpression` to accept an optional `$SafeVars` map.
 
