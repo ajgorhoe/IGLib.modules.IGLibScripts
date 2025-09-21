@@ -199,7 +199,7 @@ This avoids proliferating switches (`-EnableExpressions`, `-EnablePowerShellCode
 
 Use the parser, not regex. Rough shape:
 
-```powershell
+~~~powershell
 using namespace System.Management.Automation.Language
 
 function Test-IsSafeExprAst {
@@ -229,11 +229,11 @@ function Test-IsSafeExprAst {
     default { return $false }
   }
 }
-```
+~~~
 
 Evaluate like:
 
-```powershell
+~~~powershell
 $tokens = $null; $errors = $null
 $ast = [Parser]::ParseInput($exprText, [ref]$tokens, [ref]$errors)
 if ($errors.Count) { throw "Invalid expression: $($errors[0].Message)" }
@@ -248,7 +248,7 @@ $ps   = [PowerShell]::Create().AddScript($exprText).AddCommand('Out-String')
 $ps.Runspace = $rs
 $ps.AddArgument() | Out-Null
 $result = ($ps.Invoke() -join "") -replace '\r?\n$',''
-```
+~~~
 
 > Tip: for `expr:` you can keep it even simpler—**interpret** the AST yourself (arithmetic, string concat, var/env lookup). That’s the safest of all, just a bit more code.
 
@@ -450,7 +450,7 @@ Below are concrete suggestions to make this model predictable, safe, and easy to
 
 ##### Safe expression (AST allow-list outline)
 
-```powershell
+~~~powershell
 using namespace System.Management.Automation.Language
 
 function Test-IsSafeExprAst {
@@ -514,11 +514,11 @@ function Evaluate-SafeExpression {
   }
   return $result
 }
-```
+~~~
 
 ##### Runspace helpers (Full mode)
 
-```powershell
+~~~powershell
 ### Create once per expansion (when Mode=Full)
 function New-TemplateRunspace {
   param([hashtable]$Vars,[string]$WorkingDir)
@@ -552,7 +552,7 @@ function Invoke-RunspaceCode {
   [void]$ps.EndInvoke($async)   # discard output
   return ''                     # empty string into the template
 }
-```
+~~~
 
 ---
 
@@ -566,11 +566,11 @@ function Invoke-RunspaceCode {
 
 * **Shared context**
 
-  ```text
+  ~~~text
   {{ ps: $a = 1; $b = 2 }}
   {{ expr: $a + $b }}           # in Full mode, allowed to read runspace vars? (your choice)
   {{ exprps: $a + $b }}         # always allowed (Full)
-  ```
+  ~~~
 
 * **Filters behavior**
 
@@ -667,24 +667,24 @@ This is easy to communicate and avoids hairy ambiguities.
 
 * Create **one runspace per template** in Full mode. Every `ps:`/`exprps:` runs there. Variables you set persist:
 
-```text
+~~~text
 {{ ps: $pi = [Math]::PI; $a = [Math]::Sin( {{ var.AngleDeg | as:double }} * $pi / 180 ) }}
 The first number is {{ expr: 3 *  $a }}        # Safe expr can read $a? (see note)
 The second is {{ exprps: [Math]::Exp(3 * $a) }} # Always can, Full mode
-```
+~~~
 
 > **Choice:** keep `expr:` strictly “safe” and **not** allowed to reference `$a` (my recommendation). If you do want `expr:` to read runspace vars in Full mode, make it opt-in (e.g., `-ExpressionMode Full -ExprSafeAllowRunspaceVars`) and still validate AST tightly (no methods/pipelines/types).
 
 ### Injecting template data into code with filters
 
-```text
+~~~text
 {{ ps: 
     $name   = {{ var.UserName      | psstring }}
     $limit  = {{ var.MaxItems      | as:int   }}
     $base   = {{ var.BaseUrl       | psstring }}   # or | urlencode if building URIs inside the code
     $folder = {{ var.OutputFolder  | pathwin | psstring }}
 }}
-```
+~~~
 
 This is readable, explicit, and safe.
 
@@ -756,17 +756,17 @@ This is readable, explicit, and safe.
 
 * **Nested injection works:**
 
-  ```text
+  ~~~text
   {{ ps: $x = {{ var.A | as:int }} }}
   {{ exprps: $x + 1 }}  → "6"  (if A=5)
-  ```
+  ~~~
 
 * **Implicit `psstring`:**
 
-  ```text
+  ~~~text
   {{ ps: $s = {{ var.Str }} }}       # if no psstring supplied, becomes 'Str' safely
   {{ exprps: $s }}  → original text (quotes preserved as needed)
-  ```
+  ~~~
 
 * **Strict requires token filters:**
 
@@ -790,13 +790,13 @@ Here’s a practical way to keep your “nested placeholders in code” design w
 
 If a value from `-Var` (or a vars file) is injected raw into a `{{ ps: ... }}` / `{{ exprps: ... }}` body, a malicious user who can influence that value could smuggle in **extra tokens**:
 
-```text
+~~~text
 ### Intended
 {{ ps: $limit = {{ var.MaxItems }} }}
 
 ### If var.MaxItems = "10; Remove-Item -Recurse C:\"
 ### Resulting code executes both assignments and Remove-Item. Yikes.
-```
+~~~
 
 Even with quotes, if you forget to quote correctly or allow interpolation, attackers can break out with `$(...)` or close the string and continue code.
 
@@ -882,7 +882,7 @@ The above prevents template-data injection, but people can still write dangerous
 
 ##### Example (safe by default)
 
-```text
+~~~text
 {{ ps:
   $name   = {{ var.UserName }}               # becomes 'Alice A.'
   $limit  = {{ var.MaxItems | as:int   }}    # becomes 42
@@ -890,17 +890,17 @@ The above prevents template-data injection, but people can still write dangerous
 }}
 
 The year is {{ exprps: (Get-Date).Year }}.
-```
+~~~
 
 Even if `UserName` contains malicious text, it’s just a string literal in code.
 
 ##### Example (blocked)
 
-```text
+~~~text
 {{ ps: $x = {{ var.Raw }} }}
 ### If Raw = "1; Remove-Item -Recurse C:\", verification sees that the
 ### injected text would span multiple tokens (NumberToken ';' Identifier...), so it fails.
-```
+~~~
 
 ### Extra safety: “taint tracking” (optional)
 
@@ -921,7 +921,7 @@ Implementation can be a side map `{ name -> tainted? }` or a wrapper object; you
 
 ### Tiny code sketch for verification
 
-```powershell
+~~~powershell
 using namespace System.Management.Automation.Language
 
 function Test-InjectionIsSingleToken {
@@ -953,7 +953,7 @@ function Test-InjectionIsSingleToken {
   }
   return $true
 }
-```
+~~~
 
 *(In practice you won’t literally `-replace` the rendered value; you’ll insert sentinels at the locations where nested placeholders were, then associate them with the to-be-inserted rendered tokens.)*
 
@@ -987,7 +987,7 @@ Awesome—here are the **ready-to-paste implementations** you asked for:
 
 Paste these **once** (near your other helper functions):
 
-```powershell
+~~~powershell
 ### region --- PS token helpers ---
 
 function ConvertTo-PSStringLiteral {
@@ -1095,7 +1095,7 @@ function ConvertTo-PSHashtableLiteral {
 }
 
 ### endregion
-```
+~~~
 
 ---
 
@@ -1104,7 +1104,7 @@ function ConvertTo-PSHashtableLiteral {
 Find your `Apply-Filters` function’s `switch ($filterName)` and add these **cases**
 (keep the style consistent with your file; `continue` assumes you loop filters left→right):
 
-```powershell
+~~~powershell
 ### --- Tokenizing filters for PS code injection safety ---
 
 'psstring' {
@@ -1145,7 +1145,7 @@ Find your `Apply-Filters` function’s `switch ($filterName)` and add these **ca
   $val = ConvertTo-PSHashtableLiteral $val
   continue
 }
-```
+~~~
 
 > ✅ With just this, template authors can write `{{ var.Name | psstring }}`, `{{ var.N | asint }}`, etc., and be sure what lands in code is a **single, safe PS token**.
 
@@ -1155,7 +1155,7 @@ Find your `Apply-Filters` function’s `switch ($filterName)` and add these **ca
 
 Paste this anywhere (e.g., near helpers). Use it when you expand **nested** placeholders for `ps:`/`exprps:` bodies.
 
-```powershell
+~~~powershell
 using namespace System.Management.Automation.Language
 
 function Test-IsSingleAllowedPSToken {
@@ -1176,7 +1176,7 @@ function Test-IsSingleAllowedPSToken {
   if ($meaningful.Count -ne 1) { return $false }
   return ($meaningful[0].Kind -in $AllowedTokenKinds)
 }
-```
+~~~
 
 ---
 
@@ -1184,7 +1184,7 @@ function Test-IsSingleAllowedPSToken {
 
 You said you’ll allow **one level** of nesting **inside** `{{ ps: ... }}` and `{{ exprps: ... }}` bodies. Here’s a small, **self-contained** helper you can call *after* you extract the code **body** and run one nested expansion pass:
 
-```powershell
+~~~powershell
 function Normalize-And-Validate-NestedTokens {
   [CmdletBinding()]
   param(
@@ -1208,7 +1208,7 @@ function Normalize-And-Validate-NestedTokens {
   # Non-strict path: fallback to a single-quoted PS string literal
   return ConvertTo-PSStringLiteral $CodeAfterNested
 }
-```
+~~~
 
 ##### Where to call it
 
@@ -1218,9 +1218,9 @@ Inside your **`ps:` / `exprps:`** handler:
 2. Run a **one-level nested expansion** on `body` (allowing `var`, `env`, `expr`—and **not** `ps`).
 3. **Normalize/validate** the result:
 
-   ```powershell
+   ~~~powershell
    $codeSafe = Normalize-And-Validate-NestedTokens -CodeAfterNested $nestedExpanded -StrictInjection:$Strict
-   ```
+   ~~~
 4. Execute:
 
    * `ps:` → run `$codeSafe` in your shared runspace, **discard** output (empty string to template).
@@ -1232,7 +1232,7 @@ Inside your **`ps:` / `exprps:`** handler:
 
 #### Examples (what users can do now)
 
-```text
+~~~text
 ### Strings and numbers are safe:
 {{ ps: $name = {{ var.UserName | psstring }} }}
 {{ ps: $limit = {{ var.MaxItems  | asint    }} }}
@@ -1246,7 +1246,7 @@ Inside your **`ps:` / `exprps:`** handler:
 
 ### Using expr (safe mini-language), still independent of PS runspace:
 {{ expr: 1 + 2 + 3 }}
-```
+~~~
 
 In **Strict** mode, authors must use one of the tokenizing filters for any nested placeholder inside `ps:`/`exprps:`. Otherwise, your default can be to auto-quote with `psstring` (safer default).
 
@@ -1337,4 +1337,157 @@ This way, even if `ps:` created complex or dangerous objects, `expr:` only sees 
   3. Evaluate and stringify with invariant culture; apply filters.
 
 If you want, I can draft the `Get-SanitizedRunspaceVariables` helper (a dozen lines) and the tiny changes to your `Evaluate-SafeExpression` to accept an optional `$SafeVars` map.
+
+---
+---
+---
+
+## Possibility of signing template files
+
+Signing is a great complement to the runtime safeguards. It solves a different problem (authenticity/integrity of inputs) and layers nicely with your AST/timeout/tokenization defenses (which cover runtime behavior).
+
+Below is a compact plan we can adopt.
+
+## What signing gives you (and what it doesn’t)
+
+* **Gives:** assurance that a template/vars file hasn’t been altered and was authored by a trusted signer.
+* **Doesn’t give:** runtime safety. A signed file can still do dangerous things if allowed; you still need your **Safe/Full** split, AST allow-list, tokenizing filters, timeouts, etc.
+
+## Suggested policy knobs
+
+Add to CLI:
+
+* `-SignaturePolicy Off|Warn|Require` (default **Off**)
+* `-TrustedSignerThumbprint <string[]>` (pin to specific code-signing certs)
+* `-TrustedCatalogPath <path>` (signed catalog for a set of files)
+* (optional) `-RequireSignedVarsFile` (disallow inline `-Var` when enforcing signatures)
+
+Enforcement order (stop at first failure):
+
+1. Verify **catalog** if provided (best for many files).
+2. Else verify **individual signatures** (Authenticode) for signed file types.
+3. Else (if **Require**) fail; if **Warn**, log a warning; if **Off**, proceed.
+
+## Practical ways to sign & verify
+
+### A) File Catalog (recommended for template + vars sets)
+
+**Create once (build step):**
+
+~~~powershell
+## 1) Create catalog with SHA-256 hashes for your files
+$files = @(
+  'TemplateA.tmpl','TemplateB.tmpl',
+  'vars.prod.psd1','vars.dev.psd1'
+)
+New-FileCatalog -Path (Get-Location) `
+  -CatalogFilePath .\templates.cat `
+  -FilesToCatalog $files `
+  -CatalogVersion 2.0
+
+## 2) Sign the catalog with a code-signing cert
+$cert = Get-ChildItem Cert:\CurrentUser\My | Where-Object { $_.EnhancedKeyUsageList.FriendlyName -contains 'Code Signing' } | Select-Object -First 1
+Set-AuthenticodeSignature -FilePath .\templates.cat -Certificate $cert -TimestampServer http://timestamp.server.example
+~~~
+
+**Verify at runtime:**
+
+~~~powershell
+function Test-TrustedCatalog {
+  param([string]$CatalogPath,[string]$RootDir,[string[]]$Files,[string[]]$TrustedThumbprints)
+
+  # Check the catalog’s signature
+  $sig = Get-AuthenticodeSignature -FilePath $CatalogPath
+  if ($sig.Status -ne 'Valid' -or ($TrustedThumbprints -and $sig.SignerCertificate.Thumbprint -notin $TrustedThumbprints)) {
+    throw "Catalog signature invalid or signer not trusted."
+  }
+
+  # Verify that each file matches the catalog (integrity)
+  $res = Test-FileCatalog -CatalogFilePath $CatalogPath -Path $RootDir
+  foreach ($f in $Files) {
+    $entry = $res.Files | Where-Object { $_.Path -ieq (Join-Path $RootDir $f) }
+    if (-not $entry) { throw "File '$f' not present in catalog." }
+    if ($entry.Status -ne 'HashMatches') { throw "File '$f' hash mismatch (status: $($entry.Status))." }
+  }
+}
+~~~
+
+**When to use:** you ship multiple templates/vars; you want one thing to verify them all quickly and strongly.
+
+### B) Authenticode on individual files
+
+Works great for **PowerShell file types** (`.ps1`, `.psm1`, `.psd1`). It appends a signature block.
+
+**Sign:**
+
+~~~powershell
+$cert = Get-ChildItem Cert:\CurrentUser\My | Where-Object { $_.EnhancedKeyUsageList.FriendlyName -contains 'Code Signing' } | Select-Object -First 1
+Set-AuthenticodeSignature -FilePath .\vars.prod.psd1 -Certificate $cert -TimestampServer http://timestamp.server.example
+~~~
+
+**Verify:**
+
+~~~powershell
+function Test-TrustedFileSignature {
+  param([string]$Path,[string[]]$TrustedThumbprints)
+  $sig = Get-AuthenticodeSignature -FilePath $Path
+  if ($sig.Status -ne 'Valid') { throw "Signature invalid on '$Path' ($($sig.StatusMessage))." }
+  if ($TrustedThumbprints -and $sig.SignerCertificate.Thumbprint -notin $TrustedThumbprints) {
+    throw "Signer not trusted for '$Path'."
+  }
+}
+~~~
+
+**When to use:** your vars are `.psd1` (ideal), or you want to sign the script/module itself.
+
+### C) Signed manifest (fallback for arbitrary data files)
+
+If you have non-PS data (e.g., `.json`, `.tmpl`) and don’t want catalogs:
+
+1. Generate a manifest file (e.g., `manifest.psd1`) listing **SHA-256** for each file.
+2. **Sign the manifest** with Authenticode.
+3. At runtime: verify the manifest signature, then compare `Get-FileHash` for each listed file.
+
+This is simple and works everywhere.
+
+## How to wire this into your engine
+
+1. **Add parameters** (`-SignaturePolicy`, `-TrustedSignerThumbprint`, `-TrustedCatalogPath`, `-RequireSignedVarsFile`).
+2. **At startup**:
+
+   * If `TrustedCatalogPath` provided → call `Test-TrustedCatalog` for *the specific files* you’re about to read: the `-Template` file and any `-VarsFile`.
+   * Else if `SignaturePolicy` is `Require`:
+
+     * If file is `.psd1` (or `.ps1/.psm1`) → `Test-TrustedFileSignature`.
+     * Else → require presence of a **signed manifest** or **catalog**; if none, fail.
+   * If `SignaturePolicy` is `Warn` and verification can’t be done → emit a clear warning and continue.
+3. **Optionally** block inline `-Var` when signatures are required:
+
+   * If `-RequireSignedVarsFile` and `-Var` has values → error: “Inline `-Var` not allowed when signature enforcement is on. Use a signed `-VarsFile`.”
+
+## Recommended defaults
+
+* Keep default `-SignaturePolicy Off` (back-compat).
+* In CI/CD or prod runs, use:
+
+  * `-SignaturePolicy Require`
+  * `-TrustedSignerThumbprint @('<thumbprint1>','<thumbprint2>')`
+  * `-TrustedCatalogPath .\templates.cat`
+  * `-RequireSignedVarsFile`
+
+## Edge cases & notes
+
+* **Environment variables** can’t be signed. Treat them as untrusted; your **tokenizing filters + injection verifier** already mitigate code-injection paths in `ps:`/`exprps:`.
+* **Revocation checks:** `Get-AuthenticodeSignature` uses Windows trust policy (WinVerifyTrust). In locked-down hosts, ensure network access to OCSP/CRL or time-stamp your signatures so they remain valid after cert expiration.
+* **Timestamping:** always time-stamp catalog and file signatures to preserve validity post-expiry.
+* **Self-signed certs (dev):** allow via explicit thumbprint pinning only; do not allow arbitrary untrusted signatures.
+
+## Putting it all together (flow)
+
+1. **Verify provenance** (signatures/catalog) for `-Template`, `-VarsFile` (per policy).
+2. **Load vars** (reject inline `-Var` if required).
+3. **Expand template** with your **Safe/Full** execution rules (AST allow-list, tokenizing filters, timeout/output caps, shared runspace only in Full).
+4. **Write output**.
+
+This layered approach gives you **authenticity/integrity** (signing) *and* **runtime safety** (execution controls).
 
