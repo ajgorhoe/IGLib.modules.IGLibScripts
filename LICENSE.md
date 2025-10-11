@@ -5,7 +5,7 @@ All rights reserved. This work is licensed to under the [Common Development and 
 
 ---
 
-# Common Development and Distribution License a.0 (CDDL-1.0)
+# Common Development and Distribution License 1.0 (CDDL-1.0)
 
 -   **1\. Definitions.**
 -   -   **1.1. Contributor** means each individual or entity that creates or contributes to the creation of Modifications.
