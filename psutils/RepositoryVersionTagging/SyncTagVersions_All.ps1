@@ -87,9 +87,22 @@ if ($RepoDirs -and $RepoDirs.Count -gt 0) {
 $RelativeSyncScriptPath = "./SyncTagVersions.ps1"  # relative to this script
 
 $InitialRepoDirs = @(
+  # IGLib Core repositories:
   "../../IGLibCore",
-  "../../IGLibEventAggregator/",
-  "../../IGLibScripts"
+  "../../IGLibGraphics3D",
+  "../../IGLibScripting",
+  "../../IGLibScriptingCs",
+  "../../IGLibSandbox",
+  "../../IGLibScripts",
+  "../../IGLibEventAggregator",
+  # IGLib Framework repositories (legacy):
+  "../../iglib",
+  "../../iglibexternal",
+  "../../igsolutions",
+  "../../shelldev",
+  "../../unittests",
+  "../../igsandbox",
+  "../../iglibapp"
 )
 
 [bool] $IsDryRun = $DryRun.IsPresent
