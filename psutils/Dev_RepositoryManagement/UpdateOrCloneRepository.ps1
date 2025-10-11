@@ -1,13 +1,13 @@
+
+# Copyright © Igor Grešovnik.
+# Part of IGLib: https://github.com/ajgorhoe/IGLib.modules.IGLibScripts
+# License:
+# https://github.com/ajgorhoe/IGLib.modules.IGLibScripts/blob/main/LICENSE.md
+
 <#
 .SYNOPSIS
     Script file for updating or cloning a Git repository.
     Contains the UpdateOrCloneRepository function and helper routines.
-
-.NOTES
-    Copyright © Igor Grešovnik.
-    Part of IGLib: https://github.com/ajgorhoe/IGLib.modules.IGLibScripts
-	License:
-	https://github.com/ajgorhoe/IGLib.modules.IGLibScripts/blob/main/LICENSE.md
 
 .DESCRIPTION
     This script defines a function `UpdateOrCloneRepository` and various helper functions
