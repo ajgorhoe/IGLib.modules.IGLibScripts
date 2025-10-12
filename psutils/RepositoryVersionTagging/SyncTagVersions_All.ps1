@@ -86,28 +86,35 @@ if ($RepoDirs -and $RepoDirs.Count -gt 0) {
 
 $RelativeSyncScriptPath = "./SyncTagVersions.ps1"  # relative to this script
 
+$ModulesPath = "../../../"
+
 $InitialRepoDirs = @(
   # IGLib Core repositories:
-  "../../IGLibCore",
-  "../../IGLibGraphics3D",
-  "../../IGLibScripting",
-  "../../IGLibScriptingCs",
-  "../../IGLibSandbox",
-  "../../IGLibScripts",
-  "../../IGLibEventAggregator",
+  ($ModulesPath + "IGLibCore"),
+  ($ModulesPath + "IGLibGraphics3D"),
+  ($ModulesPath + "IGLibScripting"),
+  ($ModulesPath + "IGLibScriptingCs"),
+  ($ModulesPath + "IGLibSandbox"),
+  ($ModulesPath + "IGLibScripts"),
+  ($ModulesPath + "IGLibEventAggregator"),
   # IGLib Framework repositories (legacy):
-  "../../iglib",
-  "../../iglibexternal",
-  "../../igsolutions",
-  "../../shelldev",
-  "../../unittests",
-  "../../igsandbox",
-  "../../iglibapp"
+  ($ModulesPath + "iglib"),
+  ($ModulesPath + "iglibexternal"),
+  ($ModulesPath + "igsolutions"),
+  ($ModulesPath + "shelldev"),
+  ($ModulesPath + "unittests"),
+  ($ModulesPath + "igsandbox"),
+  ($ModulesPath + "iglibapp"),
+  # Learning repos:
+  ($ModulesPath + "iglearn"),
+  ($ModulesPath + "iglearn/wiki.IGLib"),
+  ($ModulesPath + "iglearn/learn_sluzba"),
+  ($ModulesPath + "iglearn/learn_anka_igor")
 )
 
 [bool] $IsDryRun = $DryRun.IsPresent
 
-# Write-Host "`nNote: This wrapper currently forces -DryRun for safety; remove line below to allow real changes.`n" -ForegroundColor Yellow 
+# Write-Host "`nNote: This wrapper currently forces -DryRun for safety; comment to allow real changes.`n" -ForegroundColor Yellow 
 # $IsDryRun = $true  # FORCE dry-run (overrides parameter); remove to allow real changes
 
 # The base set of repos to always include:
