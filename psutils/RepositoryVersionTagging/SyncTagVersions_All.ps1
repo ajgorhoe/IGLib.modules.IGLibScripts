@@ -219,12 +219,12 @@ if ([string]::IsNullOrWhiteSpace($CustomTag)) {
 } else {
   Write-Host ("CustomTag: {0}" -f $CustomTag)
 }
-Write-Host ("IsDryrun: {0} " -f $IsDryRun)
 if ([string]::IsNullOrWhiteSpace($CustomTagMessage)) {
   Write-Host "CustomTagMessage: <none>"
 } else {
   Write-Host ("CustomTagMessage: {0}" -f $CustomTagMessage)
 }
+Write-Host ("IsDryrun: {0} " -f $IsDryRun)
 Write-Host "=====================================" -ForegroundColor Cyan
 
 # Splat params to the sync script

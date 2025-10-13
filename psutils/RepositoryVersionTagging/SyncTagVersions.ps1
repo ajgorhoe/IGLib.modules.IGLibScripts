@@ -63,6 +63,12 @@
   occurred, final tag becomes X.Y.Z-<label>.1. Allowed chars: [0-9A-Za-z-.].
   Ignored if no bump occurs.
 
+.PARAMETER CustomTag
+  Optional custom tag to be created and pushed beside the calculated version tag.
+
+.PARAMETER CustomTagMessage
+  Message for the custom tag. If not specified, a default message is used.
+
 .PARAMETER DryRun
   If set, performs all operations except actually creating or pushing tags.
 
@@ -537,7 +543,7 @@ if (-not [string]::IsNullOrWhiteSpace($PreReleaseLabel)) { $preText = $PreReleas
 Write-Host ("PreReleaseLabel: {0}" -f $preText)
 if (-not [string]::IsNullOrWhiteSpace($CustomTag)) {
     if ([string]::IsNullOrWhiteSpace($CustomTagMessage)) {
-        $CustomTagMessage = $CustomTag
+        $CustomTagMessage = "Tag '${CustomTag}', synchronized alongside version tag"
     }
     Write-Host ("CustomTag: {0}" -f $CustomTag)
     Write-Host ("CustomTagMessage: {0}" -f $CustomTagMessage)
