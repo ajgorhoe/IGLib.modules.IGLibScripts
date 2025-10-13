@@ -86,6 +86,7 @@ if ($RepoDirs -and $RepoDirs.Count -gt 0) {
 
 $RelativeSyncScriptPath = "./SyncTagVersions.ps1"  # relative to this script
 
+# Relative path to the base directory containing repositories to tag:
 $ModulesPath = "../../../"
 
 $InitialRepoDirs = @(
