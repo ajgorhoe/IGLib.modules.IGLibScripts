@@ -1,22 +1,26 @@
+
+# Configuration file for the GitVersion tool.
+
+# This is the original version of GitVersion.yml. It does not increment main
+# version on every commit, increments minor version on dev branch after
+# branching off main and adds `beta` suffix plus numbe r to versions on the
+# develop branch, and versions other branches similarly.
+# 
+# * Commits on main produce versions like 1.2.3.
+# * Commits on develop produce pre-releases like 1.3.0-beta.4.
+# * You can tune increment rules per branch, or add feature/* branches to get 1.3.0-feature.mybranch.1.
+
 mode: ContinuousDeployment
 workflow: GitHubFlow/v1
-strategies:
-# This enables incrementing the patch number on main branch with each commit:
-# - ConfiguredNextVersion
-- Mainline
 branches:
-  # Configuration for main branch:
   main:
-    # Match either "main" or "master" at main branch
     regex: ^master$|^main$
     label: ''
-    # Patch number increases with new commits on the main branch
     increment: Patch
     is-release-branch: true
     is-main-branch: true
   develop:
     regex: ^develop$
-    # Add the "beta" + increemented number suffix on develop branch:
     label: beta
     increment: Minor
 ignore:
