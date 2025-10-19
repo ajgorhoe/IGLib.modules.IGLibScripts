@@ -437,7 +437,7 @@ function Invoke-RepoSecondPass {
         }
         Write-Host ("    [{0}] pushing tag '{1}' to origin ..." -f $result.RepoName, $tag) -ForegroundColor Green
         # Execute: git push origin "$tag"
-        $r = Invoke-Native git @('push', 'origin')
+        $r = Invoke-Native git @('push', 'origin', "$tag")
         if ($r.ExitCode -ne 0) {
           $result.Error = "Failed to push tag '$tag' to origin."
           Write-ErrorReport "    ERROR pushing tag: $result.Error "
